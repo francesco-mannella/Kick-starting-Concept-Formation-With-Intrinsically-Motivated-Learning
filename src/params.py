@@ -1,0 +1,52 @@
+import numpy as np
+task_space = {"xlim": [-10, 50], "ylim": [-10, 50]}
+stime = 200
+
+esn_tau = 5.0
+esn_alpha = 0.2
+esn_epsilon = 1.0e-30
+
+arm_input = 2
+arm_hidden = 100
+arm_output = 3
+grip_input = 44 
+grip_hidden = 100
+grip_output = 5
+
+internal_size = 100
+visual_size = 300
+somatosensory_size = 40
+proprioception_size = 5
+policy_size = 100 * 5
+num_objects = 4
+
+v_eradial_prop = 0.1
+ss_eradial_prop = 0.1
+p_eradial_prop = 0.1
+a_eradial_prop = 0.1
+
+base_match_sigma = 1
+match_sigma = 3
+base_internal_sigma = 1
+internal_sigma = 3
+base_lr = 0.05
+stm_lr = 0.4
+policy_base = np.pi*0.25
+explore_sigma = 8
+
+match_th = 0.2
+match_incr_th = 0.05
+predict_lr = 0.005
+reach_grip_prop = 0.1
+
+predict_ampl = 2
+predict_base_ampl = 2
+predict_ampl_prop = 0.95
+
+epochs = 300
+pretest_epochs = -1
+batch_size = 24
+tests = 12
+epochs_to_test = 10
+load_weights = False
+shuffle_weights = False
