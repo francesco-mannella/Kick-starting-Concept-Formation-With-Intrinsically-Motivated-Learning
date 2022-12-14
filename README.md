@@ -7,14 +7,14 @@ This code implements a simulated agent in 2D environment with [box2d](https://bo
 
 ## Prerequisites
 
-The code relies on [tensorflow](https://www.tensorflow.org), although it can be run also without the gpu enhancement
+The code relies on [tensorflow](https://www.tensorflow.org), although it can be run also without the gpu enhancement.
 Other required libraries are:
   * gym
   * box2d
   
 ## Run simulations
 
-To start a simulation copy the src folder and run [SMMain.py](https://github.com/francesco-mannella/Kick-starting-Concept-Formation-With-Intrinsically-Motivated-Learning/blob/main/src/SMMain.py) form the copied folder. 
+To start a simulation copy the **src** folder and run [SMMain.py](https://github.com/francesco-mannella/Kick-starting-Concept-Formation-With-Intrinsically-Motivated-Learning/blob/main/src/SMMain.py) form the copied folder. 
 
         python SMMain.py -h
         usage: SMMain.py [-h] [-t TIME] [-g] [-s SEED] [-x]
@@ -32,7 +32,7 @@ Example:
   
         python SMMain.py -s 1000 -t 14400 -g -x  
 
-runs a simulation lasting 4 hours with graphics swithed on and using the gpu. I the simulation did not end witihn the required time all data are recorded in the folder and the simulation can be restarted from the current time just by running again the script. 
+runs a simulation lasting 4 hours with graphics swithed on and using the gpu. If the simulation does not end in the required time, all data are recorded in the folder and the simulation can be restarted from the current time just by running again the script. 
             
 ## License
 
