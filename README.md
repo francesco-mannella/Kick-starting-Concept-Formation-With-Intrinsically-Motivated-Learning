@@ -14,7 +14,7 @@ Other required libraries are:
   
 ## Run simulations
 
-To start a simulation run [SMMain.py](https://github.com/francesco-mannella/Kick-starting-Concept-Formation-With-Intrinsically-Motivated-Learning/blob/main/src/SMMain.py) . 
+To start a simulation copy the src folder and run [SMMain.py](https://github.com/francesco-mannella/Kick-starting-Concept-Formation-With-Intrinsically-Motivated-Learning/blob/main/src/SMMain.py) form the copied folder. 
 
         python SMMain.py -h
         usage: SMMain.py [-h] [-t TIME] [-g] [-s SEED] [-x]
@@ -26,7 +26,7 @@ To start a simulation run [SMMain.py](https://github.com/francesco-mannella/Kick
           -s SEED, --seed SEED  Simulation seed
           -x, --plots           Plot graphs
 
-All parameters for a simulation (included the number of epochs to be run) are described in [SMMain.py](https://github.com/francesco-mannella/Kick-starting-Concept-Formation-With-Intrinsically-Motivated-Learning/blob/main/src/params.py). 
+All parameters for a simulation (included the number of epochs to be run) are described in [SMMain.py](https://github.com/francesco-mannella/Kick-starting-Concept-Formation-With-Intrinsically-Motivated-Learning/blob/main/src/params.py). Modify the **params.py** file in the copied **src** folder if you need to tweek the parameters of a simulation. 
 
 Example:
   
