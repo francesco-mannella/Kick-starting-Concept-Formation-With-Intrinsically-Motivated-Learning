@@ -16,6 +16,17 @@ The code relies on [tensorflow](https://www.tensorflow.org), although it can be 
 Other required libraries are:
   * gym
   * box2d
+
+## Install
+
+You must first install the box2dsim packege to run the simultor:
+
+        pip install -e tools/box2dsim
+
+You also must decompress the data archive in the source folder
+
+        cd src
+        tar xzvf data.tar.gz
   
 ## Run simulations
 

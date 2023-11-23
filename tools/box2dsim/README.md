@@ -8,14 +8,7 @@ A simple [gym](http://gym.openai.com/) environment using [pybox2d](https://githu
 
 ## Install
 
-1. Download de Box2DSim repo:
-
-       git clone https://github.com/GOAL-Robots/CNR_170608_SOURCE_box2d_simulation.git
-
-2. Install the Box2Dsim package:
-
-       cd CNR_170608_SOURCE_box2d_simulation
-       pip install -e .
+    pip install -e .
 
 ## Basic usage
 
