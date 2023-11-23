@@ -1,6 +1,49 @@
 from . import JsonToPyBox2D as json2d
 from .PID import PID
 import time, sys, os, glob
+from Box2D import b2ContactListener
+from .mkvideo import vidManager
+from matplotlib.path import Path
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+from matplotlib.collections import PatchCollection
+from PIL import Image
+
+class ContactListener(b2ContactListener):
+    def __init__(self, bodies):
+        b2ContactListener.__init__(self)
+        self.contact_db = {}
+        self.bodies = bodies
+
+        for h in bodies.keys():
+            for k in bodies.keys():
+                self.contact_db[(h, k)]= 0
+
+    def BeginContact(self, contact):
+        for name, body in self.bodies.items():
+            if body == contact.fixtureA.body:
+                bodyA = name
+            elif body == contact.fixtureB.body:
+                bodyB = name
+            
+        self.contact_db[(bodyA, bodyB)] = len(contact.manifold.points)
+
+    def EndContact(self, contact):
+        for name, body in self.bodies.items():
+            if body == contact.fixtureA.body:
+                bodyA = name
+            elif body == contact.fixtureB.body:
+                bodyB = name
+            
+        self.contact_db[(bodyA, bodyB)] = 0
+
+    def PreSolve(self, contact, oldManifold):
+        pass
+
+    def PostSolve(self, contact, impulse):
+        pass
+
 
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
@@ -12,7 +55,6 @@ class  Box2DSim(object):
     def loadWorldJson(world_file):
         jsw = json2d.load_json_data(world_file)
         return jsw
-
 
     def __init__(self, world_file=None, world_dict=None, dt=1/80.0, vel_iters=30, pos_iters=2):
         """
@@ -29,14 +71,19 @@ class  Box2DSim(object):
             world, bodies, joints = json2d.createWorldFromJson(world_file)
         else:
             world, bodies, joints = json2d.createWorldFromJsonObj(world_dict)
+
+        self.contact_listener = ContactListener(bodies)
+        
         self.dt = dt
         self.vel_iters = vel_iters
         self.pos_iters = pos_iters
         self.world = world
+        self.world.contactListener = self.contact_listener
         self.bodies = bodies
         self.joints = joints
         self.joint_pids = { ("%s" % k): PID(dt=self.dt)
                 for k in list(self.joints.keys()) }
+
 
     def contacts(self, bodyA, bodyB):
         """ Read contacts between two parts of the simulation
@@ -50,13 +97,15 @@ class  Box2DSim(object):
 
             (int): number of contacts
         """
+        c1 = 0
+        c2 = 0
+        db =  self.contact_listener.contact_db 
+        if (bodyA, bodyB) in db.keys(): 
+            c1 = self.contact_listener.contact_db[(bodyA, bodyB)]
+        if (bodyB, bodyA) in db.keys(): 
+            c2 = self.contact_listener.contact_db[(bodyB, bodyA)]
 
-        contacts = 0
-        for ce in self.bodies[bodyA].contacts:
-            if ce.contact.touching is True:
-                if ce.contact.fixtureB.body  == self.bodies[bodyB]:
-                    contacts += len(ce.contact.manifold.points)
-        return contacts
+        return c1 + c2
 
     def move(self, joint_name, angle):
         """ change the angle of a joint
@@ -82,7 +131,6 @@ class  Box2DSim(object):
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
-from matplotlib.path import Path
 
 class VisualSensor:
     """ Compute the retina state at each ste of simulation
@@ -155,10 +203,20 @@ class VisualSensor:
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon
-from matplotlib.collections import PatchCollection
+def merge_frames(frame1, frame2, alphacolor=(255,255,255,255)):
+
+    frame1.putalpha(255)
+    pixdata = np.asarray(frame1).copy()
+    frame1 = Image.fromarray(pixdata)
+
+    frame2.putalpha(255)
+    pixdata = np.asarray(frame2).copy()
+    whites = np.all(pixdata == np.reshape(alphacolor, (1, 1, -1)), axis=-1)
+    pixdata[whites] = 0
+    frame2 = Image.fromarray(pixdata)
+
+    return Image.alpha_composite(frame1, frame2)
+
 
 class TestPlotter:
     """ Plotter of simulations
@@ -183,13 +241,20 @@ class TestPlotter:
             self.fig = plt.figure()
         else:
             self.fig = plt.figure(figsize=figsize)
+        
+        if self.offline:
+            self.vm = vidManager(self.fig, name="frame", duration=30)
 
         self.ax = None
 
         self.reset()
 
-    def close(self):
+    def close(self, name=None):
         plt.close(self.fig)
+        if self.offline and name is not None:
+            self.vm.mk_video(name=name, dirname=".")
+        self.vm = None
+
 
     def reset(self):
 
@@ -233,22 +298,49 @@ class TestPlotter:
             self.fig.canvas.flush_events()
             self.fig.canvas.draw()
         else:
-            if not os.path.exists("frames"):
-                os.makedirs("frames")
-
-            self.fig.savefig("frames/frame%06d.png" % self.ts, dpi=200)
             self.fig.canvas.draw()
+            self.vm.save_frame()
             self.ts += 1
+
+    def add_info_to_frames(self, info, thresh):
+        assert len(self.vm.frames) == len(info)
+
+        for i, (m, t) in enumerate(zip(info,thresh)):
+            if self.ax is not None:
+                plt.delaxes(self.ax)
+            self.ax = self.fig.add_subplot(111, aspect="equal")
+            self.ax.set_xlim(self.xlim)
+            self.ax.set_ylim(self.ylim)
+            self.ax.set_axis_off()
+            if t:
+                self.ax.scatter(
+                        self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
+                        self.ylim[0] + 0.8*(self.ylim[1] - self.ylim[0]),
+                            s = 1000*m, color="red" )
+            else:
+                self.ax.scatter(
+                        self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
+                        self.ylim[0] + 0.8*(self.ylim[1] - self.ylim[0]),
+                            s = 1000*m, color="white", edgecolor="red" )
+            self.fig.canvas.draw()
+
+            frame2 = Image.frombytes('RGB', 
+                    self.fig.canvas.get_width_height(), 
+                    self.fig.canvas.tostring_rgb())
+            
+            merged_frame = merge_frames(self.vm.frames[i], frame2)
+            self.vm.frames[i] = merged_frame
+
 
 class TestPlotterOneEye(TestPlotter):
     def __init__(self, *args, **kargs):
 
         super(TestPlotterOneEye, self).__init__(*args, **kargs)
-        self.eye_pos, = self.ax.plot(0, 0)
+        self.eye_pos, = self.ax.plot(0, 0, color="#888800")
 
     def reset(self):
         super(TestPlotterOneEye, self).reset()
-        self.eye_pos, = self.ax.plot(0, 0)
+        self.eye_pos, = self.ax.plot(0, 0, color="#888800")
 
     def onStep(self):
 
@@ -256,3 +348,67 @@ class TestPlotterOneEye(TestPlotter):
         x = pos[0] + np.array([-1, -1, 1,  1, -1])*self.env.fovea_height*0.5
         y = pos[1] + np.array([-1,  1, 1, -1, -1])*self.env.fovea_width*0.5
         self.eye_pos.set_data(x, y)
+
+
+
+class TestPlotterVisualSalience(TestPlotterOneEye):
+
+    def __init__(self, *args, **kargs):
+        figsize = kargs["figsize"]  
+
+        if figsize is None:
+            self.fig_vis = plt.figure()
+            self.fig_sal = plt.figure()
+        else:
+            self.fig_vis = plt.figure(figsize=figsize)
+            self.fig_sal = plt.figure(figsize=figsize)
+        
+        self.vm_vis = vidManager(self.fig_vis, name="frame", dirname="visframes",  duration=30)
+        self.vm_sal = vidManager(self.fig_sal, name="frame", dirname="salframes",   duration=30)
+        self.ax_vis = self.fig_vis.add_subplot(111, aspect="equal")
+        self.ax_sal = self.fig_sal.add_subplot(111, aspect="equal")
+        self.ax_vis.set_axis_off()
+        self.ax_sal.set_axis_off()
+        self.fig_vis.tight_layout(pad=0)
+        self.fig_sal.tight_layout(pad=0)
+
+
+        self.vis_img = self.ax_vis.imshow(np.ones([10, 10, 3]))
+        self.sal_img = self.ax_sal.imshow(np.ones([10, 10]), vmin=0, vmax=1, cmap=plt.cm.binary)
+        super(TestPlotterVisualSalience, self).__init__(*args, **kargs)
+
+   
+    def onStep(self):
+
+        super(TestPlotterVisualSalience, self).onStep()
+       
+        if self.offline:
+
+            vis = self.env.observation["VISUAL_SENSORS"]
+            sal = self.env.observation["VISUAL_SALIENCY"]
+            self.sal_img.set_clim(
+                    sal.min(),
+                    sal.max(),
+                    )
+
+            self.vis_img.set_array(vis)
+            self.sal_img.set_array(sal)
+
+            self.fig_vis.canvas.draw()
+            self.fig_sal.canvas.draw()
+            self.vm_vis.save_frame()
+            self.vm_sal.save_frame()
+    
+    def close(self, name=None):
+        super(TestPlotterVisualSalience, self).close(name)
+
+        plt.close(self.fig_vis)
+        plt.close(self.fig_sal)
+        if self.offline and name is not None:
+            self.vm_vis.mk_video(name=f"{name}_vis", dirname=".")
+            self.vm_sal.mk_video(name=f"{name}_sal", dirname=".")
+        self.vm_vis = None
+        self.vm_sal = None
+
+
+

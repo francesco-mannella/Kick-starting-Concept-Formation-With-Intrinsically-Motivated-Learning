@@ -8,7 +8,6 @@ import shutil
 
 env = gym.make('Box2DSimOneArmOneEye-v0')
 env.set_seed(10)
-env.set_taskspace([-10, 50], [-10, 50])
 stime = 100
 trials = 3
 
@@ -19,12 +18,12 @@ if random is True:
 else:
     actions = np.pi*np.array([
         [0.00,   0.00,  0.00,  0.00,  0.00],
-        [0.20,   -0.30, -0.20,  0.50 , 0.00],
-        [0.20,   -0.30, -0.30,  0.50 , 0.00],
-        [0.10,   -0.30, -0.30,  0.20 , 0.30],
-        [0.00,   -0.30, -0.30,  0.20 , 0.50],
-        [0.00,   -0.30, -0.30,  0.20 , 0.50],
-        [0.00,   -0.30, -0.30,  0.20 , 0.50],
+        [0.20,   -0.30, -0.20,  0.20 , 0.00],
+        [0.20,   -0.40, -0.30,  0.50 , 0.50],
+        [0.00,   -0.50, -0.30,  0.10 , 0.80],
+        [0.00,   -0.50, -0.0,  0.0 , 0.80],
+        [0.00,   -0.80, -0.0,  0.0 , 1.0],
+        [0.00,   -0.80, -0.0,  0.0 , 1.2],
         ])
 
 actions_interp = np.zeros([stime, 5])
@@ -45,31 +44,14 @@ fov = ax1.imshow(np.zeros([2, 2, 3]),vmin=0, vmax=1)
 ax1.set_axis_off()
 ax1.set_title("Fovea")
 
-#for q in range(4):
-#    for k in range(trials):
-#        env.set_world(q)
-#        env.reset()
-#        for t in range(stime):  
-#            env.render("offline")
-#            
-#            env.renderer.ax.set_title("%s object" % 
-#                    env.world_object_names[env.world_id][0].capitalize())
-#    
-#            action = actions_interp[t]
-#            observation,*_ = env.step(action)
-#            sal = observation["VISUAL_SALIENCY"]
-#                
-#            screen.set_array(sal/sal.max())
-#            fov.set_array(observation["VISUAL_SENSORS"])
-#            fig.savefig("frames/vsual%06d.png" % (env.renderer.ts - 1), dpi=200)
-#        shutil.copytree("frames", "%s_%d" %( env.world_object_names[env.world_id][0], k))
 
 for q in range(4):
     for k in range(trials):
         env.set_world(q)
+        env.render_init("human")
         env.reset()
         for t in range(stime):  
-            env.render("human")
+            env.render()
             
             env.renderer.ax.set_title("%s object" % 
                     env.world_object_names[env.world_id][0].capitalize())
@@ -78,5 +60,6 @@ for q in range(4):
             observation,*_ = env.step(action)
             touch = observation["TOUCH_SENSORS"]
             pos = observation["EYE_POS"]
-            print(touch, pos)
+            if sum(touch) > 0:
+                print(''.join([f"{x}" for x in touch]), pos)
                

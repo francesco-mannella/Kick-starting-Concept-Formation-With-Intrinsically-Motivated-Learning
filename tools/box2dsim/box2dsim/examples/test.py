@@ -3,7 +3,8 @@ from scipy import interpolate
 import gym
 import box2dsim
 
-env = gym.make('Box2DSimOneArm-v0')
+env = gym.make('Box2DSimOneArmOneEye-v0')
+env.render_init("human")
 
 stime = 120
 actions = np.pi*np.array([

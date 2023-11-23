@@ -204,7 +204,7 @@ def create_jointDef(jsw_joint, b2_world):
     #---------------------------------------------------
     if joint_type == "revolute":  # Done
         jointDef = b2.b2RevoluteJointDef()
-
+        
         jointDef.bodyA = get_body(b2_world, jsw_joint["bodyA"])
         jointDef.bodyB = get_body(b2_world, jsw_joint["bodyB"])
         setB2Vec2Attr(jsw_joint, "anchorA", jointDef, "localAnchorA")
@@ -420,7 +420,7 @@ def add_fixture( b2_world_body, jsw, jsw_fixture ):
         fixtureDef.maskBits = 65535
 
     setAttr(jsw_fixture, "density", fixtureDef)
-    setAttr(jsw_fixture, "filter-groupIndex", fixtureDef, "groupIndex")
+    setAttr(jsw_fixture, "groupIndex", fixtureDef.filter, "groupIndex")
     setAttr(jsw_fixture, "friction", fixtureDef)
     setAttr(jsw_fixture, "sensor", fixtureDef, "isSensor")
     setAttr(jsw_fixture, "restitution", fixtureDef)
