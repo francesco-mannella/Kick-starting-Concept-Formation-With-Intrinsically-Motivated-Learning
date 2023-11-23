@@ -100,6 +100,12 @@ class Main:
         self.rng = np.random.RandomState()
         self.rng.__setstate__(state["rng"])
 
+        nlogs = len(self.logs)
+        if params.epochs > nlogs:
+            tmp = np.zeros([params.epochs, 3])
+            tmp[:nlogs, : ] = self.logs.copy()
+            self.logs = tmp
+
         self.env = SMEnv(self.seed)
         self.controller = SMController(
             self.rng,

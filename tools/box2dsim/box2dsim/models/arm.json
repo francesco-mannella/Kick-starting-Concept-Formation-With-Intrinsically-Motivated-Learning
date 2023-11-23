@@ -1,0 +1,2400 @@
+{
+    "gravity": {
+        "y": 0,
+        "x": 0
+    },
+    "autoClearForces": true,
+    "continuousPhysics": true,
+    "subStepping": false,
+    "warmStarting": true,
+    "body": [
+        {
+            "angle": 0.0,
+            "name": "Base",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": -4.711453156780212,
+                "y": -8.542035228457628
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 10.0,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.26382667224156187,
+                                0.26382667224156187,
+                                0.26382667224156187,
+                                -0.26382667224156187,
+                                -0.26382667224156187
+                            ],
+                            "y": [
+                                0.26382683404325746,
+                                0.26382683404325746,
+                                -0.26382683404325924,
+                                -0.26382683404325924,
+                                0.26382683404325746
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "Arm3",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": -4.711453156780212,
+                "y": 0.15121123563058014
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.5,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.26382667224156187,
+                                0.26382667224156187,
+                                0.26382667224156187,
+                                -0.26382667224156187,
+                                -0.26382667224156187
+                            ],
+                            "y": [
+                                1.6908277228954811,
+                                1.6908277228954811,
+                                -1.6908277228954811,
+                                -1.6908277228954811,
+                                1.6908277228954811
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "Arm2",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": -4.711453156780212,
+                "y": -3.216465622306472
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.5,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.26382667224156187,
+                                0.26382667224156187,
+                                0.26382667224156187,
+                                -0.26382667224156187,
+                                -0.26382667224156187
+                            ],
+                            "y": [
+                                1.6908277228954811,
+                                1.6908277228954811,
+                                -1.6908277228954813,
+                                -1.6908277228954813,
+                                1.6908277228954811
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "Arm1",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": -4.711453156780212,
+                "y": -6.5841920994302905
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.5,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.26382667224156187,
+                                0.26382667224156187,
+                                0.26382667224156187,
+                                -0.26382667224156187,
+                                -0.26382667224156187
+                            ],
+                            "y": [
+                                1.6908277228954818,
+                                1.6908277228954818,
+                                -1.6908277228954818,
+                                -1.6908277228954818,
+                                1.6908277228954818
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "Claw11",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": -4.8826937704211275,
+                "y": 2.6627780613382477
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.5,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.11730622957887249,
+                                0.11730622957887338,
+                                0.11730622957887338,
+                                -0.11730622957887249,
+                                -0.11730622957887249
+                            ],
+                            "y": [
+                                0.8022667425221783,
+                                0.8022667425221783,
+                                -0.8022667425221783,
+                                -0.8022667425221783,
+                                0.8022667425221783
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "Claw21",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": -4.540213190346082,
+                "y": 2.6627780613382477
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.5,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.11730622957887338,
+                                0.11730622957887249,
+                                0.11730622957887249,
+                                -0.11730622957887338,
+                                -0.11730622957887338
+                            ],
+                            "y": [
+                                0.8022667425221783,
+                                0.8022667425221783,
+                                -0.8022667425221783,
+                                -0.8022667425221783,
+                                0.8022667425221783
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "Claw12",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": -4.8826937704211275,
+                "y": 4.318098941391911
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.5,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.11730622957887249,
+                                0.11730622957887338,
+                                0.11730622957887338,
+                                -0.11730622957887249,
+                                -0.11730622957887249
+                            ],
+                            "y": [
+                                0.8022667425221774,
+                                0.8022667425221774,
+                                -0.8022667425221783,
+                                -0.8022667425221783,
+                                0.8022667425221774
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "Claw22",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": -4.540213190346082,
+                "y": 4.318098941391911
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.5,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.11730622957887338,
+                                0.11730622957887249,
+                                0.11730622957887249,
+                                -0.11730622957887338,
+                                -0.11730622957887338
+                            ],
+                            "y": [
+                                0.8022667425221774,
+                                0.8022667425221774,
+                                -0.8022667425221783,
+                                -0.8022667425221783,
+                                0.8022667425221774
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "controllable",
+            "color": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "position": {
+                "x": 1.3143110773949949,
+                "y": -2.5885731068710762
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.2,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.26382683404325835,
+                                0.26382683404325813,
+                                0.26382683404325813,
+                                -0.26382683404325835,
+                                -0.26382683404325835
+                            ],
+                            "y": [
+                                0.26382683404325835,
+                                0.26382683404325835,
+                                -0.26382683404325835,
+                                -0.26382683404325835,
+                                0.26382683404325835
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "movable",
+            "color": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "position": {
+                "x": 2.7398875719836866,
+                "y": -2.508405220568395
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.2,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -2.2601124280163134,
+                                -2.2601124280163134,
+                                2.2601124280163134,
+                                -2.2601124280163134
+                            ],
+                            "y": [
+                                2.2601118886773266,
+                                -2.260111888677326,
+                                8.881784197001252e-16,
+                                2.2601118886773266
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "still",
+            "color": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "position": {
+                "x": 1.3143110773949949,
+                "y": -2.5885731068710762
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.2,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.26382683404325835,
+                                0.26382683404325813,
+                                0.26382683404325813,
+                                -0.26382683404325835,
+                                -0.26382683404325835
+                            ],
+                            "y": [
+                                0.26382683404325835,
+                                0.26382683404325835,
+                                -0.26382683404325835,
+                                -0.26382683404325835,
+                                0.26382683404325835
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "unreachable",
+            "color": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "position": {
+                "x": 1.3143110773949949,
+                "y": 8.542035228457632
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 0.2,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                -0.26382683404325835,
+                                0.26382683404325813,
+                                0.26382683404325813,
+                                -0.26382683404325835,
+                                -0.26382683404325835
+                            ],
+                            "y": [
+                                0.26382683404325746,
+                                0.26382683404325746,
+                                -0.26382683404325924,
+                                -0.26382683404325924,
+                                0.26382683404325746
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "joint": [
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm2_to_Arm3",
+            "type": "revolute",
+            "bodyA": 2,
+            "bodyB": 1,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.6891741095626582
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.678502748374394
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Base_to_Arm1",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 3,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 0.2621725735036513
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6956705555236864
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw11_to_Claw12",
+            "type": "revolute",
+            "bodyA": 4,
+            "bodyB": 6,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.004566798934880545,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.004566798934880545,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Claw21_to_Claw22",
+            "type": "revolute",
+            "bodyA": 5,
+            "bodyB": 7,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.00456679893487788,
+                "y": 0.8248229776184899
+            },
+            "anchorB": {
+                "x": 0.00456679893487788,
+                "y": -0.8304979024351735
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw11",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 4,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -0.17124050577311767,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779824911719e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Claw21",
+            "type": "revolute",
+            "bodyA": 1,
+            "bodyB": 5,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.17124007430192734,
+                "y": 1.717906854733166
+            },
+            "anchorB": {
+                "x": 1.0786779736093877e-07,
+                "y": -0.7936599709745016
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm1_to_Arm2",
+            "type": "revolute",
+            "bodyA": 3,
+            "bodyB": 2,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": -1.6180169648549736e-07,
+                "y": 1.689222650071451
+            },
+            "anchorB": {
+                "x": -1.6180169648549736e-07,
+                "y": -1.6785038270523676
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        }
+    ]
+}

@@ -1,0 +1,7 @@
+README.md
+setup.py
+box2dsim.egg-info/PKG-INFO
+box2dsim.egg-info/SOURCES.txt
+box2dsim.egg-info/dependency_links.txt
+box2dsim.egg-info/requires.txt
+box2dsim.egg-info/top_level.txt
