@@ -399,6 +399,7 @@ class Box2DSimOneArmEnv(gym.Env):
             self.renderer = None
 
     def render_check(self, mode):
+        #TODO: this logic leads to runtime error
         if self.renderer is None:
             if (self.renderer.offline and mode != "offline") \
                     or (not self.renderer.offline and mode == "offline"): 
