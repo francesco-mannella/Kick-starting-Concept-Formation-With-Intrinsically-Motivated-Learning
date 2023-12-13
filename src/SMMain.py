@@ -165,7 +165,7 @@ class Main:
             print(f"{epoch:6d}", end=" ", flush=True)
 
             controller.comp_grid = controller.getCompetenceGrid()
-            comp = tf.reduce_mean(controller.comp_grid).numpy()
+            comp = controller.comp_grid.mean()
 
             controller.match_sigma = modulate_param(
                 params.base_match_sigma,

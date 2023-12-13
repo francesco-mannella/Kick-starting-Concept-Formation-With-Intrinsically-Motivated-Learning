@@ -2,9 +2,8 @@ import os
 import glob
 import params
 import numpy as np
-from SMSTM import SMSTM
+from stm_torch import SMSTM
 from SMPredict import SMPredict
-import tensorflow as tf
 
 
 def softmax(x, lmb=1):
@@ -19,43 +18,37 @@ def flt(n, s=0.1):
 
 class SMController:
     def __init__(self, rng=None, load=False, shuffle=False, tag=None):
-
-
         self.maxmatch = None
         self.rng = rng
         if self.rng is None:
             self.rng = np.random.RandomState()
 
         self.stm_v = SMSTM(
-            inp_num=params.visual_size,
-            out_num=params.internal_size,
+            learning_rate=params.stm_lr,
+            input_size=params.visual_size,
+            output_size=params.internal_size,
             sigma=params.internal_sigma,
-            name="stm_v",
-            lr=params.stm_lr,
             external_radial_prop=params.v_eradial_prop,
         )
         self.stm_ss = SMSTM(
-            inp_num=params.somatosensory_size,
-            out_num=params.internal_size,
+            learning_rate=params.stm_lr,
+            input_size=params.somatosensory_size,
+            output_size=params.internal_size,
             sigma=params.internal_sigma,
-            name="stm_ss",
-            lr=params.stm_lr,
             external_radial_prop=params.ss_eradial_prop,
         )
         self.stm_p = SMSTM(
-            inp_num=params.proprioception_size,
-            out_num=params.internal_size,
+            learning_rate=params.stm_lr,
+            input_size=params.proprioception_size,
+            output_size=params.internal_size,
             sigma=params.internal_sigma,
-            name="stm_p",
-            lr=params.stm_lr,
             external_radial_prop=params.p_eradial_prop,
         )
         self.stm_a = SMSTM(
-            inp_num=params.policy_size,
-            out_num=params.internal_size,
+            learning_rate=params.stm_lr,
+            input_size=params.policy_size,
+            output_size=params.internal_size,
             sigma=params.internal_sigma,
-            name="stm_a",
-            lr=params.stm_lr,
             external_radial_prop=params.a_eradial_prop,
         )
         if load is True:
@@ -64,8 +57,7 @@ class SMController:
         self.predict = SMPredict(
             params.internal_size,
             1.0,
-            name="predict",
-            lr=params.predict_lr,
+            lr=params.predict_lr
         )
 
         self.match_sigma = params.match_sigma
@@ -90,39 +82,39 @@ class SMController:
         )
         self.getCompetenceGrid()
 
-        self.episode_mask = np.arange(params.stime*params.batch_size)%params.stime
+        self.episode_mask = np.arange(params.stime*params.batch_size) % params.stime
         self.episode_mask = self.episode_mask > (params.stime*0.1)
 
     @staticmethod
     def comp_fun(comp):
         basecomp = np.tanh(params.predict_base_ampl*comp)
         hypercomp = np.tanh(params.predict_ampl*comp)
-        prob = params.predict_ampl_prop 
-        return (1 - prob) * basecomp + prob * hypercomp 
+        prob = params.predict_ampl_prop
+        return (1 - prob) * basecomp + prob * hypercomp
 
     def update_reentrant_connections(self):
 
-        a_radials = self.stm_a.getRadials()
-        ss_radials = self.stm_ss.getRadials()
-        p_radials = self.stm_p.getRadials()
-        v_radials = self.stm_v.getRadials()
+        a_radials = self.stm_a.get_radials()
+        ss_radials = self.stm_ss.get_radials()
+        p_radials = self.stm_p.get_radials()
+        v_radials = self.stm_v.get_radials()
 
         radials = (a_radials + ss_radials + p_radials + v_radials) / 4
 
-        self.stm_ss.setRadials(radials)
-        self.stm_p.setRadials(radials)
-        self.stm_a.setRadials(radials)
-        self.stm_v.setRadials(radials)
+        self.stm_ss.set_radials(radials)
+        self.stm_p.set_radials(radials)
+        self.stm_a.set_radials(radials)
+        self.stm_v.set_radials(radials)
 
     def getPoliciesFromRepresentations(self, representations):
         return self.stm_a.backward(representations)
-    
+
     def getVisualsFromRepresentations(self, representations):
         return self.stm_v.backward(representations)
 
     def getTouchesFromRepresentations(self, representations):
         return self.stm_ss.backward(representations)
-    
+
     def getPropriosFromRepresentations(self, representations):
         return self.stm_p.backward(representations)
 
@@ -148,7 +140,7 @@ class SMController:
         d2 = np.expand_dims(repall, 1)
         diffs = np.linalg.norm(d1 - d2, axis=-1)
         matches_all = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
-        
+
         # take into account only distances with goal
         mask = [
             [0, 0, 0, 0, 1],
@@ -159,8 +151,7 @@ class SMController:
         ]
         matches_per_mod = matches_all.transpose(2, 0, 1) * mask
         matches = np.sum(matches_per_mod, axis=(1, 2)) / np.sum(mask)
-        
-        
+
         # same for increments
         def get_incr(x):
             y = x.reshape(-1, params.stime)
@@ -169,13 +160,12 @@ class SMController:
             incr = np.hstack([np.zeros([n, 1]), incr])
 
             return incr
-        
-        
+
         matches_increments_per_mod = np.stack([
-            np.stack([get_incr(matches_per_mod[:, row, col]).ravel() 
+            np.stack([get_incr(matches_per_mod[:, row, col]).ravel()
                 for col in range(5)]) for row in range(5)]).transpose(2, 0, 1)
         matches_increments = np.sum(matches_increments_per_mod, axis=(1, 2)) / np.sum(mask)
-        
+
         # # requires that all sensory modalities change
         # mask_req = [
         #     [0, 0, 0, 0, 1],
@@ -206,24 +196,24 @@ class SMController:
         p_out = self.stm_p.spread(p)
         a_out = self.stm_a.spread(a)
 
-        v_p = self.stm_v.getPoint(v_out)
-        ss_p = self.stm_ss.getPoint(ss_out)
-        p_p = self.stm_p.getPoint(p_out)
-        a_p = self.stm_a.getPoint(a_out)
-        g_p = self.stm_a.getPoint(g_out)
+        v_p = self.stm_v.get_point(v_out)
+        ss_p = self.stm_ss.get_point(ss_out)
+        p_p = self.stm_p.get_point(p_out)
+        a_p = self.stm_a.get_point(a_out)
+        g_p = self.stm_a.get_point(g_out)
 
-        v_r = self.stm_v.getRepresentation(v_p, params.base_internal_sigma)
-        ss_r = self.stm_ss.getRepresentation(ss_p, params.base_internal_sigma)
-        p_r = self.stm_p.getRepresentation(p_p, params.base_internal_sigma)
-        a_r = self.stm_a.getRepresentation(a_p, params.base_internal_sigma)
-    
+        v_r = self.stm_v.get_representation(v_p, params.base_internal_sigma)
+        ss_r = self.stm_ss.get_representation(ss_p, params.base_internal_sigma)
+        p_r = self.stm_p.get_representation(p_p, params.base_internal_sigma)
+        a_r = self.stm_a.get_representation(a_p, params.base_internal_sigma)
+
         return (v_r, ss_r, p_r, a_r, g_out), (v_p, ss_p, p_p, a_p, g_p)
 
     def updateParams(self, sigma, lr):
-        self.stm_v.updateParams(sigma=sigma, lr=lr)
-        self.stm_ss.updateParams(sigma=sigma, lr=lr)
-        self.stm_p.updateParams(sigma=sigma, lr=lr)
-        self.stm_a.updateParams(sigma=sigma, lr=lr)
+        self.stm_v.update_params(sigma=sigma, lr=lr)
+        self.stm_ss.update_params(sigma=sigma, lr=lr)
+        self.stm_p.update_params(sigma=sigma, lr=lr)
+        self.stm_a.update_params(sigma=sigma, lr=lr)
         self.sigma = sigma
 
     def update(
@@ -239,26 +229,25 @@ class SMController:
         pretest=False,
     ):
 
-        if pretest == False:
+        if not pretest:
             cgoals = goals * (1 - competences)
-
 
             # select base on match_value
             mch_idcs = matches.ravel() > params.match_th
 
             # select base on match_increment
             mch_idcs &= matches_increment.ravel() > params.match_incr_th
-            
+
             # mask
-            mch_idcs &= self.episode_mask 
+            mch_idcs &= self.episode_mask
 
             # compute number of chosen patterns (return)
             batch = len(matches)
-            n_items = sum(mch_idcs == True)
+            n_items = sum(mch_idcs)
             idcs = mch_idcs
 
             modulate = cgoals[idcs] * matches[idcs]
-                
+
             # update maps
             if n_items > 0:
 
@@ -296,7 +285,7 @@ class SMController:
             th = 0.2*competences[idcs]
             self.predict.update(goals[idcs], matches[idcs] > th)
 
-        elif pretest == True:
+        elif pretest:
             if not hasattr(self, "count"):
                 self.count = 0
                 self.init_data = {

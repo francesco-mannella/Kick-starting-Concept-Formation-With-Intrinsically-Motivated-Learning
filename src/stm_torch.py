@@ -3,9 +3,8 @@
 """
 Guided Topological Map
 
-An organizing mav gtmp whose topology can be guided by a teaching signal.
+An organizing map gtmp whose topology can be guided by a teaching signal.
 Generalizes SOMs.
-
 """
 
 import numpy as np
@@ -66,7 +65,7 @@ def radial2d(mean, sigma, size):
     """
     grid_points = make_grid(np.sqrt(size))
     diff = grid_points.unsqueeze(0) - mean.unsqueeze(1)
-    radial_basis = torch.exp(-0.5 * (sigma ** -2) * torch.norm(diff, dim=-1) ** 2)
+    radial_basis = torch.exp(-0.5 * (sigma ** -2) * torch.norm(diff, dim=-1) **2)
 
     return radial_basis
 
@@ -74,6 +73,7 @@ def make_grid(side):
     """Creates a grid of points in 2D space."""
     ranges = torch.arange(0, side, dtype=torch.float)
     return torch.cartesian_prod(ranges, ranges)
+
 
 class STM(torch.nn.Module):
     """A generic topological map"""
@@ -100,7 +100,6 @@ class STM(torch.nn.Module):
 
         """
         super(STM, self).__init__(**kwargs)
-        
         self.output_size = output_size
         self.sigma = sigma
         self.learn_intrinsic_distances = learn_intrinsic_distances
@@ -109,10 +108,11 @@ class STM(torch.nn.Module):
         self.side = np.sqrt(output_size)
         self.grid = make_grid(self.side)
         self.grid = self.grid.unsqueeze(0)
+        self.internal_radials = None
         self.external_radials = None
         self.external_radial_prop = external_radial_prop
 
-        self.kernel = torch.nn.Parameter(torch.zeros(input_size, output_size), 
+        self.kernel = torch.nn.Parameter(torch.zeros(input_size, output_size),
                                          requires_grad=True)
         torch.nn.init.xavier_normal_(self.kernel)
 
@@ -122,7 +122,7 @@ class STM(torch.nn.Module):
 
     def spread(self, x):
         _, radials = self.get_norms_and_activation(x)
-        #TODO: Should this normalization be performed row by row? 
+        #TODO: Should this normalization be performed row by row?
         radials = radials / (torch.sum(radials)+1e-5)
         return radials
 
@@ -167,15 +167,55 @@ class STM(torch.nn.Module):
         point = torch.stack((idx // self.out_side, idx % self.out_side)).T
         return point
 
+    def get_radials(self):
+        return self.internal_radials
+
+    def set_radials(self, radials):
+        self.external_radials = radials
+
+    def get_representation(self, point, sigma=None):
+        return self.interpolate(point, sigma)
+
     def interpolate(self, point, sigma=None):
         if sigma is None:
             sigma = self.sigma
-        
+
         distance = point.reshape(-1, 1, 2) - self.radial_grid.reshape(1, -1, 2)
         distance = torch.norm(distance, dim=2)
         rep = torch.exp(-0.5 * (sigma**-2) * (distance) ** 2)
-        rep = rep / rep.sum(dim=1).reshape(-1, 1) 
+        rep = rep / rep.sum(dim=1).reshape(-1, 1)
         return rep
+
+
+class SMSTM(STM):
+
+    def __init__(
+        self,
+        learning_rate=2.0,
+        **kwargs,
+    ):
+        super(SMSTM, self).__init__(**kwargs)
+        self.lr = learning_rate
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+
+    def update_params(self, sigma=None, lr=None):
+        if sigma is not None:
+            self.sigma = sigma
+        if lr is not None:
+            self.lr = lr
+        optimizer.param_groups[0]['lr'] = lr
+
+    def update(self, data, dists):
+        assert len(data.shape) == 2
+        assert data.shape[1] == self.inp_num
+        data = torch.tensor(data, dtype=torch.float)
+        dists = torch.tensor(dists, dtype=torch.float)
+        self.optimizer.zero_grad()
+        out = self(data)
+        loss = self.loss(out, dists)
+        loss.backward()
+        optimizer.step()
+        return loss
 
 
 if __name__ == "__main__":
