@@ -48,7 +48,7 @@ class Objective:
         self.grip_agent = GripAgent(env=self.env, 
                 num_inputs=grip_input, num_hidden=grip_hidden, num_outputs=grip_output,
                 actuator_map_name="data/StoredGripActuatorMap",
-                actuator_weights_name="data/StoredGridActuatorWeights", 
+                actuator_weights_name="data/StoredGripActuatorWeights", 
                 *args, **kargs)
         self.grip_param_shape = self.grip_agent.grip.params.shape
         self.params_size = np.prod(self.grip_param_shape) 

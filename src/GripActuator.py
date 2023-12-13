@@ -55,7 +55,7 @@ class GripActuator:
                 print("Map Saved")
         if actuator_weights_name is not None:
             try:
-                self.params =  np.load(actuator_weights_name+".npy")
+                self.params = np.load(actuator_weights_name+".npy")
                 self.params = self.params.reshape(self.num_hidden, self.num_outputs)
             except IOError:
                 print("{:} not found".format(actuator_weights_name))
