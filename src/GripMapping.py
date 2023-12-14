@@ -6,7 +6,7 @@ import gym
 import box2dsim
 
 import params
-from stm_torch import STM
+from stm import STM
 from ArmActuator import Agent as ArmAgent
 
 

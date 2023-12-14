@@ -2,13 +2,13 @@ import glob
 import os, sys
 from pathlib import Path
 import matplotlib
+import torch
 
 matplotlib.use("Agg")
 
 import params
 import numpy as np
 import time
-import tensorflow as tf
 from SMController import SMController
 from SMEnv import SMEnv
 from SMAgent import SMAgent
@@ -62,7 +62,7 @@ class Main:
         if seed is None:
             seed = np.frombuffer(os.urandom(4), dtype=np.uint32)[0]
         self.rng = np.random.RandomState(seed)
-        tf.random.set_seed(seed)
+        torch.manual_seed(seed)
         self.seed = seed
 
         self.plots = plots
@@ -96,7 +96,7 @@ class Main:
         self.logs = state["logs"]
         self.epoch = state["epoch"]
         self.seed = state["seed"]
-        tf.random.set_seed(self.seed)
+        torch.manual_seed(self.seed)
         self.rng = np.random.RandomState()
         self.rng.__setstate__(state["rng"])
 
@@ -431,8 +431,8 @@ class Main:
                 batch_v[0] = v
                 batch_ss[0] = ss
                 batch_p[0] = p
-                batch_a[0] = tf.reshape(policy, (-1))
-                batch_g[0] = tf.reshape(internal_mean, (-1))
+                batch_a[0] = policy.reshape(-1)
+                batch_g[0] = internal_mean.reshape(-1)
                 smcycle = SensoryMotorCicle()
                 for t in range(params.stime):
                     state = smcycle.step(env, agent, state)
@@ -444,8 +444,8 @@ class Main:
                     batch_v[t] = v
                     batch_ss[t] = ss
                     batch_p[t] = p
-                    batch_a[t] = tf.reshape(policy, (-1))
-                    batch_g[t] = tf.reshape(internal_mean, (-1))
+                    batch_a[t] = policy.reshape(-1)
+                    batch_g[t] = internal_mean.reshape(-1)
 
                 (
                     internal_representations,
@@ -506,6 +506,7 @@ class Main:
 
     def collect_sensory_states():
         pass
+
     def demo_episode(idx):                  
         pass
 
@@ -514,6 +515,7 @@ class Main:
 
     def get_context_from_visual():
         pass
+
 
 if __name__ == "__main__":
 
@@ -547,8 +549,8 @@ if __name__ == "__main__":
     seed = int(args.seed)
     plots = bool(args.plots)
 
-    if not gpu:
-        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    if gpu:
+        torch.set_default_device('cuda')
 
     if os.path.isfile("main.dump.npy"):
         main = np.load("main.dump.npy", allow_pickle="True")[0]

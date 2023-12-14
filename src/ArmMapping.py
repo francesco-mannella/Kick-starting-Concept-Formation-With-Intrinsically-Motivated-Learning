@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from stm_torch import STM, radial2d as radial
+from stm import STM, radial2d as radial
 
 def get_data(trials, stime, env):
     data = np.zeros([trials, stime, 2])

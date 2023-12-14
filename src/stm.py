@@ -3,26 +3,20 @@
 """
 Guided Topological Map
 
-An organizing mav gtmp whose topology can be guided by a teaching signal.
+An organizing map gtmp whose topology can be guided by a teaching signal.
 Generalizes SOMs.
-
 """
 
 import numpy as np
-import tensorflow as tf
-import tensorflow.keras as keras
-from tensorflow.python.keras.engine import base_layer_utils
-
+import torch
 
 def is_2d(func):
     func.type = "2d"
     return func
 
-
 def is_1d(func):
     func.type = "1d"
     return func
-
 
 @is_1d
 def radial(mean, sigma, size):
@@ -33,21 +27,20 @@ def radial(mean, sigma, size):
         sigma (float): standard deviation of radiants
 
     Returns:
-        (np.array): a radial basis of the input
+        torch.Tensor: a radial basis of the input
     """
 
-    x = tf.range(size, dtype="float")
-    diff = tf.reshape(x, [1, -1]) - tf.reshape(mean, [-1, 1])
-    radial_basis = tf.exp(-0.5 * tf.pow(sigma, -2) * tf.pow(diff, 2))
+    x = torch.arange(size, dtype=torch.float)
+    diff = x.view(1, -1) - mean.view(-1, 1)
+    radial_basis = torch.exp(-0.5 * (sigma ** -2) * (diff ** 2))
     return radial_basis
-
 
 @is_2d
 def radial2d(mean, sigma, size):
     """Gives radial bases on a 2D space, flattened into 1d vectors,
     given a list of means and a std_dev.
 
-    Es.
+    Eg.
 
     size: 64              ┌────────┐         ┌─────────────────────────────────────────────────────────────────┐
     mean: (5, 4)  ----->  │........│  -----> │ ....................,+,....,oOo,...+O@O+...,oOo,....,+,.........│
@@ -60,36 +53,34 @@ def radial2d(mean, sigma, size):
                           │........│
                           └────────┘
 
+
     Args:
         mean (list): vector of means of radians
         sigma (float): standard deviation of radiants
-        size (int): dimension of the flattened gaussian (side is sqrt(dim))
+        size (int): dimension of the flattened gaussian (side is sqrt(size))
 
     Returns:
-        (np.array): each row is a flattened radial basis in
-                 the (sqrt(dim), sqrt(dim)) space
-
+        torch.Tensor: each row is a flattened radial basis in
+                 the (sqrt(size), sqrt(size)) space
     """
-    side = tf.sqrt(tf.cast(size, dtype="float"))
-    grid_points = make_grid(side)
-    diff = tf.expand_dims(grid_points, axis=0) - tf.expand_dims(mean, axis=1)
-    radial_basis = tf.exp(-0.5 * tf.pow(sigma, -2) * tf.pow(tf.norm(diff, axis=-1), 2))
+    grid_points = make_grid(np.sqrt(size))
+    diff = grid_points.unsqueeze(0) - mean.unsqueeze(1)
+    radial_basis = torch.exp(-0.5 * (sigma ** -2) * torch.norm(diff, dim=-1) **2)
 
     return radial_basis
 
-
 def make_grid(side):
-    x = tf.range(side, dtype="float")
-    Y, X = tf.meshgrid(x, x)
-    grid_points = tf.transpose(tf.stack([tf.reshape(X, [-1]), tf.reshape(Y, [-1])]))
-    return grid_points
+    """Creates a grid of points in 2D space."""
+    ranges = torch.arange(0, side, dtype=torch.float)
+    return torch.cartesian_prod(ranges, ranges)
 
 
-class STM(keras.layers.Layer):
+class STM(torch.nn.Module):
     """A generic topological map"""
 
     def __init__(
         self,
+        input_size,
         output_size,
         sigma,
         learn_intrinsic_distances=True,
@@ -108,77 +99,41 @@ class STM(keras.layers.Layer):
             exrinsic_distances (Tensor): if learning depends on the distance of prototypes from targets.
 
         """
-
+        super(STM, self).__init__(**kwargs)
+        self.input_size = input_size
         self.output_size = output_size
-        self._sigma = sigma
+        self.sigma = sigma
         self.learn_intrinsic_distances = learn_intrinsic_distances
         self.extrinsic_distances = extrinsic_distances
         self.radial_fun = radial_fun
-        self.side = tf.sqrt(tf.cast(output_size, dtype="float"))
+        self.side = np.sqrt(output_size)
         self.grid = make_grid(self.side)
-        self.grid = tf.expand_dims(self.grid, axis=(0))
+        self.grid = self.grid.unsqueeze(0)
+        self.internal_radials = None
         self.external_radials = None
         self.external_radial_prop = external_radial_prop
 
-        super(STM, self).__init__(**kwargs)
+        self.kernel = torch.nn.Parameter(torch.zeros(input_size, output_size),
+                                         requires_grad=True)
+        torch.nn.init.xavier_normal_(self.kernel)
 
-    def build(self, input_shape):
-
-        self.sigma = self.add_weight(
-            name="sigma",
-            shape=(),
-            initializer=tf.constant_initializer(self._sigma),
-            trainable=False,
-        )
-
-        self.kernel = self.add_weight(
-            name="kernel",
-            shape=(input_shape[1], self.output_size),
-            initializer=keras.initializers.GlorotNormal(),
-            trainable=True,
-        )
-
-        super(STM, self).build(input_shape)
-
-    def call(self, x):
-        radials, norms2 = self.get_norms_and_activation(x)
+    def forward(self, x):
+        norms2, radials = self.get_norms_and_activation(x)
         return radials * norms2
 
-    def spread(self, x, expect=False):
-        method = "expectation" if expect is True else "argmin"
-        radials, _ = self.get_norms_and_activation(x, method=method)
-        radials = radials / (tf.reduce_sum(radials)+1e-5)
+    def spread(self, x):
+        _, radials = self.get_norms_and_activation(x)
+        radials = radials / (torch.sum(radials, dim=1).reshape(-1, 1) + 1e-5)
         return radials
 
-    def get_norms_and_activation(self, x, method="argmin"):
+    def get_norms_and_activation(self, x):
         # compute norms
-        norms = tf.norm(tf.expand_dims(x, 2) - tf.expand_dims(self.kernel, 0), axis=1)
-        norms2 = tf.pow(norms, 2)
+        norms = torch.norm(x.unsqueeze(-1) - self.kernel.unsqueeze(0), dim=1)
+        norms2 = norms.pow(2)
 
         # compute activation
-        radials = self.get_radials(norms2, method)
-        return radials, norms2
-
-    def backward(self, radials):
-        x = tf.matmul(radials, tf.transpose(self.kernel))
-        return x
-
-    def get_wta(self, norms2, method="argmin"):
-        if method == "expectation":
-            nnorms2 = tf.exp(-0.5 * (s2 ** -1) * tf.pow(norms2, 2))
-            nnorms2 *= 1 / (0.2 * np.sqrt(2 * np.pi))
-            nnorms2 = tf.expand_dims(nnorms2, axis=-1)
-            gridmul = tf.multiply(nnorms2, self.grid)
-            wta = tf.reduce_mean(gridmul, axis=1)
-        elif method == "argmin":
-            wta = tf.cast(tf.argmin(norms2, axis=1), dtype="float")
-            wta = tf.transpose(tf.stack([wta // self.side, wta % self.side]))
-
-        return wta
-
-    def get_radials(self, norms2, method="argmin"):
-
-        wta = self.get_wta(norms2, method)
+        wta = norms2.argmin(dim=-1).detach().float()
+        wta = torch.stack((wta // self.side, wta % self.side)).T
         radials = self.radial_fun(wta, self.sigma, self.output_size)
         radials = radials / (self.sigma * np.sqrt(np.pi * 2))
 
@@ -188,15 +143,83 @@ class STM(keras.layers.Layer):
             radials = (1 - self.external_radial_prop)*radials + \
                     self.external_radial_prop*self.external_radials
 
-        return radials
+        return norms2, radials
 
-    def compute_output_shape(self, input_shape):
-        return (input_shape[0], self.output_size)
+    def backward(self, radials):
+        radials = radials / radials.sum(dim=1).reshape(-1, 1)
+        x = torch.matmul(radials, self.kernel.T)
+        return x
 
     def loss(self, radial_norms2, extrinsic=None):
         if extrinsic is None:
-            extrinsic = tf.ones_like(radial_norms2)
-        return tf.reduce_mean(radial_norms2 * extrinsic, axis=1)
+            extrinsic = torch.ones_like(radial_norms2)
+        return torch.mean(radial_norms2 * extrinsic)
+
+    def get_radials(self):
+        return self.internal_radials
+
+    def set_radials(self, radials):
+        self.external_radials = radials
+
+
+class SMSTM(STM):
+
+    def __init__(
+        self,
+        learning_rate=2.0,
+        **kwargs,
+    ):
+        super(SMSTM, self).__init__(**kwargs)
+        self.lr = learning_rate
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+
+    def spread(self, x):
+        return super(SMSTM, self).spread(torch.tensor(x, dtype=torch.float)).cpu().detach().numpy()
+
+    def backward(self, x):
+        return super(SMSTM, self).backward(torch.tensor(x, dtype=torch.float)).cpu().detach().numpy()
+
+    def get_point_and_representation(self, out, sigma=None):
+        out = torch.tensor(out, dtype=torch.float)
+
+        if sigma is None:
+            sigma = self.sigma
+
+        idx = torch.argmax(out, dim=1).detach().float()
+        point = torch.stack((idx // self.side, idx % self.side)).T
+
+        distance = point.reshape(-1, 1, 2) - self.grid.reshape(1, -1, 2)
+        distance = torch.norm(distance, dim=2)
+        rep = torch.exp(-0.5 * (sigma**-2) * (distance) ** 2)
+        rep = rep / rep.sum(dim=1).reshape(-1, 1)
+
+        return point.cpu().numpy(), rep.cpu().numpy()
+
+    def update_params(self, sigma=None, lr=None):
+        if sigma is not None:
+            self.sigma = sigma
+        if lr is not None:
+            self.lr = lr
+        self.optimizer.param_groups[0]['lr'] = lr
+
+    def update(self, data, dists):
+        assert len(data.shape) == 2
+        assert data.shape[1] == self.input_size
+        data = torch.tensor(data, dtype=torch.float)
+        dists = torch.tensor(dists, dtype=torch.float)
+        self.optimizer.zero_grad()
+        out = self(data)
+        loss = self.loss(out, dists)
+        loss.backward()
+        self.optimizer.step()
+        return loss
+
+    def set_weights(self, weights):
+        with torch.no_grad():
+            self.kernel.copy_(torch.tensor(weights, dtype=torch.float))
+
+    def get_weights(self):
+        return self.kernel.detach().cpu().numpy()
 
 
 if __name__ == "__main__":
@@ -205,23 +228,14 @@ if __name__ == "__main__":
     out_num = 100
     initial_sigma = out_num / 2
     min_sigma = 1
-    initial_lr = 1.0
+    initial_lr = 0.1
     stime = 10000
     decay_window = stime / 4
 
     loss = []
 
-    som_layer = STM(out_num, initial_sigma, radial_fun=radial2d, name="SOM")
-
-    # Setting the model
-
-    inputs = keras.layers.Input(shape=[inp_num])
-    outputs = som_layer(inputs)
-    model = keras.models.Model(inputs=inputs, outputs=outputs)
-    model.add_loss(som_layer.loss(outputs))
-    model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=initial_lr), metrics=None
-    )
+    som_layer = STM(inp_num, out_num, initial_sigma, radial_fun=radial2d)
+    optimizer = torch.optim.Adam(som_layer.parameters(), lr=initial_lr)
 
     for t in range(stime):
         # learning rate and sigma annealing
@@ -229,11 +243,16 @@ if __name__ == "__main__":
         curr_rl = initial_lr * np.exp(-t / decay_window)
 
         # update learning rate and sigma in the graph
-        keras.backend.set_value(model.get_layer("SOM").sigma, curr_sigma)
-        keras.backend.set_value(model.optimizer.lr, curr_rl)
+        som_layer.sigma = curr_sigma
+        optimizer.param_groups[0]['lr'] = curr_rl
+        optimizer.zero_grad()
 
-        data = np.random.uniform(0, 1, [100, 2])
-        loss_ = model.train_on_batch(data)
+        data = torch.tensor(np.random.uniform(0, 1, [100, 2]))
+        output = som_layer(data)
+        loss_ = som_layer.loss(output)
+        loss_.backward()
+
+        optimizer.step()
         if t % (stime // 10) == 0:
             print(
                 loss_,
@@ -245,6 +264,6 @@ if __name__ == "__main__":
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    weights = model.get_layer("SOM").kernel.numpy()
+    weights = som_layer.kernel.detach().numpy()
     plt.scatter(*weights)
     plt.savefig("weights.png")

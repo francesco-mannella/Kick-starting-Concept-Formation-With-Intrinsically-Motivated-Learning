@@ -2,7 +2,7 @@ import os
 import glob
 import params
 import numpy as np
-from stm_torch import SMSTM
+from stm import SMSTM
 from SMPredict import SMPredict
 
 
@@ -56,7 +56,7 @@ class SMController:
 
         self.predict = SMPredict(
             params.internal_size,
-            1.0,
+            1,
             lr=params.predict_lr
         )
 
@@ -196,16 +196,12 @@ class SMController:
         p_out = self.stm_p.spread(p)
         a_out = self.stm_a.spread(a)
 
-        v_p = self.stm_v.get_point(v_out)
-        ss_p = self.stm_ss.get_point(ss_out)
-        p_p = self.stm_p.get_point(p_out)
-        a_p = self.stm_a.get_point(a_out)
-        g_p = self.stm_a.get_point(g_out)
-
-        v_r = self.stm_v.get_representation(v_p, params.base_internal_sigma)
-        ss_r = self.stm_ss.get_representation(ss_p, params.base_internal_sigma)
-        p_r = self.stm_p.get_representation(p_p, params.base_internal_sigma)
-        a_r = self.stm_a.get_representation(a_p, params.base_internal_sigma)
+        sigma = params.base_internal_sigma
+        v_p, v_r = self.stm_v.get_point_and_representation(v_out, sigma)
+        ss_p, ss_r = self.stm_ss.get_point_and_representation(ss_out, sigma)
+        p_p, p_r = self.stm_p.get_point_and_representation(p_out, sigma)
+        a_p, a_r = self.stm_a.get_point_and_representation(a_out, sigma)
+        g_p, _ = self.stm_a.get_point_and_representation(g_out, sigma)
 
         return (v_r, ss_r, p_r, a_r, g_out), (v_p, ss_p, p_p, a_p, g_p)
 
@@ -332,11 +328,11 @@ class SMController:
 
     def __getstate__(self):
         return {
-            "visual": self.stm_v.weights(),
-            "ssensory": self.stm_ss.weights(),
-            "proprio": self.stm_p.weights(),
-            "policy": self.stm_a.weights(),
-            "predict": self.predict.weights(),
+            "visual": self.stm_v.get_weights(),
+            "ssensory": self.stm_ss.get_weights(),
+            "proprio": self.stm_p.get_weights(),
+            "policy": self.stm_a.get_weights(),
+            "predict": self.predict.get_weights(),
             "rng": self.rng,
             "maxmatch": self.maxmatch,
         }
@@ -359,11 +355,11 @@ class SMController:
         os.makedirs(epoch_dir, exist_ok=True)
 
         weights = {
-            "visual": self.stm_v.weights(),
-            "ssensory": self.stm_ss.weights(),
-            "proprio": self.stm_p.weights(),
-            "policy": self.stm_a.weights(),
-            "predict": self.predict.weights(),
+            "visual": self.stm_v.get_weights(),
+            "ssensory": self.stm_ss.get_weights(),
+            "proprio": self.stm_p.get_weights(),
+            "policy": self.stm_a.get_weights(),
+            "predict": self.predict.get_weights(),
         }
 
         np.save(
@@ -372,7 +368,7 @@ class SMController:
             allow_pickle=True,
         )
 
-        np.save("www/visual_weights", self.stm_v.weights())
+        np.save("www/visual_weights", self.stm_v.get_weights())
         np.save("www/comp_grid", self.comp_grid)
 
     def load(
