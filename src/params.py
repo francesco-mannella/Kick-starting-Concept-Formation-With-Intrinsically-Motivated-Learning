@@ -43,7 +43,7 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 1 
+epochs = 2 
 pretest_epochs = -1
 batch_size = 24
 tests = 12
