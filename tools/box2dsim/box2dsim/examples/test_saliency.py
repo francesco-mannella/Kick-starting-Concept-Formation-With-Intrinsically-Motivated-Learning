@@ -32,7 +32,6 @@ ax1.set_title("Fovea")
 for q in [0, 3, 1, 2]:
     for k in range(trials):
         env.set_world(q)
-        env.render_init("human")
         env.reset()
         for t in range(stime//5):  
             if t % (stime//5) == 0:

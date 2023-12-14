@@ -48,7 +48,6 @@ ax1.set_title("Fovea")
 for q in range(4):
     for k in range(trials):
         env.set_world(q)
-        env.render_init("human")
         env.reset()
         for t in range(stime):  
             env.render()
