@@ -4,7 +4,6 @@ import gym
 import box2dsim
 
 env = gym.make('Box2DSimOneArmOneEye-v0')
-env.render_init("human")
 
 stime = 120
 actions = np.pi*np.array([
@@ -18,6 +17,8 @@ actions = np.pi*np.array([
     ])
 
 actions_interp = np.zeros([stime, 5])
+
+env.reset()
 for joint_idx, joint_timeline in enumerate(actions.T):
     x0 = np.linspace(0, 1, len(joint_timeline))
     f = interpolate.interp1d(x0, joint_timeline)
