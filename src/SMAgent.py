@@ -36,6 +36,7 @@ class SMAgent:
             arm_action + grip_action[:3], 
             grip_action[3:]])
         return action
+
     def reset(self):
         self.arm_agent.reset()
         self.grip_agent.reset()
@@ -44,10 +45,10 @@ class SMAgent:
         self.grip_agent.updatePolicy(params)
 
 if __name__ == "__main__":
-    from SMEnv import Env 
+    from SMEnv import SMEnv 
 
-    env = Env()
-    env.render="human"
+    env = SMEnv(42)
+    env.render = "human"
     state = env.reset(1)
     agent = SMAgent(env)
     for t in range(100):

@@ -3,8 +3,8 @@ import params
 from esn import ESN
 import gym, box2dsim
 
-from GripMapping import generateGripMapping, Env as GripEnv
-generateMapping = generateGripMapping
+from GripMapping import generate_grip_mapping as generate_mapping, Env as GripEnv
+
 
 def grid(side):
     x = np.arange(side)
@@ -50,12 +50,12 @@ class GripActuator:
             try:
                 self.map =  np.load(actuator_map_name+".npy")
             except IOError:
-                self.map = generateMapping(self.num_hidden, env)
+                self.map = generate_mapping(self.num_hidden, env)
                 np.save(actuator_map_name, self.map)
                 print("Map Saved")
         if actuator_weights_name is not None:
             try:
-                self.params =  np.load(actuator_weights_name+".npy")
+                self.params = np.load(actuator_weights_name+".npy")
                 self.params = self.params.reshape(self.num_hidden, self.num_outputs)
             except IOError:
                 print("{:} not found".format(actuator_weights_name))

@@ -1,10 +1,8 @@
 import numpy as np
 import params
 from esn import ESN
-import gym, box2dsim
 
-from ArmMapping import generateArmMapping
-generateMapping = generateArmMapping
+from ArmMapping import generate_arm_mapping as generate_mapping
 
 def grid(side):
     x = np.arange(side)
@@ -51,12 +49,12 @@ class ArmActuator:
             try:
                 self.map =  np.load(actuator_map_name+".npy")
             except IOError:
-                self.map = generateMapping(self.num_hidden, env)
+                self.map = generate_mapping(self.num_hidden, env)
                 np.save(actuator_map_name, self.map)
                 print("Map Saved")
         if actuator_weights_name is not None:
             try:
-                self.params =  np.load(actuator_weights_name+".npy")
+                self.params = np.load(actuator_weights_name+".npy")
                 self.params = self.params.reshape(self.num_hidden, self.num_outputs)
             except IOError:
                 print("Warning: {:} not found".format(actuator_weights_name))
@@ -135,7 +133,7 @@ class Env:
         return self.b2d_env.handPosInSpace()
 
     def reset(self):
-        self.b2d_env.reset(self.b2d_env.worlds["noobject"])
+        self.b2d_env.reset(world_id=self.b2d_env.worlds["noobject"])
         if self.render is not None:
             self.b2d_env.render(self.render)
         return self.b2d_env.handPosInSpace()

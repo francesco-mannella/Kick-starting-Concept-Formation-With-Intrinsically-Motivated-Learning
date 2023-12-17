@@ -140,10 +140,10 @@ class MainUtils(Main):
                 controller.radial_grid[i],
                 0.1)
 
-        visual = controller.getVisualsFromRepresentations(goal_r.reshape(1, -1)).numpy()
-        touch = controller.getTouchesFromRepresentations(goal_r.reshape(1, -1)).numpy()
-        proprio = controller.getPropriosFromRepresentations(goal_r.reshape(1, -1)).numpy()
-        policy = controller.getPoliciesFromRepresentations(goal_r.reshape(1, -1)).numpy() 
+        visual = controller.getVisualsFromRepresentations(goal_r.reshape(1, -1))
+        touch = controller.getTouchesFromRepresentations(goal_r.reshape(1, -1))
+        proprio = controller.getPropriosFromRepresentations(goal_r.reshape(1, -1))
+        policy = controller.getPoliciesFromRepresentations(goal_r.reshape(1, -1)) 
         policy *= params.explore_sigma
         
         visual = visual / visual.max()
@@ -306,10 +306,10 @@ class MainUtils(Main):
                     goal_p, 0.5)
 
 
-            visual = controller.getVisualsFromRepresentations(goal_r.reshape(1, -1)).numpy()
-            touch = controller.getTouchesFromRepresentations(goal_r.reshape(1, -1)).numpy()
-            proprio = controller.getPropriosFromRepresentations(goal_r.reshape(1, -1)).numpy()
-            policy = controller.getPoliciesFromRepresentations(goal_r.reshape(1, -1)).numpy()
+            visual = controller.getVisualsFromRepresentations(goal_r.reshape(1, -1))
+            touch = controller.getTouchesFromRepresentations(goal_r.reshape(1, -1))
+            proprio = controller.getPropriosFromRepresentations(goal_r.reshape(1, -1))
+            policy = controller.getPoliciesFromRepresentations(goal_r.reshape(1, -1))
             policy *= params.explore_sigma
         
             

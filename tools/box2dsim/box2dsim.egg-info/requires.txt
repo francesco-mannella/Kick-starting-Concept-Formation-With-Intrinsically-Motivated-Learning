@@ -1,5 +1,5 @@
-box2d_py
 gym
-matplotlib
+box2d_py
 numpy
+matplotlib
 scikit-image
