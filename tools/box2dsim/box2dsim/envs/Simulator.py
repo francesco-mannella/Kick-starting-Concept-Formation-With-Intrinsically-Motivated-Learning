@@ -180,7 +180,8 @@ class VisualSensor:
         for key in self.sim.bodies.keys():
             body = self.sim.bodies[key]
             vercs = np.vstack(body.fixtures[0].shape.vertices)
-            vercs = vercs[np.arange(len(vercs))+[0]]
+            # Unnecessary: matplotlib.Path.contains_points automatically closes path
+            #vercs = vercs[np.arange(len(vercs))+[0]] 
             data = [body.GetWorldPoint(vercs[x])
                 for x in range(len(vercs))]
             body_pixels =  self.path2pixels(data, focus)
