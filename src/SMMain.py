@@ -403,7 +403,7 @@ class Main:
                 (
                     internal_representations,
                     internal_points,
-                ) = controller.spread([[v], [ss], [p], [a]])
+                ) = controller.spread([np.array([v]), np.array([ss]), np.array([p]), np.array([a])])
 
                 # take only vision
                 internal_mean = internal_representations[0]
@@ -487,7 +487,7 @@ class Main:
             state = env.reset(context)
             agent.reset()
             for i, goal_r in enumerate(controller.goal_grid):
-                policy = controller.getPoliciesFromRepresentations([goal_r])
+                policy = controller.getPoliciesFromRepresentations(np.array([goal_r]))
                 agent.updatePolicy(policy)
                 smcycle = SensoryMotorCicle()
                 for t in range(params.stime):
