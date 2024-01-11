@@ -554,7 +554,7 @@ if __name__ == "__main__":
 
     if os.path.isfile("main.dump.npy"):
         main = np.load("main.dump.npy", allow_pickle="True")[0]
-
+        main.plots = plots
     else:
         main = Main(seed, plots)
 

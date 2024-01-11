@@ -1,7 +1,8 @@
 import numpy as np
 import params
-from GripActuator import Agent as GripAgent
-from ArmActuator import Agent as ArmAgent
+from ArmAgent import ArmAgent
+from GripAgent import GripAgent
+
 
 class SMAgent:
 

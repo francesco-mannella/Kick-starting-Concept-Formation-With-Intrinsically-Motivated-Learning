@@ -7,8 +7,8 @@ import box2dsim
 
 import params
 from stm import STM
-from ArmActuator import Agent as ArmAgent
 
+from ArmAgent import ArmAgent
 
 class Env:
 
