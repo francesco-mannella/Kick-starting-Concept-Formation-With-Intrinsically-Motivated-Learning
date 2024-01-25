@@ -8,7 +8,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
-from PIL import Image
+from PIL import Image, ImageDraw
+import cv2
 
 class ContactListener(b2ContactListener):
     def __init__(self, bodies):
@@ -179,11 +180,7 @@ class VisualSensor:
         self.retina *= 0
         for key in self.sim.bodies.keys():
             body = self.sim.bodies[key]
-            vercs = np.vstack(body.fixtures[0].shape.vertices)
-            # Unnecessary: matplotlib.Path.contains_points automatically closes path
-            #vercs = vercs[np.arange(len(vercs))+[0]] 
-            data = [body.GetWorldPoint(vercs[x])
-                for x in range(len(vercs))]
+            data = [body.GetWorldPoint(v) for v in body.fixtures[0].shape.vertices]
             body_pixels =  self.path2pixels(data, focus)
             if body.color is None: body.color = [0.5, 0.5, 0.5]
             color = np.array(body.color)
@@ -194,13 +191,34 @@ class VisualSensor:
 
     def path2pixels(self, vertices, focus):
 
-        points = self.grid * self.scale + focus
+        img_a = np.zeros(self.shape, dtype=np.uint8)
+        vertices = np.array(vertices)
+        #focus = np.array(focus)
 
-        path = Path(vertices) # make a polygon
-        points_in_path = path.contains_points(points, radius=self.radius)
-        img = 1.0*points_in_path.reshape(*self.shape, order='F').T #pixels
+        vertices_t = np.round((vertices - focus) / self.scale) + np.array([(self.shape[0]-1)//2, -self.shape[1]//2])
+        vertices_t[:,1] = -vertices_t[:,1]
 
-        return img
+        cv2.fillPoly(img_a, pts=[vertices_t.astype(np.int32)], color=1)
+
+        #points = self.grid * self.scale + focus
+        #path = Path(vertices) # make a polygon
+        #points_in_path = path.contains_points(points, radius=self.radius)
+        #img_a = 1.0*points_in_path.reshape(*self.shape, order='F').T #pixels
+
+        #if (img != img_a).sum() > 10:
+        #    print("***")
+        #    print(focus)
+        #    print(vertices)
+        #    print(self.scale)
+        #    print((img != img_a).sum())
+        #    print(img_a.sum())
+        #    print(img.sum())
+        #    print(self.shape)
+        #    print(img_a.astype(np.int32))
+        #    print(img.astype(np.int32))
+        #    exit(1)
+
+        return img_a
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
