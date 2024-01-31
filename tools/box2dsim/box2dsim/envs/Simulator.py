@@ -178,29 +178,34 @@ class VisualSensor:
         """
 
         self.retina *= 0
-        for key in self.sim.bodies.keys():
-            body = self.sim.bodies[key]
-            data = [body.GetWorldPoint(v) for v in body.fixtures[0].shape.vertices]
-            body_pixels =  self.path2pixels(data, focus)
-            if body.color is None: body.color = [0.5, 0.5, 0.5]
+        for body in self.sim.bodies.values():
+            if body.color is None:
+                body.color = [0.5, 0.5, 0.5]
             color = np.array(body.color)
-            body_pixels = body_pixels.reshape(body_pixels.shape + (1,))*(1 - color)
-            self.retina += body_pixels
+            if (color == [1, 1, 1]).all():
+                continue
+
+            data = np.array([body.GetWorldPoint(v) for v in body.fixtures[0].shape.vertices])
+            vertices_t = np.round((data - focus) / self.scale) \
+                    + [(self.shape[0]-1)//2, -self.shape[1]//2]
+            vertices_t[:, 1] = -vertices_t[:, 1]
+            cv2.fillPoly(self.retina, pts=[vertices_t.astype(np.int32)], color=color)
+
         self.retina = np.maximum(0, 1 - (self.retina))
         return self.retina
 
-    def path2pixels(self, vertices, focus):
+    def path2pixels(self, vertices, focus, color):
 
-        img = np.zeros(self.shape, dtype=np.uint8)
+        img = np.zeros(self.retina.shape)
         vertices = np.array(vertices)
-
         vertices_t = np.round((vertices - focus) / self.scale) \
             + [(self.shape[0]-1)//2, -self.shape[1]//2]
         vertices_t[:, 1] = -vertices_t[:, 1]
 
-        cv2.fillPoly(img, pts=[vertices_t.astype(np.int32)], color=1)
+        cv2.fillPoly(img, pts=[vertices_t.astype(np.int32)], color=color)
 
         return img
+
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
