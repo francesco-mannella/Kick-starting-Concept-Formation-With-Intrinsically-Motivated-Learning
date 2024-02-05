@@ -268,6 +268,8 @@ class Main:
             (
                 match_value,
                 match_increment,
+                match_value_per_mod,
+                match_increment_per_mod
             ) = controller.computeMatch(np.stack([v_p, ss_p, p_p, a_p]), g_p)
 
             pretest = epoch <= params.pretest_epochs
@@ -316,6 +318,8 @@ class Main:
 
             self.match_value = match_value
             self.match_increment = match_increment
+            self.match_value_per_mod = match_value_per_mod
+            self.match_increment_per_mod = match_increment_per_mod
             self.v_r = v_r
             self.ss_r = ss_r
             self.p_r = p_r
@@ -356,6 +360,8 @@ class Main:
         data = {}
         data["match_value"] = self.match_value
         data["match_increment"] = self.match_increment
+        data["match_value_per_mod"] = self.match_value_per_mod
+        data["match_increment_per_mod"] = self.match_increment_per_mod
         data["v_r"] = self.v_r
         data["ss_r"] = self.ss_r
         data["p_r"] = self.p_r
@@ -453,7 +459,7 @@ class Main:
                 ) = controller.spread(
                     [batch_v, batch_ss, batch_p, batch_a, batch_g]
                 )
-                (match_value, match_increment,) = controller.computeMatch(
+                (match_value, match_increment, _, _) = controller.computeMatch(
                     np.stack(internal_points[:4]),
                     internal_points[4],
                 )
