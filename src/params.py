@@ -10,7 +10,7 @@ esn_epsilon = 1.0e-30
 arm_input = 2
 arm_hidden = 100
 arm_output = 3
-grip_input = 44 
+grip_input = 44
 grip_hidden = 100
 grip_output = 5
 
@@ -44,10 +44,10 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 300 
+epochs = 400
 pretest_epochs = -1
 batch_size = 24
 tests = 12
-epochs_to_test = 10
+epochs_to_test = 100
 load_weights = False
 shuffle_weights = False

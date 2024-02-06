@@ -189,22 +189,10 @@ class VisualSensor:
             vertices_t = np.round((data - focus) / self.scale) \
                     + [(self.shape[0]-1)//2, -self.shape[1]//2]
             vertices_t[:, 1] = -vertices_t[:, 1]
-            cv2.fillPoly(self.retina, pts=[vertices_t.astype(np.int32)], color=color)
+            cv2.fillPoly(self.retina, pts=[vertices_t.astype(np.int32)], color=1 - color)
 
         self.retina = np.maximum(0, 1 - (self.retina))
         return self.retina
-
-    def path2pixels(self, vertices, focus, color):
-
-        img = np.zeros(self.retina.shape)
-        vertices = np.array(vertices)
-        vertices_t = np.round((vertices - focus) / self.scale) \
-            + [(self.shape[0]-1)//2, -self.shape[1]//2]
-        vertices_t[:, 1] = -vertices_t[:, 1]
-
-        cv2.fillPoly(img, pts=[vertices_t.astype(np.int32)], color=color)
-
-        return img
 
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
@@ -415,6 +403,3 @@ class TestPlotterVisualSalience(TestPlotterOneEye):
             self.vm_sal.mk_video(name=f"{name}_sal", dirname=".")
         self.vm_vis = None
         self.vm_sal = None
-
-
-
