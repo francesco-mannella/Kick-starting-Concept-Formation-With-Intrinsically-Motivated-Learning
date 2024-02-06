@@ -144,11 +144,12 @@ class SMController:
         matches_all = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
 
         # take into account only distances with goal
+        # Mod order: visual, touch, proprioception, action, goal
         mask = [
-            [0, 0, 0, 0, 0.2],
-            [0, 0, 0, 0, 0.8],
-            [0, 0, 0, 0, 0.8],
-            [0, 0, 0, 0, 0.2],
+            [0, 0, 0, 0, 0.0],
+            [0, 0, 0, 0, 1.0],
+            [0, 0, 0, 0, 0.0],
+            [0, 0, 0, 0, 0.0],
             [0, 0, 0, 0, 0],
         ]
         matches_per_mod = matches_all.transpose(2, 0, 1) * mask
