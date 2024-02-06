@@ -36,6 +36,10 @@ class SMPredict:
     def spread(self, inp):
         assert len(inp.shape) == 2
         comp = self.model(torch.tensor(inp, dtype=torch.float)).detach().cpu().numpy()
+        # Rescale logit to (0, 1)
+        comp = 1.0 / (1.0 + np.exp(-comp))
+        # Rescale output: everything between (0.5, 1) becomes (0, 1),
+        # the rest is truncated to 0.
         comp = 2*np.maximum(0, comp - 0.5)
         return comp
 
