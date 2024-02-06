@@ -143,10 +143,10 @@ class SMController:
 
         # take into account only distances with goal
         mask = [
-            [0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 1.0],
+            [0, 0, 0, 0, 1.0],
+            [0, 0, 0, 0, 1.0],
+            [0, 0, 0, 0, 1.0],
             [0, 0, 0, 0, 0],
         ]
         matches_per_mod = matches_all.transpose(2, 0, 1) * mask

@@ -195,6 +195,16 @@ class SMSTM(STM):
 
         return point.cpu().numpy(), rep.cpu().numpy()
 
+    def getRepresentation(self, point, sigma=None):
+        if sigma is None:
+            sigma = self.sigma
+
+        distance = point.reshape(-1, 1, 2) - self.grid.cpu().numpy().reshape(1, -1, 2)
+        distance = np.linalg.norm(distance, axis=2)
+        rep = np.exp(-0.5 * (sigma**-2) * (distance) ** 2)
+        rep = rep / rep.sum(1).reshape(-1, 1)
+        return rep
+
     def update_params(self, sigma=None, lr=None):
         if sigma is not None:
             self.sigma = sigma
