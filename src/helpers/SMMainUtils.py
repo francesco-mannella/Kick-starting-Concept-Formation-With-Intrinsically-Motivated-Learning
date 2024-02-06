@@ -10,6 +10,10 @@ matplotlib.use("Agg")
 import params
 import numpy as np
 import time
+
+# Add parent directory to Python module path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from SMMain import *
 import figs
 
