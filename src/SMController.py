@@ -82,8 +82,11 @@ class SMController:
         )
         self.getCompetenceGrid()
 
+        # This effectively ensures that first 10% of simulation steps
+        # of each episode is not taken into account when updating
+        # sensorimotor maps based on match values.
         self.episode_mask = np.arange(params.stime*params.batch_size) % params.stime
-        self.episode_mask = self.episode_mask > (params.stime*0.1)
+        self.episode_mask = self.episode_mask > params.drop_first_n_steps
 
     @staticmethod
     def comp_fun(comp):
@@ -133,7 +136,6 @@ class SMController:
         return policies, comp, rcomp
 
     def computeMatch(self, representations, target):
-
         repall = np.stack(representations)
         repall = np.vstack([repall, np.reshape(target, (1, -1, 2))])
         d1 = np.expand_dims(repall, 0)
@@ -142,6 +144,7 @@ class SMController:
         matches_all = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
 
         # take into account only distances with goal
+        # Mod order: visual, touch, proprioception, action, goal
         mask = [
             [0, 0, 0, 0, 1.0],
             [0, 0, 0, 0, 1.0],
@@ -179,7 +182,7 @@ class SMController:
         # matches_min_for_all = np.sum(matches_mins, axis=(1, 2)) == 3 
         # matches_increments = matches_increments * matches_min_for_all
 
-        return matches, matches_increments.ravel()
+        return matches, matches_increments.ravel(), matches_per_mod, matches_increments_per_mod
 
     def getCompetenceGrid(self):
         comp = self.predict.spread(self.goal_grid)
