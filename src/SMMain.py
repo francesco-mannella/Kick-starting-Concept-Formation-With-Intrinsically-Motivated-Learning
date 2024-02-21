@@ -46,8 +46,19 @@ class SensoryMotorCicle:
             self.action = agent.step(state)
         state = env.step(self.action)
 
+        # End the episode if object moves too far away
+        if self.is_object_out_of_taskspace(state):
+            return None
+
         self.t += 1
         return state
+
+    def is_object_out_of_taskspace(self, state):
+        obj_xy = state["OBJ_POSITION"][0, 0]
+        xlim, ylim = params.task_space["xlim"], params.task_space["ylim"]
+        return (obj_xy[0] < xlim[0] or obj_xy[0] > xlim[1]
+                or obj_xy[1] < ylim[0] or obj_xy[1] > ylim[1])
+
 
 def modulate_param(base, limit, prop):
     return base + (limit - base) * prop
@@ -197,8 +208,10 @@ class Main:
             st = params.stime
             # TODO: each episode has to have its own environment…
             # ----- prepare episodes
+            envs = []
             states = []
             for episode in range(params.batch_size):
+                env = SMEnv(self.seed + episode, params.action_steps)
                 env.b2d_env.prepare_world(contexts[episode])
                 state = env.reset(contexts[episode])
                 it = episode * st
@@ -206,6 +219,7 @@ class Main:
                 batch_ss[it, :] = state["TOUCH_SENSORS"]
                 batch_p[it, :] = state["JOINT_POSITIONS"][:5]
                 states.append(state)
+                envs.append(env)
 
             # get Representations for initial states
             Rs, Rp = controller.spread(
@@ -216,7 +230,7 @@ class Main:
                         batch_a[::st, :],
                         batch_g[::st, :],
                     ])
-            v_r[::st, :], ss_r[::st, :], p_r[::st, :], a_r[::st, :], _ = Rs 
+            v_r[::st, :], ss_r[::st, :], p_r[::st, :], a_r[::st, :], _ = Rs
             v_p[::st, :], ss_p[::st, :], p_p[::st, :], a_p[::st, :], g_p[::st, :] = Rp
 
             # get policy at the first timestep
@@ -238,16 +252,14 @@ class Main:
             smcycle = SensoryMotorCicle(params.action_steps)
             for t in range(params.stime):
                 for episode in range(params.batch_size):
+                    # End the episode if object moves too far away
+                    # (which is signalled by the state set to None)
                     if states[episode] is None:
                         continue
 
                     # set correct policy
                     agent.updatePolicy(batch_a[episode*st, :])
-                    states[episode] = smcycle.step(env, agent, states[episode])
-
-                    # End the episode if object moves too far away
-                    #if self.is_object_out_of_taskspace(states[episode]):
-                    #    states[episode] = None
+                    states[episode] = smcycle.step(envs[episode], agent, states[episode])
 
                 # get Representations for the current time step
                 Rs, Rp = controller.spread(
@@ -258,7 +270,7 @@ class Main:
                             batch_a[t::st, :],
                             batch_g[t::st, :],
                         ])
-                v_r[t::st, :], ss_r[t::st, :], p_r[t::st, :], a_r[t::st, :], _ = Rs 
+                v_r[t::st, :], ss_r[t::st, :], p_r[t::st, :], a_r[t::st, :], _ = Rs
                 v_p[t::st, :], ss_p[t::st, :], p_p[t::st, :], a_p[t::st, :], g_p[t::st, :] = Rp
 
             # ---- end of episode: match_value and update
@@ -357,12 +369,6 @@ class Main:
             epoch += 1
             self.epoch = epoch
             sys.stdout.flush()
-    
-    def is_object_out_of_taskspace(self, state):
-        obj_xy = state["OBJ_POSITION"][0, 0]
-        xlim, ylim = params.task_space["xlim"], params.task_space["ylim"]
-        return (obj_xy[0] < xlim[0] or obj_xy[0] > xlim[1] \
-                or obj_xy[1] < ylim[0] or obj_xy[1] > ylim[1])
 
     def diagnose(self):
 

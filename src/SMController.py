@@ -135,6 +135,9 @@ class SMController:
         policies = self.explore_sigma * (policies + (1 - comp) * self.policy_noise)
         return policies, comp, rcomp
 
+    def computeMatchOneStep(self):
+        pass
+
     def computeMatch(self, representations, target):
         repall = np.stack(representations)
         repall = np.vstack([repall, np.reshape(target, (1, -1, 2))])
