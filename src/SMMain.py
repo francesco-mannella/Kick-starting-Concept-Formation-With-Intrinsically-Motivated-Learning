@@ -264,7 +264,13 @@ class Main:
 
                     # set correct policy
                     agent.updatePolicy(batch_a[episode*st, :])
-                    states[episode] = smcycle.step(envs[episode], agent, states[episode])
+
+                    state = smcycle.step(envs[episode], agent, states[episode])
+                    it = episode*st + t
+                    batch_v[it, :] = state["VISUAL_SENSORS"].ravel()
+                    batch_ss[it, :] = state["TOUCH_SENSORS"]
+                    batch_p[it, :] = state["JOINT_POSITIONS"][:5]
+                    states[episode] = state
 
                 # get Representations for the current time step
                 Rs, Rp = controller.spread(
