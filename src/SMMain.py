@@ -170,6 +170,11 @@ class Main:
         a_p = np.zeros([batch_data_size, 2])
         g_p = np.zeros([batch_data_size, 2])
 
+        match_value = np.zeros([batch_data_size])
+        match_value_per_mod = np.zeros([batch_data_size, 4])
+        match_increment = np.zeros([batch_data_size])
+        match_increment_per_mod = np.zeros([batch_data_size, 4])
+
         while epoch < params.epochs:
 
             total_time_elapsed = time.perf_counter() - self.start
@@ -206,11 +211,11 @@ class Main:
                 )
 
             st = params.stime
-            # TODO: each episode has to have its own environment…
             # ----- prepare episodes
             envs = []
             states = []
             for episode in range(params.batch_size):
+                # Each environment should have different seed
                 env = SMEnv(self.seed + episode, params.action_steps)
                 env.b2d_env.prepare_world(contexts[episode])
                 state = env.reset(contexts[episode])
@@ -273,6 +278,14 @@ class Main:
                 v_r[t::st, :], ss_r[t::st, :], p_r[t::st, :], a_r[t::st, :], _ = Rs
                 v_p[t::st, :], ss_p[t::st, :], p_p[t::st, :], a_p[t::st, :], g_p[t::st, :] = Rp
 
+                match_value[t::st], match_value_per_mod[t::st, :] =\
+                        controller.computeMatchOneStep(*Rp)
+                if t > 0:
+                    match_increment[t::st] = np.maximum(0, match_value[t::st]
+                                                        - match_value[(t-1)::st])
+                    match_increment_per_mod[t::st] = np.maximum(0, match_value_per_mod[t::st]
+                                                                - match_value_per_mod[(t-1)::st])
+
             # ---- end of episode: match_value and update
 
             # get all representations
@@ -289,11 +302,19 @@ class Main:
             #v_p, ss_p, p_p, a_p, g_p = Rp
 
             (
-                match_value,
-                match_increment,
-                match_value_per_mod,
-                match_increment_per_mod
+                match_value1,
+                match_increment1,
+                match_value_per_mod1,
+                match_increment_per_mod1
             ) = controller.computeMatch(np.stack([v_p, ss_p, p_p, a_p]), g_p)
+
+            print(match_value[:10])
+            print(match_value1[:10])
+            print((match_value != match_value1).sum())
+            #print((match_value_per_mod != match_value_per_mod1).sum())
+            print((match_increment != match_increment1).sum())
+            #print((match_increment_per_mod != match_increment_per_mod1).sum())
+            exit(1)
 
             pretest = epoch <= params.pretest_epochs
             (update_items, update_episodes,) = controller.update(
@@ -365,6 +386,23 @@ class Main:
                 time_elapsed = time.perf_counter() - epoch_start
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
                 epoch_start = time.perf_counter()
+
+            match_value[::] = 0
+            match_increment[::] = 0
+            match_value_per_mod[::] = 0
+            match_increment_per_mod[::] = 0
+            batch_vv[::] = 0
+            batch_ss[::] = 0
+            batch_p[::] = 0
+            batch_a[::] = 0
+            v_r[::] = 0
+            ss_r[::] = 0
+            p_r[::] = 0
+            a_r[::] = 0
+            v_p[::] = 0
+            ss_p[::] = 0
+            p_p[::] = 0
+            a_p[::] = 0
 
             epoch += 1
             self.epoch = epoch
