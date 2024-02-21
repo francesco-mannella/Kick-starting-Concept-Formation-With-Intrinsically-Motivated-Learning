@@ -4,10 +4,11 @@ import gym, box2dsim
 
 
 class SMEnv:
-    def __init__(self, seed):
+    def __init__(self, seed, action_steps=5):
         self.b2d_env = gym.make("Box2DSimOneArmOneEye-v0")
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)
+        self.b2d_env.action_steps = action_steps
 
         self.b2d_env.set_taskspace(**params.task_space)
         self.render = None

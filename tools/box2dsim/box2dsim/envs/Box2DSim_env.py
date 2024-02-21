@@ -466,6 +466,8 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
         self.fovea_height = 4
         self.fovea_pixel_side = 10
 
+        self.action_steps = 5
+
         super(Box2DSimOneArmOneEyeEnv, self).__init__(*args, **kargs)
 
         self.rendererType = TestPlotterOneEye
@@ -580,7 +582,7 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
         )
 
         # visual
-        if self.t % 5 == 0:
+        if self.t % self.action_steps == 0:
             self.saliency = self.filter(self.bground_img)
             self.eye_pos = self.sample_visual(self.saliency)
             self.saliency_pos = self.max_visual(self.saliency)

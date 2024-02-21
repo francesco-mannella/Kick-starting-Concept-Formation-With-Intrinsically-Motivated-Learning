@@ -37,13 +37,15 @@ class TimeLimitsException(Exception):
     pass
 
 class SensoryMotorCicle:
-    def __init__(self):
+    def __init__(self, action_steps=5):
         self.t = 0
+        self.action_steps = action_steps
 
-    def step(self, env, agent, state, action_steps=5):
-        if self.t % action_steps == 0:
+    def step(self, env, agent, state):
+        if self.t % self.action_steps == 0:
             self.action = agent.step(state)
         state = env.step(self.action)
+
         self.t += 1
         return state
 
@@ -53,6 +55,7 @@ def modulate_param(base, limit, prop):
 def softmax(x, t=0.01):
     e = np.exp(x / t)
     return e / (e.sum() + 1e-100)
+
 
 class Main:
     def __init__(self, seed=None, plots=False):
@@ -69,7 +72,8 @@ class Main:
         self.start = time.perf_counter()
         if self.plots is True:
             remove_figs()
-        self.env = SMEnv(seed)
+
+        self.env = SMEnv(seed, params.action_steps)
         self.agent = SMAgent(self.env)
         self.controller = SMController(
             self.rng,
@@ -106,7 +110,7 @@ class Main:
             tmp[:nlogs, : ] = self.logs.copy()
             self.logs = tmp
 
-        self.env = SMEnv(self.seed)
+        self.env = SMEnv(self.seed, params.action_steps)
         self.controller = SMController(
             self.rng,
             load=params.load_weights,
@@ -190,80 +194,87 @@ class Main:
                     controller.curr_sigma, controller.curr_lr
                 )
 
-            # ----- episodes
-
-            comps = batch_c
-            world_dicts = []
-            stime = params.stime
+            st = params.stime
+            # TODO: each episode has to have its own environment…
+            # ----- prepare episodes
+            states = []
             for episode in range(params.batch_size):
-
-                i = episode * stime
-
                 env.b2d_env.prepare_world(contexts[episode])
                 state = env.reset(contexts[episode])
+                it = episode * st
+                batch_v[it, :] = state["VISUAL_SENSORS"].ravel()
+                batch_ss[it, :] = state["TOUCH_SENSORS"]
+                batch_p[it, :] = state["JOINT_POSITIONS"][:5]
+                states.append(state)
 
-                # ----- start episode
+            # get Representations for initial states
+            Rs, Rp = controller.spread(
+                    [
+                        batch_v[::st, :],
+                        batch_ss[::st, :],
+                        batch_p[::st, :],
+                        batch_a[::st, :],
+                        batch_g[::st, :],
+                    ])
+            v_r[::st, :], ss_r[::st, :], p_r[::st, :], a_r[::st, :], _ = Rs 
+            v_p[::st, :], ss_p[::st, :], p_p[::st, :], a_p[::st, :], g_p[::st, :] = Rp
 
-                smcycle = SensoryMotorCicle()
-                for t in range(params.stime):
+            # get policy at the first timestep
+            goals = v_r[::st, :]
+            (policies,
+             competences,
+             rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
 
-                    it = i + t
+            # TODO: test whether this broadcast assignment works correctly
+            # fill all batches with policies, goals, and competences
+            # (goal is different for each episode, but the same for each
+            # time step within an episode)
+            batch_a.reshape((st, params.batch_size, -1))[::] = policies[:, :]
+            batch_g.reshape((st, params.batch_size, -1))[::] = goals[:, :]
+            batch_c.reshape((st, params.batch_size, -1))[::] = competences[:, :]
+            batch_log.reshape((st, params.batch_size, -1))[::] = rcompetences[:, :]
 
-                    batch_v[it, :] = state["VISUAL_SENSORS"].ravel()
-                    batch_ss[it, :] = state["TOUCH_SENSORS"]
-                    batch_p[it, :] = state["JOINT_POSITIONS"][:5]
+            # Main loop through time steps and episodes
+            smcycle = SensoryMotorCicle(params.action_steps)
+            for t in range(params.stime):
+                for episode in range(params.batch_size):
+                    if states[episode] is None:
+                        continue
 
-                    # ONLY FIRST TIMESTEP
-                    if t == 0:
+                    # set correct policy
+                    agent.updatePolicy(batch_a[episode*st, :])
+                    states[episode] = smcycle.step(env, agent, states[episode])
 
-                        # get Representations at the first timestep
-                        Rs, Rp = controller.spread(
-                            [
-                                batch_v[it : it + 1, :],
-                                batch_ss[it : it + 1, :],
-                                batch_p[it : it + 1, :],
-                                batch_a[it : it + 1, :],
-                                batch_g[it : it + 1, :],
-                            ]
-                        )
-                        v_r[it, :], ss_r[it, :], p_r[it, :], a_r[it, :], _ = Rs 
-                        v_p[it, :], ss_p[it, :], p_p[it, :], a_p[it, :], g_p[it, :] = Rp
+                    # End the episode if object moves too far away
+                    #if self.is_object_out_of_taskspace(states[episode]):
+                    #    states[episode] = None
 
-                        # get policy at the first timestep
-                        goal = v_r[it : it + 1, :]
-
-                        (
-                            policy,
-                            competence,
-                            rcompetence,
-                        ) = controller.getPoliciesFromRepresentationsWithNoise(
-                            goal,
-                        )
-
-                        # update policy at the first timestep
-                        agent.updatePolicy(policy)
-
-                    # ITERATION (EVERY TIMESTEP)
-                    batch_a[it, :] = policy
-                    batch_g[it, :] = goal
-                    batch_c[it, :] = competence
-                    batch_log[it, :] = rcompetence
-                    state = smcycle.step(env, agent, state)
+                # get Representations for the current time step
+                Rs, Rp = controller.spread(
+                        [
+                            batch_v[t::st, :],
+                            batch_ss[t::st, :],
+                            batch_p[t::st, :],
+                            batch_a[t::st, :],
+                            batch_g[t::st, :],
+                        ])
+                v_r[t::st, :], ss_r[t::st, :], p_r[t::st, :], a_r[t::st, :], _ = Rs 
+                v_p[t::st, :], ss_p[t::st, :], p_p[t::st, :], a_p[t::st, :], g_p[t::st, :] = Rp
 
             # ---- end of episode: match_value and update
 
             # get all representations
-            Rs, Rp = controller.spread(
-                [
-                    batch_v,
-                    batch_ss,
-                    batch_p,
-                    batch_a,
-                    batch_g,
-                ]
-            )
-            v_r, ss_r, p_r, a_r, _ = Rs
-            v_p, ss_p, p_p, a_p, g_p = Rp
+            # Rs, Rp = controller.spread(
+            #    [
+            #        batch_v,
+            #        batch_ss,
+            #        batch_p,
+            #        batch_a,
+            #        batch_g,
+            #    ]
+            #)
+            #v_r, ss_r, p_r, a_r, _ = Rs
+            #v_p, ss_p, p_p, a_p, g_p = Rp
 
             (
                 match_value,
@@ -287,7 +298,7 @@ class Main:
 
             # ---- print
 
-            c = np.outer(contexts, np.ones(stime)).ravel()
+            c = np.outer(contexts, np.ones(params.stime)).ravel()
             items = [np.sum(update_episodes[c == k]) for k in range(1, 4)]
             items = "".join(
                 list(
@@ -347,6 +358,12 @@ class Main:
             self.epoch = epoch
             sys.stdout.flush()
     
+    def is_object_out_of_taskspace(self, state):
+        obj_xy = state["OBJ_POSITION"][0, 0]
+        xlim, ylim = params.task_space["xlim"], params.task_space["ylim"]
+        return (obj_xy[0] < xlim[0] or obj_xy[0] > xlim[1] \
+                or obj_xy[1] < ylim[0] or obj_xy[1] > ylim[1])
+
     def diagnose(self):
 
         np.save("main.dump", [self], allow_pickle=True)
