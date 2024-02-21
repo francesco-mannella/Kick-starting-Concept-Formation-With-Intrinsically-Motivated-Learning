@@ -2,12 +2,16 @@ import glob
 import os, sys
 from pathlib import Path
 
-import params
 import numpy as np
 import matplotlib
 import time
 import tensorflow as tf
+
+# Add parent directory to Python module path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from SMMainUtils import MainUtils as Main
+import params
 
 matplotlib.use("Agg")
 
@@ -35,8 +39,8 @@ if __name__ == "__main__":
     if not gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-    if os.path.isfile("main.dump.npy"):
+    if os.path.isfile("../main.dump.npy"):
         main = np.load(
-            "main.dump.npy", allow_pickle="True"
+            "../main.dump.npy", allow_pickle="True"
         )[0]
         main.demo_episodes()

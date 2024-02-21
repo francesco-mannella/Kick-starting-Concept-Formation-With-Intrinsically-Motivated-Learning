@@ -2,11 +2,15 @@ import glob
 import os, sys
 from pathlib import Path
 
-import params
 import numpy as np
 import matplotlib
 import time
 import tensorflow as tf
+
+# Add parent directory to Python module path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import params
 from SMMainUtils import MainUtils
 from SMMain import Main
 from regress_sensory_states import regress
@@ -45,6 +49,6 @@ if __name__ == "__main__":
         main = MainUtils()
         main.__dict__.update(main_core.__dict__)
 
-        #main.collect_sensory_states()
-        #regress()
+        main.collect_sensory_states()
+        regress()
         main.demo_episodes()

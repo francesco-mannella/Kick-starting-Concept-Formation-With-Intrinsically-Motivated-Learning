@@ -1,5 +1,6 @@
 # %%
 import os, glob
+import sys
 import regex as re
 from shutil import copyfile
 import numpy as np
@@ -21,6 +22,9 @@ from PIL import Image
 #matplotlib.use("QtAgg")
 
 rng = np.random.RandomState(1)
+
+# Add parent directory to Python module path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import SMGraphs
 import params

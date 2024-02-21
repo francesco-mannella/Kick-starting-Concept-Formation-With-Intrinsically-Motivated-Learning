@@ -1,7 +1,13 @@
 # %%
+import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
+
+# Add parent directory to Python module path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from SensoryRegressor import SensoryRegressor as Regress
 # %%
 # Manage data
