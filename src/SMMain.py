@@ -244,7 +244,6 @@ class Main:
              competences,
              rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
 
-            # TODO: test whether this broadcast assignment works correctly
             # fill all batches with policies, goals, and competences
             # (goal is different for each episode, but the same for each
             # time step within an episode)
@@ -266,11 +265,13 @@ class Main:
                     agent.updatePolicy(batch_a[episode*st, :])
 
                     state = smcycle.step(envs[episode], agent, states[episode])
-                    it = episode*st + t
-                    batch_v[it, :] = state["VISUAL_SENSORS"].ravel()
-                    batch_ss[it, :] = state["TOUCH_SENSORS"]
-                    batch_p[it, :] = state["JOINT_POSITIONS"][:5]
                     states[episode] = state
+                    
+                    if state is not None:
+                        it = episode*st + t
+                        batch_v[it, :] = state["VISUAL_SENSORS"].ravel()
+                        batch_ss[it, :] = state["TOUCH_SENSORS"]
+                        batch_p[it, :] = state["JOINT_POSITIONS"][:5]
 
                 # get Representations for the current time step
                 Rs, Rp = controller.spread(
@@ -283,14 +284,13 @@ class Main:
                         ])
                 v_r[t::st, :], ss_r[t::st, :], p_r[t::st, :], a_r[t::st, :], _ = Rs
                 v_p[t::st, :], ss_p[t::st, :], p_p[t::st, :], a_p[t::st, :], g_p[t::st, :] = Rp
-
+                
                 match_value[t::st], match_value_per_mod[t::st, :] =\
                         controller.computeMatchOneStep(*Rp)
                 if t > 0:
-                    match_increment[t::st] = np.maximum(0, match_value[t::st]
-                                                        - match_value[(t-1)::st])
                     match_increment_per_mod[t::st] = np.maximum(0, match_value_per_mod[t::st]
                                                                 - match_value_per_mod[(t-1)::st])
+                    match_increment[t::st] = np.mean(match_increment_per_mod[t::st], axis=1)
 
             # ---- end of episode: match_value and update
 
@@ -306,21 +306,6 @@ class Main:
             #)
             #v_r, ss_r, p_r, a_r, _ = Rs
             #v_p, ss_p, p_p, a_p, g_p = Rp
-
-            (
-                match_value1,
-                match_increment1,
-                match_value_per_mod1,
-                match_increment_per_mod1
-            ) = controller.computeMatch(np.stack([v_p, ss_p, p_p, a_p]), g_p)
-
-            print(match_value[:10])
-            print(match_value1[:10])
-            print((match_value != match_value1).sum())
-            #print((match_value_per_mod != match_value_per_mod1).sum())
-            print((match_increment != match_increment1).sum())
-            #print((match_increment_per_mod != match_increment_per_mod1).sum())
-            exit(1)
 
             pretest = epoch <= params.pretest_epochs
             (update_items, update_episodes,) = controller.update(
@@ -397,7 +382,7 @@ class Main:
             match_increment[::] = 0
             match_value_per_mod[::] = 0
             match_increment_per_mod[::] = 0
-            batch_vv[::] = 0
+            batch_v[::] = 0
             batch_ss[::] = 0
             batch_p[::] = 0
             batch_a[::] = 0

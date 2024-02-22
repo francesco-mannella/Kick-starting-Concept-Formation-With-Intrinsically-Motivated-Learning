@@ -138,7 +138,7 @@ class SMController:
     def computeMatchOneStep(self, v_p, ss_p, p_p, a_p, g_p):
         diffs = np.linalg.norm(np.stack([v_p, ss_p, p_p, a_p]) - g_p, axis=-1).T
         match_per_mod = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
-        match = np.mean(match_per_mod)
+        match = np.mean(match_per_mod, axis=1)
         return match, match_per_mod
 
     def computeMatch(self, representations, target):
