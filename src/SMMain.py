@@ -153,27 +153,27 @@ class Main:
         epoch_start = time.perf_counter()
         contexts = (np.arange(params.batch_size) % 3) + 1
 
-        batch_v = np.zeros([batch_data_size, params.visual_size])
-        batch_ss = np.zeros([batch_data_size, params.somatosensory_size])
-        batch_p = np.zeros([batch_data_size, params.proprioception_size])
-        batch_a = np.zeros([batch_data_size, params.policy_size])
-        batch_c = np.ones([batch_data_size, 1])
-        batch_log = np.ones([batch_data_size, 1])
-        batch_g = np.zeros([batch_data_size, params.internal_size])
-        v_r = np.zeros([batch_data_size, params.internal_size])
-        ss_r = np.zeros([batch_data_size, params.internal_size])
-        p_r = np.zeros([batch_data_size, params.internal_size])
-        a_r = np.zeros([batch_data_size, params.internal_size])
-        v_p = np.zeros([batch_data_size, 2])
-        ss_p = np.zeros([batch_data_size, 2])
-        p_p = np.zeros([batch_data_size, 2])
-        a_p = np.zeros([batch_data_size, 2])
-        g_p = np.zeros([batch_data_size, 2])
+        batch_v = np.zeros([params.batch_size, params.stime, params.visual_size])
+        batch_ss = np.zeros([params.batch_size, params.stime, params.somatosensory_size])
+        batch_p = np.zeros([params.batch_size, params.stime, params.proprioception_size])
+        batch_a = np.zeros([params.batch_size, params.stime, params.policy_size])
+        batch_c = np.ones([params.batch_size, params.stime, 1])
+        batch_log = np.ones([params.batch_size, params.stime, 1])
+        batch_g = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        ss_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        p_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        a_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_p = np.zeros([params.batch_size, params.stime, 2])
+        ss_p = np.zeros([params.batch_size, params.stime, 2])
+        p_p = np.zeros([params.batch_size, params.stime, 2])
+        a_p = np.zeros([params.batch_size, params.stime, 2])
+        g_p = np.zeros([params.batch_size, params.stime, 2])
 
-        match_value = np.zeros([batch_data_size])
-        match_value_per_mod = np.zeros([batch_data_size, 4])
-        match_increment = np.zeros([batch_data_size])
-        match_increment_per_mod = np.zeros([batch_data_size, 4])
+        match_value = np.zeros([params.batch_size, params.stime])
+        match_value_per_mod = np.zeros([params.batch_size, params.stime, 4])
+        match_increment = np.zeros([params.batch_size, params.stime])
+        match_increment_per_mod = np.zeros([params.batch_size, params.stime, 4])
 
         while epoch < params.epochs:
 
@@ -219,27 +219,26 @@ class Main:
                 env = SMEnv(self.seed + episode, params.action_steps)
                 env.b2d_env.prepare_world(contexts[episode])
                 state = env.reset(contexts[episode])
-                it = episode * st
-                batch_v[it, :] = state["VISUAL_SENSORS"].ravel()
-                batch_ss[it, :] = state["TOUCH_SENSORS"]
-                batch_p[it, :] = state["JOINT_POSITIONS"][:5]
+                batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
+                batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
+                batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
                 states.append(state)
                 envs.append(env)
 
             # get Representations for initial states
             Rs, Rp = controller.spread(
                     [
-                        batch_v[::st, :],
-                        batch_ss[::st, :],
-                        batch_p[::st, :],
-                        batch_a[::st, :],
-                        batch_g[::st, :],
+                        batch_v[:, 0, :],
+                        batch_ss[:, 0, :],
+                        batch_p[:, 0, :],
+                        batch_a[:, 0, :],
+                        batch_g[:, 0, :],
                     ])
-            v_r[::st, :], ss_r[::st, :], p_r[::st, :], a_r[::st, :], _ = Rs
-            v_p[::st, :], ss_p[::st, :], p_p[::st, :], a_p[::st, :], g_p[::st, :] = Rp
+            v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
+            v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
 
             # get policy at the first timestep
-            goals = v_r[::st, :]
+            goals = v_r[:, 0, :]
             (policies,
              competences,
              rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
@@ -247,10 +246,10 @@ class Main:
             # fill all batches with policies, goals, and competences
             # (goal is different for each episode, but the same for each
             # time step within an episode)
-            batch_a.reshape((st, params.batch_size, -1))[::] = policies[:, :]
-            batch_g.reshape((st, params.batch_size, -1))[::] = goals[:, :]
-            batch_c.reshape((st, params.batch_size, -1))[::] = competences[:, :]
-            batch_log.reshape((st, params.batch_size, -1))[::] = rcompetences[:, :]
+            batch_a[::] = policies[:, None, :]
+            batch_g[::] = goals[:, None, :]
+            batch_c[::] = competences[:, None, :]
+            batch_log[::] = rcompetences[:, None, :]
 
             # Main loop through time steps and episodes
             smcycle = SensoryMotorCicle(params.action_steps)
@@ -262,35 +261,46 @@ class Main:
                         continue
 
                     # set correct policy
-                    agent.updatePolicy(batch_a[episode*st, :])
+                    agent.updatePolicy(batch_a[episode, 0, :])
 
                     state = smcycle.step(envs[episode], agent, states[episode])
                     states[episode] = state
-                    
-                    if state is not None:
-                        it = episode*st + t
-                        batch_v[it, :] = state["VISUAL_SENSORS"].ravel()
-                        batch_ss[it, :] = state["TOUCH_SENSORS"]
-                        batch_p[it, :] = state["JOINT_POSITIONS"][:5]
 
-                # get Representations for the current time step
-                Rs, Rp = controller.spread(
+                    if state is not None:
+                        batch_v[episode, t, :] = state["VISUAL_SENSORS"].ravel()
+                        batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
+                        batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
+
+                if t % params.action_steps == 0 and t > 0:
+                    # get Representations for the last N = params.action_steps steps
+                    t0 = t - params.action_steps
+                    bsize = params.batch_size*params.action_steps
+                    Rs, Rp = controller.spread(
                         [
-                            batch_v[t::st, :],
-                            batch_ss[t::st, :],
-                            batch_p[t::st, :],
-                            batch_a[t::st, :],
-                            batch_g[t::st, :],
+                            batch_v[:, t0:t, :].reshape((bsize, -1)),
+                            batch_ss[:, t0:t, :].reshape((bsize, -1)),
+                            batch_p[:, t0:t, :].reshape((bsize, -1)),
+                            batch_a[:, t0:t, :].reshape((bsize, -1)),
+                            batch_g[:, t0:t, :].reshape((bsize, -1)),
                         ])
-                v_r[t::st, :], ss_r[t::st, :], p_r[t::st, :], a_r[t::st, :], _ = Rs
-                v_p[t::st, :], ss_p[t::st, :], p_p[t::st, :], a_p[t::st, :], g_p[t::st, :] = Rp
-                
-                match_value[t::st], match_value_per_mod[t::st, :] =\
-                        controller.computeMatchOneStep(*Rp)
-                if t > 0:
-                    match_increment_per_mod[t::st] = np.maximum(0, match_value_per_mod[t::st]
-                                                                - match_value_per_mod[(t-1)::st])
-                    match_increment[t::st] = np.mean(match_increment_per_mod[t::st], axis=1)
+                    (v_r[:, t0:t, :].reshape((bsize, -1))[::],
+                     ss_r[:, t0:t, :].reshape((bsize, -1))[::],
+                     p_r[:, t0:t, :].reshape((bsize, -1))[::],
+                     a_r[:, t0:t, :].reshape((bsize, -1))[::], _) = Rs
+
+                    (v_p[:, t0:t, :].reshape((bsize, -1))[::],
+                     ss_p[:, t0:t, :].reshape((bsize, -1))[::],
+                     p_p[:, t0:t, :].reshape((bsize, -1))[::],
+                     a_p[:, t0:t, :].reshape((bsize, -1))[::],
+                     g_p[:, t0:t, :].reshape((bsize, -1))[::]) = Rp
+
+                #TODO: Generalize computeMatchOneStep to multiple steps
+                #match_value[t::st], match_value_per_mod[t::st, :] =\
+                #        controller.computeMatchOneStep(*Rp)
+                #if t > 0:
+                #    match_increment_per_mod[t::st] = np.maximum(0, match_value_per_mod[t::st]
+                #                                                 - match_value_per_mod[(t-1)::st])
+                #    match_increment[t::st] = np.mean(match_increment_per_mod[t::st], axis=1)
 
             # ---- end of episode: match_value and update
 
