@@ -170,6 +170,7 @@ class Main:
         match_increment = np.zeros([params.batch_size, params.stime])
         match_increment_per_mod = np.zeros([params.batch_size, params.stime, 4])
 
+
         while epoch < params.epochs:
 
             total_time_elapsed = time.perf_counter() - self.start
@@ -210,7 +211,7 @@ class Main:
             envs = []
             states = []
             for episode in range(params.batch_size):
-                # Each environment should have different seed
+                # Each environment should have a different seed
                 env = SMEnv(self.seed + episode, params.action_steps)
                 env.b2d_env.prepare_world(contexts[episode])
                 state = env.reset(contexts[episode])
@@ -246,13 +247,15 @@ class Main:
             batch_c[::] = competences[:, None, :]
             batch_log[::] = rcompetences[:, None, :]
 
+            cum_match_increment = np.zeros(params.batch_size)
+        
             # Main loop through time steps and episodes
             smcycle = SensoryMotorCicle(params.action_steps)
             for t in range(1, params.stime+1):
                 if t < params.stime:
                     for episode in range(params.batch_size):
                         # Do not update the episode if it has ended
-                        if states[episode] is None:
+                        if states[episode] is None or cum_match_increment[episode] > params.cum_match_incr_th:
                             continue
 
                         # set correct policy
@@ -297,6 +300,7 @@ class Main:
                     if t > params.action_steps:
                         match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
                         match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
+                        cum_match_increment += match_increment[:, t0:t].sum(axis=-1)
 
             # ---- end of an epoch: match_value and update
             bsize = params.batch_size * params.stime
