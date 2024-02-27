@@ -135,10 +135,11 @@ class SMController:
         policies = self.explore_sigma * (policies + (1 - comp) * self.policy_noise)
         return policies, comp, rcomp
 
-    def computeMatchOneStep(self, v_p, ss_p, p_p, a_p, g_p):
-        diffs = np.linalg.norm(np.stack([v_p, ss_p, p_p, a_p]) - g_p, axis=-1).T
+    def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
+        mods = np.stack([v_p, ss_p, p_p, a_p])
+        diffs = np.moveaxis(np.linalg.norm(mods - g_p, axis=-1), 0, -1)
         match_per_mod = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
-        match = np.mean(match_per_mod, axis=1)
+        match = np.mean(match_per_mod, axis=-1)
         return match, match_per_mod
 
     def computeMatch(self, representations, target):

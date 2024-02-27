@@ -274,59 +274,45 @@ class Main:
                 if t % params.action_steps == 0 and t > 0:
                     # get Representations for the last N = params.action_steps steps
                     t0 = t - params.action_steps
-                    bsize = params.batch_size*params.action_steps
+                    bsize = params.batch_size * params.action_steps
+                    sa = np.s_[:, t0:t, :]
                     Rs, Rp = controller.spread(
                         [
-                            batch_v[:, t0:t, :].reshape((bsize, -1)),
-                            batch_ss[:, t0:t, :].reshape((bsize, -1)),
-                            batch_p[:, t0:t, :].reshape((bsize, -1)),
-                            batch_a[:, t0:t, :].reshape((bsize, -1)),
-                            batch_g[:, t0:t, :].reshape((bsize, -1)),
+                            batch_v[sa].reshape((bsize, -1)),
+                            batch_ss[sa].reshape((bsize, -1)),
+                            batch_p[sa].reshape((bsize, -1)),
+                            batch_a[sa].reshape((bsize, -1)),
+                            batch_g[sa].reshape((bsize, -1)),
                         ])
-                    (v_r[:, t0:t, :].reshape((bsize, -1))[::],
-                     ss_r[:, t0:t, :].reshape((bsize, -1))[::],
-                     p_r[:, t0:t, :].reshape((bsize, -1))[::],
-                     a_r[:, t0:t, :].reshape((bsize, -1))[::], _) = Rs
+                    (v_r[sa].reshape((bsize, -1))[::],
+                     ss_r[sa].reshape((bsize, -1))[::],
+                     p_r[sa].reshape((bsize, -1))[::],
+                     a_r[sa].reshape((bsize, -1))[::], _) = Rs
 
-                    (v_p[:, t0:t, :].reshape((bsize, -1))[::],
-                     ss_p[:, t0:t, :].reshape((bsize, -1))[::],
-                     p_p[:, t0:t, :].reshape((bsize, -1))[::],
-                     a_p[:, t0:t, :].reshape((bsize, -1))[::],
-                     g_p[:, t0:t, :].reshape((bsize, -1))[::]) = Rp
+                    (v_p[sa].reshape((bsize, -1))[::],
+                     ss_p[sa].reshape((bsize, -1))[::],
+                     p_p[sa].reshape((bsize, -1))[::],
+                     a_p[sa].reshape((bsize, -1))[::],
+                     g_p[sa].reshape((bsize, -1))[::]) = Rp
 
-                #TODO: Generalize computeMatchOneStep to multiple steps
-                #match_value[t::st], match_value_per_mod[t::st, :] =\
-                #        controller.computeMatchOneStep(*Rp)
-                #if t > 0:
-                #    match_increment_per_mod[t::st] = np.maximum(0, match_value_per_mod[t::st]
-                #                                                 - match_value_per_mod[(t-1)::st])
-                #    match_increment[t::st] = np.mean(match_increment_per_mod[t::st], axis=1)
+                    match_value[:, t0:t], match_value_per_mod[sa] =\
+                        controller.computeMatchSimple(v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa])
+                    if t > params.action_steps:
+                        match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
+                        match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
 
             # ---- end of episode: match_value and update
-
-            # get all representations
-            # Rs, Rp = controller.spread(
-            #    [
-            #        batch_v,
-            #        batch_ss,
-            #        batch_p,
-            #        batch_a,
-            #        batch_g,
-            #    ]
-            #)
-            #v_r, ss_r, p_r, a_r, _ = Rs
-            #v_p, ss_p, p_p, a_p, g_p = Rp
-
+            bsize = params.batch_size * params.stime
             pretest = epoch <= params.pretest_epochs
             (update_items, update_episodes,) = controller.update(
-                batch_v,
-                batch_ss,
-                batch_p,
-                batch_a,
-                batch_g,
+                batch_v.reshape((bsize, -1)),
+                batch_ss.reshape((bsize, -1)),
+                batch_p.reshape((bsize, -1)),
+                batch_a.reshape((bsize, -1)),
+                batch_g.reshape((bsize, -1)),
                 match_value.reshape(-1, 1),
                 match_increment.reshape(-1, 1),
-                competences=batch_c,
+                competences=batch_c.reshape((bsize, -1)),
                 pretest=pretest,
             )
 
