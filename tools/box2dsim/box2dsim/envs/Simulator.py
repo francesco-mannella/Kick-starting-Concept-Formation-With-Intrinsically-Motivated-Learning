@@ -85,6 +85,9 @@ class  Box2DSim(object):
         self.joint_pids = { ("%s" % k): PID(dt=self.dt)
                 for k in list(self.joints.keys()) }
 
+        def is_body_visible(body):
+            return not (body[1].color[0] == 1 and body[1].color[1] == 1 and body[1].color[2] == 1)
+        self.visible_bodies = dict(filter(is_body_visible, bodies.items()))
 
     def contacts(self, bodyA, bodyB):
         """ Read contacts between two parts of the simulation
@@ -176,14 +179,11 @@ class VisualSensor:
 
             (np.ndarray): a rescaled retina state
         """
-
         self.retina *= 0
-        for body in self.sim.bodies.values():
+        for body in self.sim.visible_bodies.values():
             if body.color is None:
                 body.color = [0.5, 0.5, 0.5]
             color = np.array(body.color)
-            if (color == [1, 1, 1]).all():
-                continue
 
             data = np.array([body.GetWorldPoint(v) for v in body.fixtures[0].shape.vertices])
             vertices_t = np.round((data - focus) / self.scale) \

@@ -46,19 +46,8 @@ class SensoryMotorCicle:
             self.action = agent.step(state)
         state = env.step(self.action)
 
-        # End the episode if object moves too far away
-        if self.is_object_out_of_taskspace(state):
-            return None
-
         self.t += 1
         return state
-
-    def is_object_out_of_taskspace(self, state):
-        obj_xy = state["OBJ_POSITION"][0, 0]
-        xlim, ylim = params.task_space["xlim"], params.task_space["ylim"]
-        return (obj_xy[0] < xlim[0] or obj_xy[0] > xlim[1]
-                or obj_xy[1] < ylim[0] or obj_xy[1] > ylim[1])
-
 
 def modulate_param(base, limit, prop):
     return base + (limit - base) * prop
@@ -135,6 +124,12 @@ class Main:
         self.start = time.perf_counter()
         if self.plots is True:
             remove_figs(self.epoch)
+
+    def is_object_out_of_taskspace(self, state):
+        obj_xy = state["OBJ_POSITION"][0, 0]
+        xlim, ylim = params.task_space["xlim"], params.task_space["ylim"]
+        return (obj_xy[0] < xlim[0] or obj_xy[0] > xlim[1]
+                or obj_xy[1] < ylim[0] or obj_xy[1] > ylim[1])
 
     def train(self, time_limits):
 
@@ -253,25 +248,27 @@ class Main:
 
             # Main loop through time steps and episodes
             smcycle = SensoryMotorCicle(params.action_steps)
-            for t in range(params.stime):
-                for episode in range(params.batch_size):
-                    # End the episode if object moves too far away
-                    # (which is signalled by the state set to None)
-                    if states[episode] is None:
-                        continue
+            for t in range(1, params.stime+1):
+                if t < params.stime:
+                    for episode in range(params.batch_size):
+                        # Do not update the episode if it has ended
+                        if states[episode] is None:
+                            continue
 
-                    # set correct policy
-                    agent.updatePolicy(batch_a[episode, 0, :])
+                        # set correct policy
+                        agent.updatePolicy(batch_a[episode, 0, :])
+                        state = smcycle.step(envs[episode], agent, states[episode])
+                        
+                        # End the episode if object moves too far away
+                        if self.is_object_out_of_taskspace(state):
+                            states[episode] = None 
+                        else:
+                            states[episode] = state
+                            batch_v[episode, t, :] = state["VISUAL_SENSORS"].ravel()
+                            batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
+                            batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
 
-                    state = smcycle.step(envs[episode], agent, states[episode])
-                    states[episode] = state
-
-                    if state is not None:
-                        batch_v[episode, t, :] = state["VISUAL_SENSORS"].ravel()
-                        batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
-                        batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
-
-                if t % params.action_steps == 0 and t > 0:
+                if t % params.action_steps == 0 or t == params.stime:
                     # get Representations for the last N = params.action_steps steps
                     t0 = t - params.action_steps
                     bsize = params.batch_size * params.action_steps
@@ -284,16 +281,16 @@ class Main:
                             batch_a[sa].reshape((bsize, -1)),
                             batch_g[sa].reshape((bsize, -1)),
                         ])
-                    (v_r[sa].reshape((bsize, -1))[::],
-                     ss_r[sa].reshape((bsize, -1))[::],
-                     p_r[sa].reshape((bsize, -1))[::],
-                     a_r[sa].reshape((bsize, -1))[::], _) = Rs
+                    v_r[sa].flat = Rs[0].flat
+                    ss_r[sa].flat = Rs[1].flat
+                    p_r[sa].flat = Rs[2].flat
+                    a_r[sa].flat = Rs[3].flat
 
-                    (v_p[sa].reshape((bsize, -1))[::],
-                     ss_p[sa].reshape((bsize, -1))[::],
-                     p_p[sa].reshape((bsize, -1))[::],
-                     a_p[sa].reshape((bsize, -1))[::],
-                     g_p[sa].reshape((bsize, -1))[::]) = Rp
+                    v_p[sa].flat = Rp[0].flat
+                    ss_p[sa].flat = Rp[1].flat
+                    p_p[sa].flat = Rp[2].flat
+                    a_p[sa].flat = Rp[3].flat
+                    g_p[sa].flat = Rp[4].flat
 
                     match_value[:, t0:t], match_value_per_mod[sa] =\
                         controller.computeMatchSimple(v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa])
@@ -301,7 +298,7 @@ class Main:
                         match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
                         match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
 
-            # ---- end of episode: match_value and update
+            # ---- end of an epoch: match_value and update
             bsize = params.batch_size * params.stime
             pretest = epoch <= params.pretest_epochs
             (update_items, update_episodes,) = controller.update(
