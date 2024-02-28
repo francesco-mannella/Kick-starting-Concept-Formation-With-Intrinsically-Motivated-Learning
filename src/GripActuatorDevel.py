@@ -9,8 +9,8 @@ from esn import ESN
 import gym, box2dsim
 from mkvideo import vidManager
 from GripMapping import Env as GripEnv
-from GripActuator import Agent as GripAgent
-from ArmActuator import Agent as ArmAgent
+from GripAgent import GripAgent
+from ArmAgent import ArmAgent
 
 class DevEnv(GripEnv):
 

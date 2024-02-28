@@ -1,17 +1,22 @@
 import glob
 import os
-import params
+import sys
 from shutil import copyfile
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from mkvideo import vidManager
 
 
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.decomposition import PCA
 from sklearn.cluster import DBSCAN
+
+# Add parent directory to Python module path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from mkvideo import vidManager
+import params
 
 c = [0, 0.5, 1]
 colors = np.vstack([x.ravel() for x in np.meshgrid(c, c, c)]).T

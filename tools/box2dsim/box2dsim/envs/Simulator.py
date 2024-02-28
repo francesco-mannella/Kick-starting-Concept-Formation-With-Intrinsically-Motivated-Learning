@@ -8,7 +8,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
-from PIL import Image
+from PIL import Image, ImageDraw
+import cv2
 
 class ContactListener(b2ContactListener):
     def __init__(self, bodies):
@@ -84,6 +85,9 @@ class  Box2DSim(object):
         self.joint_pids = { ("%s" % k): PID(dt=self.dt)
                 for k in list(self.joints.keys()) }
 
+        def is_body_visible(body):
+            return not (body[1].color[0] == 1 and body[1].color[1] == 1 and body[1].color[2] == 1)
+        self.visible_bodies = dict(filter(is_body_visible, bodies.items()))
 
     def contacts(self, bodyA, bodyB):
         """ Read contacts between two parts of the simulation
@@ -175,31 +179,21 @@ class VisualSensor:
 
             (np.ndarray): a rescaled retina state
         """
-
         self.retina *= 0
-        for key in self.sim.bodies.keys():
-            body = self.sim.bodies[key]
-            vercs = np.vstack(body.fixtures[0].shape.vertices)
-            vercs = vercs[np.arange(len(vercs))+[0]]
-            data = [body.GetWorldPoint(vercs[x])
-                for x in range(len(vercs))]
-            body_pixels =  self.path2pixels(data, focus)
-            if body.color is None: body.color = [0.5, 0.5, 0.5]
+        for body in self.sim.visible_bodies.values():
+            if body.color is None:
+                body.color = [0.5, 0.5, 0.5]
             color = np.array(body.color)
-            body_pixels = body_pixels.reshape(body_pixels.shape + (1,))*(1 - color)
-            self.retina += body_pixels
+
+            data = np.array([body.GetWorldPoint(v) for v in body.fixtures[0].shape.vertices])
+            vertices_t = np.round((data - focus) / self.scale) \
+                    + [(self.shape[0]-1)//2, -self.shape[1]//2]
+            vertices_t[:, 1] = -vertices_t[:, 1]
+            cv2.fillPoly(self.retina, pts=[vertices_t.astype(np.int32)], color=1 - color)
+
         self.retina = np.maximum(0, 1 - (self.retina))
         return self.retina
 
-    def path2pixels(self, vertices, focus):
-
-        points = self.grid * self.scale + focus
-
-        path = Path(vertices) # make a polygon
-        points_in_path = path.contains_points(points, radius=self.radius)
-        img = 1.0*points_in_path.reshape(*self.shape, order='F').T #pixels
-
-        return img
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
@@ -409,6 +403,3 @@ class TestPlotterVisualSalience(TestPlotterOneEye):
             self.vm_sal.mk_video(name=f"{name}_sal", dirname=".")
         self.vm_vis = None
         self.vm_sal = None
-
-
-

@@ -6,6 +6,7 @@ box2dsim.egg-info/SOURCES.txt
 box2dsim.egg-info/dependency_links.txt
 box2dsim.egg-info/requires.txt
 box2dsim.egg-info/top_level.txt
+box2dsim/data/ObjectPositionsMap.npy
 box2dsim/data/__init__.py
 box2dsim/envs/Box2DSim_env.py
 box2dsim/envs/JsonToPyBox2D.py
@@ -18,5 +19,14 @@ box2dsim/examples/test.py
 box2dsim/examples/test_saliency.py
 box2dsim/examples/test_sensor.py
 box2dsim/models/__init__.py
+box2dsim/models/arm.json
+box2dsim/models/arm_2obj.json
+box2dsim/models/arm_2obj_diff.json
+box2dsim/models/controllable.json
+box2dsim/models/movable.json
+box2dsim/models/noobject.json
+box2dsim/models/still.json
 box2dsim/models/svg2json.py
 box2dsim/models/test_json.py
+box2dsim/models/two_arms.json
+box2dsim/models/unreachable.json

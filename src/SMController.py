@@ -82,8 +82,11 @@ class SMController:
         )
         self.getCompetenceGrid()
 
+        # This effectively ensures that first 10% of simulation steps
+        # of each episode is not taken into account when updating
+        # sensorimotor maps based on match values.
         self.episode_mask = np.arange(params.stime*params.batch_size) % params.stime
-        self.episode_mask = self.episode_mask > (params.stime*0.1)
+        self.episode_mask = self.episode_mask > params.drop_first_n_steps
 
     @staticmethod
     def comp_fun(comp):
@@ -132,8 +135,14 @@ class SMController:
         policies = self.explore_sigma * (policies + (1 - comp) * self.policy_noise)
         return policies, comp, rcomp
 
-    def computeMatch(self, representations, target):
+    def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
+        mods = np.stack([v_p, ss_p, p_p, a_p])
+        diffs = np.moveaxis(np.linalg.norm(mods - g_p, axis=-1), 0, -1)
+        match_per_mod = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
+        match = np.mean(match_per_mod, axis=-1)
+        return match, match_per_mod
 
+    def computeMatch(self, representations, target):
         repall = np.stack(representations)
         repall = np.vstack([repall, np.reshape(target, (1, -1, 2))])
         d1 = np.expand_dims(repall, 0)
@@ -142,11 +151,12 @@ class SMController:
         matches_all = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
 
         # take into account only distances with goal
+        # Mod order: visual, touch, proprioception, action, goal
         mask = [
-            [0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 1.0],
+            [0, 0, 0, 0, 1.0],
+            [0, 0, 0, 0, 1.0],
+            [0, 0, 0, 0, 1.0],
             [0, 0, 0, 0, 0],
         ]
         matches_per_mod = matches_all.transpose(2, 0, 1) * mask
@@ -179,7 +189,7 @@ class SMController:
         # matches_min_for_all = np.sum(matches_mins, axis=(1, 2)) == 3 
         # matches_increments = matches_increments * matches_min_for_all
 
-        return matches, matches_increments.ravel()
+        return matches, matches_increments.ravel(), matches_per_mod, matches_increments_per_mod
 
     def getCompetenceGrid(self):
         comp = self.predict.spread(self.goal_grid)
@@ -271,15 +281,19 @@ class SMController:
             m = m.reshape(-1)
             idcs = np.where(m == 1)
 
-            # update predictor
+            # update maxmatch
             cmm = matches[idcs].max()
             self.maxmatch = cmm \
                     if self.maxmatch is None \
                     else self.maxmatch if cmm < self.maxmatch \
                     else cmm
 
-            th = 0.2*competences[idcs]
-            self.predict.update(goals[idcs], matches[idcs] > th)
+            # update predictor: success is defined by cumulative match increment
+            #th = 0.2*competences[idcs]
+            #self.predict.update(goals[idcs], matches[idcs] > th)
+            minc = matches_increment.reshape((params.batch_size, params.stime))
+            success = minc.sum(axis=-1)[:, None] > params.cum_match_incr_th
+            self.predict.update(goals[::params.stime, :], success)
 
         elif pretest:
             if not hasattr(self, "count"):

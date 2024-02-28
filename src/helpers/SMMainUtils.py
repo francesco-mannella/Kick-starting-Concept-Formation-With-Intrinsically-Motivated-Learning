@@ -3,11 +3,17 @@ import os, sys
 from pathlib import Path
 import matplotlib
 
+import tensorflow as tf
+
 matplotlib.use("Agg")
 
-import params
 import numpy as np
 import time
+
+# Add parent directory to Python module path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import params
 from SMMain import *
 import figs
 
@@ -399,7 +405,7 @@ class MainUtils(Main):
             mx = np.argmax(a_r.ravel())
 
             # get matches 
-            match_value, match_increment = controller.computeMatch(
+            match_value, match_increment, _, _ = controller.computeMatch(
                     np.stack([v_p, ss_p, p_p, a_p]), a_p) 
 
             visual_gens = controller.getVisualsFromRepresentations(v_r)

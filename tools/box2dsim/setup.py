@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 from setuptools.command.install import install as DistutilsInstall
 from setuptools.command.egg_info import egg_info as EggInfo
 
@@ -16,6 +16,8 @@ setup(name='box2dsim',
             'install': MyInstall,
             'egg_info': MyEgg
             },
+        packages=find_packages(where="."),
+        package_data={"": ["*.npy", "*.json"]},
         install_requires=['gym', 'box2d_py', 'numpy', 
             'matplotlib','scikit-image']
         )
