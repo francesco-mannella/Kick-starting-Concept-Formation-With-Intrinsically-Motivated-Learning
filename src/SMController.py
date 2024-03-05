@@ -248,7 +248,6 @@ class SMController:
             mch_idcs &= self.episode_mask
 
             # compute number of chosen patterns (return)
-            batch = len(matches)
             n_items = sum(mch_idcs)
             idcs = mch_idcs
 
@@ -291,7 +290,8 @@ class SMController:
             #th = 0.2*competences[idcs]
             #self.predict.update(goals[idcs], matches[idcs] > th)
             # update predictor: success is defined by cumulative match increment
-            self.predict.update(goals[idcs], n_items > params.cum_match_incr_th)
+            n_matches = mch_idcs.reshape((params.batch_size, -1)).sum(axis=-1)[:, None]
+            self.predict.update(goals[idcs], n_matches > params.cum_match_incr_th)
 
         elif pretest:
             if not hasattr(self, "count"):
