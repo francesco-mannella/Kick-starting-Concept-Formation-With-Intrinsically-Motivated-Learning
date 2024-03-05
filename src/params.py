@@ -37,7 +37,7 @@ explore_sigma = 8
 
 match_th = 0.2
 match_incr_th = 0.05
-cum_match_incr_th = 1.0
+cum_match_incr_th = 5.0
 predict_lr = 0.005
 reach_grip_prop = 0.1
 

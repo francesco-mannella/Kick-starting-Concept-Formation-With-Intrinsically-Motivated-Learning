@@ -288,12 +288,12 @@ class SMController:
                     else self.maxmatch if cmm < self.maxmatch \
                     else cmm
 
+            th = 0.2*competences[idcs]
+            self.predict.update(goals[idcs], matches[idcs] > th)
             # update predictor: success is defined by cumulative match increment
-            #th = 0.2*competences[idcs]
-            #self.predict.update(goals[idcs], matches[idcs] > th)
-            minc = matches_increment.reshape((params.batch_size, params.stime))
-            success = minc.sum(axis=-1)[:, None] > params.cum_match_incr_th
-            self.predict.update(goals[::params.stime, :], success)
+            #minc = matches_increment.reshape((params.batch_size, params.stime))
+            #success = minc.sum(axis=-1)[:, None] > params.cum_match_incr_th
+            #self.predict.update(goals[::params.stime, :], success)
 
         elif pretest:
             if not hasattr(self, "count"):

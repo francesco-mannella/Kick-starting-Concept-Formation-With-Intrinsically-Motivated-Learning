@@ -300,7 +300,9 @@ class Main:
                     if t > params.action_steps:
                         match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
                         match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
-                        cum_match_increment += match_increment[:, t0:t].sum(axis=-1)
+                        if t0 > params.drop_first_n_steps:
+                            cum_match_increment += ((match_increment[:, t0:t] > params.match_incr_th) &
+                                                    (match_value[:, t0:t] > params.match_th)).sum(axis=-1)
 
             # ---- end of an epoch: match_value and update
             bsize = params.batch_size * params.stime
