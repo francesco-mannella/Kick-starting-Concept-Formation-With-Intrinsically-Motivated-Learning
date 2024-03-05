@@ -143,7 +143,6 @@ class Main:
         agent = self.agent
         controller = self.controller
         logs = self.logs
-        batch_data_size = params.batch_size * (params.stime)
         epoch = self.epoch
         epoch_start = time.perf_counter()
         contexts = (np.arange(params.batch_size) % 3) + 1
@@ -169,7 +168,6 @@ class Main:
         match_value_per_mod = np.zeros([params.batch_size, params.stime, 4])
         match_increment = np.zeros([params.batch_size, params.stime])
         match_increment_per_mod = np.zeros([params.batch_size, params.stime, 4])
-
 
         while epoch < params.epochs:
 
@@ -206,7 +204,6 @@ class Main:
                     controller.curr_sigma, controller.curr_lr
                 )
 
-            st = params.stime
             # ----- prepare episodes
             envs = []
             states = []
@@ -248,7 +245,7 @@ class Main:
             batch_log[::] = rcompetences[:, None, :]
 
             cum_match_increment = np.zeros(params.batch_size)
-        
+
             # Main loop through time steps and episodes
             smcycle = SensoryMotorCicle(params.action_steps)
             for t in range(1, params.stime+1):
@@ -261,10 +258,10 @@ class Main:
                         # set correct policy
                         agent.updatePolicy(batch_a[episode, 0, :])
                         state = smcycle.step(envs[episode], agent, states[episode])
-                        
+
                         # End the episode if object moves too far away
                         if self.is_object_out_of_taskspace(state):
-                            states[episode] = None 
+                            states[episode] = None
                         else:
                             states[episode] = state
                             batch_v[episode, t, :] = state["VISUAL_SENSORS"].ravel()
@@ -295,16 +292,18 @@ class Main:
                     a_p[sa].flat = Rp[3].flat
                     g_p[sa].flat = Rp[4].flat
 
+                    # calculate match value
                     match_value[:, t0:t], match_value_per_mod[sa] =\
                         controller.computeMatchSimple(v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa])
                     if t > params.action_steps:
                         match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
                         match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
+                        # check for stop condition
                         if t0 > params.drop_first_n_steps:
                             cum_match_increment += ((match_increment[:, t0:t] > params.match_incr_th) &
                                                     (match_value[:, t0:t] > params.match_th)).sum(axis=-1)
 
-            # ---- end of an epoch: match_value and update
+            # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
             pretest = epoch <= params.pretest_epochs
             (update_items, update_episodes,) = controller.update(
