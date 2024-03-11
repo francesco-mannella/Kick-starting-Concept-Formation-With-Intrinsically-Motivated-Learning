@@ -464,7 +464,7 @@ class Main:
 
                 # take only vision
                 internal_mean = internal_representations[0]
-                policy, *_ = controller.getPoliciesFromRepresentationsWithNoise(
+                policy, competence, *_ = controller.getPoliciesFromRepresentationsWithNoise(
                     internal_mean
                 )
                 agent.updatePolicy(policy)
@@ -490,6 +490,7 @@ class Main:
                 batch_p[0] = p
                 batch_a[0] = policy.reshape(-1)
                 batch_g[0] = internal_mean.reshape(-1)
+
                 smcycle = SensoryMotorCicle()
                 for t in range(params.stime):
                     state = smcycle.step(env, agent, state)
@@ -504,6 +505,9 @@ class Main:
                     batch_a[t] = policy.reshape(-1)
                     batch_g[t] = internal_mean.reshape(-1)
 
+                    if self.is_object_out_of_taskspace(state):
+                        break
+
                 (
                     internal_representations,
                     internal_points,
@@ -515,12 +519,19 @@ class Main:
                     internal_points[4],
                 )
 
+                matches = ((match_increment > params.match_incr_th)
+                           & (match_value > params.match_th))
+                matches[:params.drop_first_n_steps] = 0
+                cum_match = np.cumsum(matches)
+
+                non_zero = (cum_match > competence[0] * params.cum_match_incr_th).nonzero()[0]
+                if len(non_zero) > 0:
+                    match_value = match_value[:non_zero[0]]
+                    matches = matches[:non_zero[0]]
+
                 env.render_info(
                     match_value,
-                    (
-                        (match_increment > params.match_incr_th)
-                        & (match_value > params.match_th)
-                    ),
+                    matches
                 )
 
                 env.close()

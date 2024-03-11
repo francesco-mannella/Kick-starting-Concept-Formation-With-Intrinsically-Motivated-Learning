@@ -297,9 +297,14 @@ class TestPlotter:
             self.ts += 1
 
     def add_info_to_frames(self, info, thresh):
-        assert len(self.vm.frames) == len(info)
+        # Make the rendered frames and info matching lengths
+        if len(info) > len(self.vm.frames):
+            info = info[:len(self.vm.frames)]
+            thresh = thresh[:len(self.vm.frames)]
+        elif len(info) < len(self.vm.frames):
+            self.vm.frames = self.vm.frames[:len(info)]
 
-        for i, (m, t) in enumerate(zip(info,thresh)):
+        for i, (m, t) in enumerate(zip(info, thresh)):
             if self.ax is not None:
                 plt.delaxes(self.ax)
             self.ax = self.fig.add_subplot(111, aspect="equal")
