@@ -1,5 +1,6 @@
 import glob
 import os, sys
+import shutil
 from pathlib import Path
 import matplotlib
 import torch
@@ -252,7 +253,7 @@ class Main:
                 if t < params.stime:
                     for episode in range(params.batch_size):
                         # Do not update the episode if it has ended
-                        if states[episode] is None or cum_match_increment[episode] > params.cum_match_incr_th:
+                        if states[episode] is None or cum_match_increment[episode] > params.cum_match_incr_th * competences[episode]:
                             continue
 
                         # set correct policy
@@ -298,7 +299,7 @@ class Main:
                     if t > params.action_steps:
                         match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
                         match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
-                        # check for stop condition
+                        # update cumulative match
                         if t0 > params.drop_first_n_steps:
                             cum_match_increment += ((match_increment[:, t0:t] > params.match_incr_th) &
                                                     (match_value[:, t0:t] > params.match_th)).sum(axis=-1)
@@ -367,7 +368,7 @@ class Main:
                 params.epochs - 1
             ):
 
-                epoch_dir = f"storage/{epoch:06d}"
+                epoch_dir = f"{storage_dir}/{epoch:06d}"
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
                 self.diagnose()
@@ -421,7 +422,7 @@ class Main:
         data["p"] = self.batch_p
         data["a"] = self.batch_a
 
-        epoch_dir = f"storage/{epoch:06d}"
+        epoch_dir = f"{storage_dir}/{epoch:06d}"
         os.makedirs(epoch_dir, exist_ok=True)
 
         controller.save(epoch)
@@ -599,11 +600,19 @@ if __name__ == "__main__":
         help="Plot graphs",
         action="store_true",
     )
+    parser.add_argument(
+        "-n",
+        "--name",
+        help="Simulation name (to store results in named folders)",
+        action="store",
+        default=None
+    )
     args = parser.parse_args()
     timing = float(args.time)
     gpu = bool(args.gpu)
     seed = int(args.seed)
     plots = bool(args.plots)
+    simulation_name = args.name
 
     if gpu:
         torch.set_default_device('cuda')
@@ -625,3 +634,8 @@ if __name__ == "__main__":
             main.diagnose()
         except AttributeError:
             pass
+
+    # Copy results folders to named locations
+    if args.name is not None:
+        shutil.copy(storage_dir, f"{storage_dir}_{args.name}")
+        shutil.copy(site_dir, f"{site_dir}_{args.name}")
