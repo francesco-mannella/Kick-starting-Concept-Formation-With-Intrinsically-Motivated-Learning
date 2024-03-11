@@ -637,5 +637,5 @@ if __name__ == "__main__":
 
     # Copy results folders to named locations
     if args.name is not None:
-        shutil.copy(storage_dir, f"{storage_dir}_{args.name}")
-        shutil.copy(site_dir, f"{site_dir}_{args.name}")
+        shutil.copytree(storage_dir, f"{storage_dir}_{args.name}")
+        shutil.copytree(site_dir, f"{site_dir}_{args.name}")
