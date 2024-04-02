@@ -37,7 +37,7 @@ explore_sigma = 8
 
 match_th = 0.2
 match_incr_th = 0.05
-cum_match_stop_th = 8.0
+cum_match_stop_th = 10.0
 cum_match_success_th = 2.0
 predict_lr = 0.005
 reach_grip_prop = 0.1
@@ -46,7 +46,7 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 10
+epochs = 400
 pretest_epochs = -1
 batch_size = 24
 tests = 12

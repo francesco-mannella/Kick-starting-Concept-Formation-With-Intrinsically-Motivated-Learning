@@ -82,10 +82,8 @@ class SensoryClassificator:
 
     def save(self, destfile):
 
-        self.model.save(destfile)
+        self.model.save(destfile, save_format="tf")
 
     def load(self, srcfile):
 
         self.model = tf.keras.models.load_model(srcfile)
-
-
