@@ -1,7 +1,7 @@
 import os
 import numpy as np
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 from .Simulator import (
     Box2DSim as Sim,
     TestPlotter,

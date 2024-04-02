@@ -1427,6 +1427,8 @@
                 "y": 6.983660000000015
             },
             "type": 2,
+            "angularDamping": 0.1,
+            "linearDamping": 0.1,
             "fixture": [
                 {
                     "density": 0.2,

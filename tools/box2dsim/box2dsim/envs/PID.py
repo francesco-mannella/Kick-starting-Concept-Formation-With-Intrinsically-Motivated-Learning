@@ -1,4 +1,4 @@
-class PID(object) :
+class PID(object):
 
     def __init__(self, dt=0.01, Kp=8.0, Ki=0.0, Kd=0.09 ):
        

@@ -1,6 +1,7 @@
 import numpy as np
 import params
-import gym, box2dsim
+import gymnasium as gym
+import box2dsim
 
 
 class SMEnv:

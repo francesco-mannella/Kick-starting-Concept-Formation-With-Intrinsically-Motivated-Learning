@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
-import gym
+import gymnasium as gym
 import box2dsim
 
 import params
