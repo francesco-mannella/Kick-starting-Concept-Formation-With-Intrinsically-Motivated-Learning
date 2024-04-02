@@ -21,8 +21,6 @@
                 "y": 12.542349999999999
             },
             "type": 2,
-            "angularDamping": 2.0,
-            "linearDamping": 2.0,
             "fixture": [
                 {
                     "density": 0.5,
@@ -1429,6 +1427,8 @@
                 "y": 9.319680000000005
             },
             "type": 2,
+            "angularDamping": 2.0,
+            "linearDamping": 2.0,
             "fixture": [
                 {
                     "density": 0.2,
