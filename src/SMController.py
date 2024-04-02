@@ -290,7 +290,7 @@ class SMController:
             #th = 0.2*competences[idcs]
             #self.predict.update(goals[idcs], matches[idcs] > th)
             # update predictor: success is defined by cumulative match increment
-            th = params.cum_match_incr_th * competences[idcs]
+            th = params.cum_match_success_th * competences[idcs]
             n_matches = mch_idcs.reshape((params.batch_size, -1)).sum(axis=-1)[:, None]
             self.predict.update(goals[idcs], n_matches > th)
 

@@ -39,8 +39,8 @@ if __name__ == "__main__":
     if not gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-    if os.path.isfile("../main.dump.npy"):
+    if os.path.isfile("main.dump.npy"):
         main = np.load(
-            "../main.dump.npy", allow_pickle="True"
+            "main.dump.npy", allow_pickle="True"
         )[0]
         main.demo_episodes()

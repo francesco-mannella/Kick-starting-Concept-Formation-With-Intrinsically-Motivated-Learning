@@ -253,7 +253,7 @@ class Main:
                 if t < params.stime:
                     for episode in range(params.batch_size):
                         # Do not update the episode if it has ended
-                        if states[episode] is None or cum_match_increment[episode] > params.cum_match_incr_th * competences[episode]:
+                        if states[episode] is None or cum_match_increment[episode] > params.cum_match_stop_th * competences[episode]:
                             continue
 
                         # set correct policy
@@ -524,7 +524,7 @@ class Main:
                 matches[:params.drop_first_n_steps] = 0
                 cum_match = np.cumsum(matches)
 
-                non_zero = (cum_match > competence[0] * params.cum_match_incr_th).nonzero()[0]
+                non_zero = (cum_match > competence[0] * params.cum_match_stop_th).nonzero()[0]
                 if len(non_zero) > 0:
                     match_value = match_value[:non_zero[0]]
                     matches = matches[:non_zero[0]]
