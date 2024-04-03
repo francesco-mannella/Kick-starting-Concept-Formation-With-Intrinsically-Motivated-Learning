@@ -298,7 +298,7 @@ class Main:
                         controller.computeMatchSimple(v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa])
                     if t > params.action_steps:
                         match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
-                        match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
+                        match_increment[:, t0:t] = np.average(match_increment_per_mod[sa], axis=-1, weights=params.modalities_weights)
                         # update cumulative match
                         if t0 > params.drop_first_n_steps:
                             cum_match_increment += ((match_increment[:, t0:t] > params.match_incr_th) &
@@ -514,10 +514,12 @@ class Main:
                 ) = controller.spread(
                     [batch_v, batch_ss, batch_p, batch_a, batch_g]
                 )
-                (match_value, match_increment, _, _) = controller.computeMatch(
-                    np.stack(internal_points[:4]),
-                    internal_points[4],
-                )
+                match_value, match_value_per_mod =\
+                    controller.computeMatchSimple(*internal_points)
+
+                match_increment_per_mod = np.maximum(0, match_value_per_mod[1:, :] - match_value_per_mod[:-1, :])
+                match_increment = np.zeros(params.stime)
+                match_increment[1:] = np.average(match_increment_per_mod, axis=-1, weights=params.modalities_weights)
 
                 matches = ((match_increment > params.match_incr_th)
                            & (match_value > params.match_th))
