@@ -15,6 +15,8 @@ class svn2jsonConverter:
         object_colors=None,
         object_types=None,
         object_masses=None,
+        object_friction=None,
+        object_damping=None,
         joint_torques=None,
     ):
 
@@ -23,6 +25,8 @@ class svn2jsonConverter:
         self.object_colors = object_colors
         self.object_types = object_types
         self.object_masses = object_masses
+        self.object_friction = object_friction
+        self.object_damping = object_damping
         self.joint_torques = joint_torques
 
         self.getDoc()
@@ -110,6 +114,14 @@ class svn2jsonConverter:
                     }
                 ],
             }
+
+            if obj in self.object_damping:
+                obj_dict["angularDamping"] = self.object_damping[obj]
+                obj_dict["linearDamping"] = self.object_damping[obj]
+
+            if obj in self.object_friction:
+                obj_dict["fixture"][0]["friction"] = self.object_friction[obj]
+
             self.world["body"].append(obj_dict)
         self.world["body"] = [
             x for x in self.world["body"] if not x["name"] in exclude_objs
@@ -225,6 +237,23 @@ if __name__ == "__main__":
     }
     object_masses =  {**object_masses, **{f"s{x}":0.1 for x in range(1, n_sensors + 1) }}
 
+    object_damping = {
+        "controllable": 2.0,
+        "movable": 2.0,
+        "unreachable": 2.0,
+    }
+
+    object_friction = {
+        "Claw11": 0.5,
+        "Claw21": 0.5,
+        "Claw12": 0.5,
+        "Claw22": 0.5,
+        "unreachable": 0.5,
+        "controllable": 0.5,
+        "movable": 0.5,
+        "still": 0.5,
+    }
+
     object_types = {
         "Base": 0,
         "Arm1": 2,
@@ -269,6 +298,8 @@ if __name__ == "__main__":
         object_colors=object_colors,
         object_types=object_types,
         object_masses=object_masses,
+        object_friction=object_friction,
+        object_damping=object_damping,
         joint_torques=joint_torques,
     )
 
