@@ -23,6 +23,7 @@ from SMGraphs import (
     trajectories_map,
     representations_movements,
     log,
+    loss
 )
 
 import matplotlib.pyplot as plt
@@ -82,6 +83,7 @@ class Main:
             shuffle=params.shuffle_weights,
         )
         self.logs = np.zeros([params.epochs, 3])
+        self.stm_loss = np.zeros(params.epochs)
         self.epoch = 0
 
     def __getstate__(self):
@@ -307,7 +309,7 @@ class Main:
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
             pretest = epoch <= params.pretest_epochs
-            (update_items, update_episodes,) = controller.update(
+            (update_items, update_episodes, curr_loss) = controller.update(
                 batch_v.reshape((bsize, -1)),
                 batch_ss.reshape((bsize, -1)),
                 batch_p.reshape((bsize, -1)),
@@ -318,6 +320,9 @@ class Main:
                 competences=batch_c.reshape((bsize, -1)),
                 pretest=pretest,
             )
+
+            # Average loss of STM layers updates
+            self.stm_loss[epoch] = curr_loss
 
             # ---- print
 
@@ -429,6 +434,8 @@ class Main:
         np.save(f"{epoch_dir}/data", [data])
         np.save(f"{site_dir}/log", logs[: epoch + 1])
         np.save(f"{epoch_dir}/log", logs[: epoch + 1])
+        np.save(f"{site_dir}/stm_loss", self.stm_loss[: epoch + 1])
+        np.save(f"{epoch_dir}/stm_loss", self.stm_loss[: epoch + 1])
 
         if self.plots is False:
             return
@@ -437,6 +444,7 @@ class Main:
         remove_figs(epoch)
         visual_map()
         log()
+        loss()
         comp_map()
 
         if os.path.isfile("PLOT_SIMS"):

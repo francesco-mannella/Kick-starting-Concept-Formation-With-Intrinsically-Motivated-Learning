@@ -236,6 +236,8 @@ class SMController:
         pretest=False,
     ):
 
+        curr_loss = None
+
         if not pretest:
             cgoals = goals * (1 - competences)
 
@@ -253,26 +255,13 @@ class SMController:
             idcs = mch_idcs
 
             modulate = cgoals[idcs] * matches[idcs]
-
+            
             # update maps
             if n_items > 0:
-
-                self.stm_v.update(
-                    visuals[idcs],
-                    modulate,
-                )
-                self.stm_ss.update(
-                    ssensories[idcs],
-                    modulate,
-                )
-                self.stm_p.update(
-                    proprios[idcs],
-                    modulate,
-                )
-                self.stm_a.update(
-                    policies[idcs],
-                    modulate,
-                )
+                curr_loss = (self.stm_v.update(visuals[idcs], modulate) + \
+                             self.stm_ss.update(ssensories[idcs], modulate) + \
+                             self.stm_p.update(proprios[idcs], modulate) + \
+                             self.stm_a.update(policies[idcs], modulate)) / 4
 
             # find max match_value within each episode
             stime = params.stime
@@ -338,7 +327,7 @@ class SMController:
 
             self.count += 1
 
-        return n_items, mch_idcs
+        return n_items, mch_idcs, curr_loss
 
     def __getstate__(self):
         return {

@@ -38,10 +38,10 @@ explore_sigma = 8
 # Modalities order: visual, touch, proprioception, action
 modalities_weights = [1., 1., 1., 1.]
 #modalities_weights = [0., 1., 0., 0.]  # select touch only
-match_th = 0.2
+match_th = 0.1
 match_incr_th = 0.05
-cum_match_stop_th = 15.0
-cum_match_success_th = 2.0
+cum_match_stop_th = 25.0
+cum_match_success_th = 4.0
 predict_lr = 0.005
 reach_grip_prop = 0.1
 
@@ -49,7 +49,7 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 400
+epochs = 800
 pretest_epochs = -1
 batch_size = 24
 tests = 12

@@ -211,3 +211,17 @@ def log(wfile=None):
     ax.set_ylim([-m * 0.1, m * 1.1])
     fig.savefig(f"{site_dir}/log.png")
     plt.close("all")
+
+
+def loss(wfile=None):
+    if wfile is None: wfile = f"{site_dir}/stm_loss.npy"
+    loss = np.load(wfile)
+    fig = plt.figure(figsize=(4, 2))
+    ax = fig.add_subplot(111)
+    stime = len(loss)
+    ax.plot(np.arange(stime), loss, c=[0.5, 0, 0])
+    ax.set_xlim([-stime * 0.1, stime * 1.1])
+    m = loss.max()
+    ax.set_ylim([-m * 0.1, m * 1.1])
+    fig.savefig(f"{site_dir}/stm_loss.png")
+    plt.close("all")
