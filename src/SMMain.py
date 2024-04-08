@@ -353,6 +353,7 @@ class Main:
                 ),
                 end="",
             )
+            print(f"  {curr_los:#8.7f}")
             print(f" pretest={pretest}", flush=True)
 
             self.match_value = match_value
