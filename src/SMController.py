@@ -140,7 +140,6 @@ class SMController:
         diffs = np.moveaxis(np.linalg.norm(mods - g_p, axis=-1), 0, -1)
         match_per_mod = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
         match = np.average(match_per_mod, axis=-1, weights=params.modalities_weights)
-        match = match_per_mod[..., 1]
         return match, match_per_mod
 
     # TODO: This method is outdated and is kept for reference
