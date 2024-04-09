@@ -237,6 +237,7 @@ class SMController:
     ):
 
         curr_loss = None
+        mean_modulation = None
 
         if not pretest:
             cgoals = goals * (1 - competences)
@@ -255,6 +256,7 @@ class SMController:
             idcs = mch_idcs
 
             modulate = cgoals[idcs] * matches[idcs]
+            mean_modulation = modulate.mean()
             
             # update maps
             if n_items > 0:
@@ -327,7 +329,7 @@ class SMController:
 
             self.count += 1
 
-        return n_items, mch_idcs, curr_loss
+        return n_items, mch_idcs, curr_loss, mean_modulation
 
     def __getstate__(self):
         return {

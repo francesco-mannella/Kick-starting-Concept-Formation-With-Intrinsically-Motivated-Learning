@@ -83,7 +83,7 @@ class Main:
             shuffle=params.shuffle_weights,
         )
         self.logs = np.zeros([params.epochs, 3])
-        self.stm_loss = np.zeros(params.epochs)
+        self.stm_loss = np.zeros([params.epochs, 2])
         self.epoch = 0
 
     def __getstate__(self):
@@ -309,7 +309,8 @@ class Main:
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
             pretest = epoch <= params.pretest_epochs
-            (update_items, update_episodes, curr_loss) = controller.update(
+            (update_items, update_episodes, curr_loss, mean_modulation) =\
+            controller.update(
                 batch_v.reshape((bsize, -1)),
                 batch_ss.reshape((bsize, -1)),
                 batch_p.reshape((bsize, -1)),
@@ -322,7 +323,8 @@ class Main:
             )
 
             # Average loss of STM layers updates
-            self.stm_loss[epoch] = curr_loss
+            self.stm_loss[epoch, 0] = curr_loss
+            self.stm_loss[epoch, 1] = mean_modulation
 
             # ---- print
 
@@ -353,7 +355,7 @@ class Main:
                 ),
                 end="",
             )
-            print(f"  {curr_los:#8.7f}")
+            print(f"  {curr_loss:#8.7f}")
             print(f" pretest={pretest}", flush=True)
 
             self.match_value = match_value
