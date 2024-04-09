@@ -207,6 +207,8 @@ class Main:
                     controller.curr_sigma, controller.curr_lr
                 )
 
+            print(f"{controller.curr_sigma}, {controller.curr_lr}")
+
             # ----- prepare episodes
             envs = []
             states = []

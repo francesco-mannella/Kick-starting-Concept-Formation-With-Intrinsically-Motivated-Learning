@@ -256,6 +256,7 @@ class SMController:
             idcs = mch_idcs
 
             modulate = cgoals[idcs] * matches[idcs]
+            modulate /= modulate.sum() # Normalize modulation
             mean_modulation = modulate.mean()
             
             # update maps

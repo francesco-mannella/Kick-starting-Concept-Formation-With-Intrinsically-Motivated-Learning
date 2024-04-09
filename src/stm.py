@@ -240,7 +240,7 @@ if __name__ == "__main__":
     min_sigma = 1
     initial_lr = 0.1
     stime = 10000
-    decay_window = stime / 4
+    decay_window = stime / 8
 
     loss = []
 
@@ -265,7 +265,7 @@ if __name__ == "__main__":
         optimizer.step()
         if t % (stime // 10) == 0:
             print(
-                loss_,
+                loss_.detach().numpy(), curr_sigma, curr_rl
             )
         loss.append(loss_)
 
