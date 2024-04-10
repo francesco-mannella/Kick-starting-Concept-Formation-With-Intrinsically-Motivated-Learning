@@ -2,6 +2,7 @@ import glob
 import os
 import params
 from shutil import copyfile,rmtree
+import pathlib
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -55,7 +56,7 @@ def remove_figs(epoch=0):
             else:
                 os.remove(f)
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/tv.gif")
-        copyfile(f"arms.html", f"{site_dir}/arms.html")
+        copyfile(f"{pathlib.Path(__file__).parent.resolve()}/arms.html", f"{site_dir}/arms.html")
 
         figs = glob.glob(f"{site_dir}/episode*.gif") + glob.glob(f"{site_dir}/*.png")
         for f in figs:

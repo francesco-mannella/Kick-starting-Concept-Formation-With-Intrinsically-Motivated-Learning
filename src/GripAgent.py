@@ -1,8 +1,10 @@
+import pathlib
 import numpy as np
 
 from Actuator import Actuator
 from GripMapping import generate_grip_mapping
 
+root_dir = pathlib.Path(__file__).parent
 
 class GripAgent:
 
@@ -11,14 +13,14 @@ class GripAgent:
         actuator_map, actuator_weights = None, None
         if actuator_map_name is not None:
             try:
-                actuator_map = np.load(actuator_map_name+".npy")
+                actuator_map = np.load((root_dir / actuator_map_name).with_suffix(".npy").resolve())
             except IOError:
                 actuator_map = generate_grip_mapping(kargs["num_hidden"], env)
                 np.save(actuator_map_name, actuator_map)
                 print("Map Saved")
         if actuator_weights_name is not None:
             try:
-                actuator_weights = np.load(actuator_weights_name+".npy")
+                actuator_weights = np.load((root_dir / actuator_weights_name).with_suffix(".npy").resolve())
                 actuator_weights = actuator_weights.reshape(
                         kargs["num_hidden"], kargs["num_outputs"])
             except IOError:

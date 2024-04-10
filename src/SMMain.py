@@ -32,8 +32,10 @@ np.set_printoptions(formatter={"float": "{:6.4f}".format})
 
 storage_dir = "storage"
 site_dir = "www"
+simulations_dir = "simulations"
 os.makedirs(storage_dir, exist_ok=True)
 os.makedirs(site_dir, exist_ok=True)
+os.makedirs(simulations_dir, exist_ok=True)
 
 class TimeLimitsException(Exception):
     pass
@@ -95,6 +97,7 @@ class Main:
             "plots": self.plots,
             "logs": self.logs,
             "epoch": self.epoch,
+            "stm_loss": self.stm_loss,
         }
 
     def __setstate__(self, state):
@@ -103,6 +106,7 @@ class Main:
         self.logs = state["logs"]
         self.epoch = state["epoch"]
         self.seed = state["seed"]
+        self.stm_loss = state["stm_loss"]
         torch.manual_seed(self.seed)
         self.rng = np.random.RandomState()
         self.rng.__setstate__(state["rng"])
@@ -112,6 +116,9 @@ class Main:
             tmp = np.zeros([params.epochs, 3])
             tmp[:nlogs, : ] = self.logs.copy()
             self.logs = tmp
+            tmp = np.zeros([params.epochs, 2])
+            tmp[:nlogs, : ] = self.stm_loss.copy()
+            self.stm_loss = tmp
 
         self.env = SMEnv(self.seed, params.action_steps)
         self.controller = SMController(
@@ -643,6 +650,11 @@ if __name__ == "__main__":
     if gpu:
         torch.set_default_device('cuda')
 
+    if args.name is not None:
+        named_dir = (Path(simulations_dir) / args.name).resolve() 
+        os.makedirs(named_dir, exist_ok=True)
+        os.chdir(named_dir)
+
     if os.path.isfile("main.dump.npy"):
         main = np.load("main.dump.npy", allow_pickle="True")[0]
         main.plots = plots
@@ -660,8 +672,3 @@ if __name__ == "__main__":
             main.diagnose()
         except AttributeError:
             pass
-
-    # Copy results folders to named locations
-    if args.name is not None:
-        shutil.copytree(storage_dir, f"{storage_dir}_{args.name}")
-        shutil.copytree(site_dir, f"{site_dir}_{args.name}")
