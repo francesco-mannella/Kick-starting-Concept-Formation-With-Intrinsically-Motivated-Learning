@@ -42,8 +42,9 @@ class SMAgent:
         self.arm_agent.reset()
         self.grip_agent.reset()
 
-    def updatePolicy(self, params):
-        self.grip_agent.updatePolicy(params)
+    def updatePolicy(self, policyParams):
+        #self.grip_agent.updatePolicy(policyParams)
+        self.grip_agent.updatePolicy(params.explore_sigma * policyParams)
 
 if __name__ == "__main__":
     from SMEnv import SMEnv 

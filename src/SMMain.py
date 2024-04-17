@@ -191,6 +191,8 @@ class Main:
             controller.comp_grid = controller.getCompetenceGrid()
             comp = controller.comp_grid.mean()
 
+            #comp = 0 # TEST: no param modulation
+
             controller.match_sigma = modulate_param(
                 params.base_match_sigma,
                 params.match_sigma,
@@ -654,6 +656,8 @@ if __name__ == "__main__":
         named_dir = (Path(simulations_dir) / args.name).resolve() 
         os.makedirs(named_dir, exist_ok=True)
         os.chdir(named_dir)
+        Path("PLOT_SIMS").touch()
+        Path("COMPUTE_TRAJECTORIES").touch()
 
     if os.path.isfile("main.dump.npy"):
         main = np.load("main.dump.npy", allow_pickle="True")[0]

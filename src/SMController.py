@@ -132,7 +132,8 @@ class SMController:
         comp = SMController.comp_fun(rcomp)
         self.policy_noise = self.rng.randn(*policies.shape)
 
-        policies = self.explore_sigma * (policies + (1 - comp) * self.policy_noise)
+        #policies = self.explore_sigma * (policies + (1 - comp) * self.policy_noise)
+        policies = (policies + (1 - comp) * self.policy_noise)
         return policies, comp, rcomp
 
     def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
@@ -256,7 +257,10 @@ class SMController:
             idcs = mch_idcs
 
             modulate = cgoals[idcs] * matches[idcs]
-            modulate /= modulate.sum() # Normalize modulation
+            #modulate /= modulate.sum() # Normalize modulation
+
+            #modulate *= 0 # TEST: No learning!!!
+
             mean_modulation = modulate.mean()
             
             # update maps
@@ -284,8 +288,11 @@ class SMController:
             #self.predict.update(goals[idcs], matches[idcs] > th)
             # update predictor: success is defined by cumulative match increment
             th = params.cum_match_success_th * competences[idcs]
+            #th = params.cum_match_success_th # TEST: no competence threshold modulation
             n_matches = mch_idcs.reshape((params.batch_size, -1)).sum(axis=-1)[:, None]
-            self.predict.update(goals[idcs], n_matches > th)
+            #th = np.median(n_matches) # TEST: fixed success at 0.5
+            print((n_matches >= th).mean())
+            self.predict.update(goals[idcs], n_matches >= th)
 
         elif pretest:
             if not hasattr(self, "count"):
