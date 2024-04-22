@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import params
 
 
 class SMPredict:
@@ -13,7 +14,7 @@ class SMPredict:
         self.model = torch.nn.Linear(self.inp_num, self.out_num)
         torch.nn.init.xavier_uniform_(self.model.weight)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        self.loss = torch.nn.BCEWithLogitsLoss()
+        self.loss = torch.nn.MSELoss()
 
         self.t = 0
 
@@ -26,7 +27,6 @@ class SMPredict:
         return loss
 
     def get_weights(self):
-        # return self.out_layer.get_weights()[0]
         return self.model.weight.detach().cpu().numpy()
 
     def set_weights(self, weights):
@@ -36,11 +36,8 @@ class SMPredict:
     def spread(self, inp):
         assert len(inp.shape) == 2
         comp = self.model(torch.tensor(inp, dtype=torch.float)).detach().cpu().numpy()
-        # Rescale logit to (0, 1)
-        comp = 1.0 / (1.0 + np.exp(-comp))
-        # Rescale output: everything between (0.5, 1) becomes (0, 1),
-        # the rest is truncated to 0.
-        comp = 2*np.maximum(0, comp - 0.5)
+        # Rescale: competence is the fraction of max n_success
+        comp = comp / params.cum_match_stop_th
         return comp
 
 
@@ -52,7 +49,10 @@ if __name__ == "__main__":
     epochs = 150
 
     labels = np.zeros(patterns_size)
-    labels[patterns_size//2:] = 1
+    labels[int(patterns_size*0.25):] = 1
+    labels[int(patterns_size*0.5):] = 3
+    labels[int(patterns_size*0.75):] = 6
+    labels[int(patterns_size*0.9):] = 8
     patterns = np.vstack([labels, 1-labels]).T \
             + 0.01*np.random.randn(patterns_size, 2)
     labels = labels[:, None]
@@ -61,8 +61,6 @@ if __name__ == "__main__":
     idcs = np.arange(patterns_size)
     for t in range(epochs):
         np.random.shuffle(idcs)
-        preds = predict.spread(patterns)
+        comp = predict.spread(patterns)
         loss = predict.update(patterns[idcs], labels[idcs])
-
-        comp = 2*np.abs(preds - 0.5)
         print(loss, comp.mean())

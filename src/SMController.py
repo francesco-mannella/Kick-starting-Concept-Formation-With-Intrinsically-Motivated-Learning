@@ -257,7 +257,6 @@ class SMController:
             idcs = mch_idcs
 
             modulate = cgoals[idcs] * matches[idcs]
-            #modulate /= modulate.sum() # Normalize modulation
 
             #modulate *= 0 # TEST: No learning!!!
 
@@ -284,15 +283,10 @@ class SMController:
                     else self.maxmatch if cmm < self.maxmatch \
                     else cmm
 
-            #th = 0.2*competences[idcs]
-            #self.predict.update(goals[idcs], matches[idcs] > th)
-            # update predictor: success is defined by cumulative match increment
-            th = params.cum_match_success_th * competences[idcs]
-            #th = params.cum_match_success_th # TEST: no competence threshold modulation
+            # update predictor: predictor predicts n_matches for a particular goal
             n_matches = mch_idcs.reshape((params.batch_size, -1)).sum(axis=-1)[:, None]
-            #th = np.median(n_matches) # TEST: fixed success at 0.5
-            print((n_matches >= th).mean())
-            self.predict.update(goals[idcs], n_matches >= th)
+            print(n_matches.mean())
+            self.predict.update(goals[idcs], n_matches)
 
         elif pretest:
             if not hasattr(self, "count"):
