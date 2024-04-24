@@ -36,7 +36,7 @@ policy_base = np.pi*0.25
 explore_sigma = 8
 
 # Modalities order: visual, touch, proprioception, action
-modalities_weights = [1., 1., 1., 1.]
+modalities_weights = [1., 2., 1., 1.]
 #modalities_weights = [0., 1., 0., 0.]  # select touch only
 match_th = 0.4
 match_incr_th = 0.05
@@ -49,7 +49,7 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 400
+epochs = 800
 pretest_epochs = -1
 batch_size = 24
 tests = 12

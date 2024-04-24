@@ -129,7 +129,8 @@ class SMController:
     def getPoliciesFromRepresentationsWithNoise(self, representations):
         policies = self.getPoliciesFromRepresentations(representations)
         rcomp = self.predict.spread(representations)
-        comp = SMController.comp_fun(rcomp)
+        #comp = SMController.comp_fun(rcomp)
+        comp = rcomp
         self.policy_noise = self.rng.randn(*policies.shape)
 
         policies = (policies + (1 - comp) * self.policy_noise)
@@ -195,7 +196,8 @@ class SMController:
 
     def getCompetenceGrid(self):
         comp = self.predict.spread(self.goal_grid)
-        return SMController.comp_fun(comp)
+        return comp
+        #return SMController.comp_fun(comp)
 
     def spread(self, inps):
 
