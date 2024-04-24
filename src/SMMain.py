@@ -191,7 +191,7 @@ class Main:
             controller.comp_grid = controller.getCompetenceGrid()
             comp = controller.comp_grid.mean()
 
-            #comp = 0 # TEST: no param modulation
+            #comp = 0 # TEST: no modulation
 
             controller.match_sigma = modulate_param(
                 params.base_match_sigma,
@@ -266,8 +266,12 @@ class Main:
                 if t < params.stime:
                     for episode in range(params.batch_size):
                         # Do not update the episode if it has ended
-                        if states[episode] is None or cum_match_increment[episode] > params.cum_match_stop_th * competences[episode]:
+                        # TEST: Hard stop condition not modulated by competence
+                        if states[episode] is None or cum_match_increment[episode] > params.cum_match_stop_th:
                             continue
+                        #if states[episode] is None or cum_match_increment[episode] > params.cum_match_stop_th * competences[episode]:
+                        #    continue
+
 
                         # set correct policy
                         agent.updatePolicy(batch_a[episode, 0, :])
@@ -548,7 +552,9 @@ class Main:
                 matches[:params.drop_first_n_steps] = 0
                 cum_match = np.cumsum(matches)
 
-                non_zero = (cum_match > competence[0] * params.cum_match_stop_th).nonzero()[0]
+                #non_zero = (cum_match > competence[0] * params.cum_match_stop_th).nonzero()[0]
+                # TEST: Hard stop threshold not modulated by competence
+                non_zero = (cum_match > params.cum_match_stop_th).nonzero()[0]
                 if len(non_zero) > 0:
                     match_value = match_value[:non_zero[0]]
                     matches = matches[:non_zero[0]]

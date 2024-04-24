@@ -132,8 +132,8 @@ class SMController:
         comp = SMController.comp_fun(rcomp)
         self.policy_noise = self.rng.randn(*policies.shape)
 
-        #policies = self.explore_sigma * (policies + (1 - comp) * self.policy_noise)
         policies = (policies + (1 - comp) * self.policy_noise)
+        #policies = (policies + self.policy_noise) # TEST: no competence exploration
         return policies, comp, rcomp
 
     def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
@@ -242,6 +242,7 @@ class SMController:
 
         if not pretest:
             cgoals = goals * (1 - competences)
+            #cgoals = goals # TEST: no competence modulating goals
 
             # select base on match_value
             mch_idcs = matches.ravel() > params.match_th
