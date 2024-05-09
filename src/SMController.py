@@ -288,7 +288,6 @@ class SMController:
 
             # update predictor: predictor predicts n_matches for a particular goal
             n_matches = mch_idcs.reshape((params.batch_size, -1)).sum(axis=-1)[:, None]
-            print(n_matches.mean())
             self.predict.update(goals[idcs], n_matches)
 
         elif pretest:

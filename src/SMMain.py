@@ -373,6 +373,13 @@ class Main:
             print(f"  {curr_loss:#8.7f}")
             print(f" pretest={pretest}", flush=True)
 
+            if use_wandb:
+                wandb.log({'min_comp': logs[epoch][0], 'mean_comp': logs[epoch][1], 'max_comp': logs[epoch][2],
+                           'stm_loss': curr_loss, 'stm_modulation': mean_modulation,
+                           'stm_sigma': controller.curr_sigma, 'stm_lr': controller.curr_lr,
+                           'mean_cum_match': cum_match_increment.mean() / params.cum_match_stop_th,
+                           }, step=epoch)
+
             self.match_value = match_value
             self.match_increment = match_increment
             self.match_value_per_mod = match_value_per_mod
@@ -602,6 +609,15 @@ class Main:
             np.save(f"{epoch_dir}/trajectories", trj)
             trajectories_map()
 
+        if use_wandb:
+            log_data = {
+                'visual_map': wandb.Image("www/visual_map.png"),
+                'comp_map': wandb.Image("www/comp_map.png"),
+            }
+            for i in range(12):
+                log_data[f"episode{i}"] = wandb.Image(f"www/episode{i}.gif")
+            wandb.log(log_data, step=epoch)
+
     def collect_sensory_states():
         pass
 
@@ -636,6 +652,12 @@ if __name__ == "__main__":
         default=1,
     )
     parser.add_argument(
+        "-w",
+        "--wandb",
+        help="Store simulations results to Weights and Biases",
+        action="store_true",
+    )
+    parser.add_argument(
         "-x",
         "--plots",
         help="Plot graphs",
@@ -653,10 +675,12 @@ if __name__ == "__main__":
     gpu = bool(args.gpu)
     seed = int(args.seed)
     plots = bool(args.plots)
+    use_wandb = bool(args.wandb)
     simulation_name = args.name
 
     if gpu:
         torch.set_default_device('cuda')
+
 
     if args.name is not None:
         named_dir = (Path(simulations_dir) / args.name).resolve() 
@@ -664,6 +688,18 @@ if __name__ == "__main__":
         os.chdir(named_dir)
         Path("PLOT_SIMS").touch()
         Path("COMPUTE_TRAJECTORIES").touch()
+
+    if use_wandb:
+        import wandb
+        # Here only public fields of params module are selected
+        config = {k: v for k, v in vars(params).items() if not k.startswith("_")}
+        del config["np"] # This is an ugly way to remove numpy import from params
+        run = wandb.init(
+            project="kickstarting_concept",
+            entity="hill_uw",
+            name=args.name,
+            config=config,
+        )
 
     if os.path.isfile("main.dump.npy"):
         main = np.load("main.dump.npy", allow_pickle="True")[0]
