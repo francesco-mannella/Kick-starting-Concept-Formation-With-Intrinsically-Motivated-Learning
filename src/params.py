@@ -30,7 +30,7 @@ base_match_sigma = 1
 match_sigma = 3
 base_internal_sigma = 1
 internal_sigma = 3
-base_lr = 0.01
+base_lr = 0.02
 stm_lr = 0.2
 policy_base = np.pi*0.25
 explore_sigma = 8
@@ -49,7 +49,7 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 10
+epochs = 1600
 pretest_epochs = -1
 batch_size = 24
 tests = 12

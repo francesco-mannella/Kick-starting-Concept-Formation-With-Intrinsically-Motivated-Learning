@@ -7,9 +7,10 @@ import torch
 
 matplotlib.use("Agg")
 
-import params
 import numpy as np
 import time
+
+import params
 from SMController import SMController
 from SMEnv import SMEnv
 from SMAgent import SMAgent
@@ -635,6 +636,33 @@ if __name__ == "__main__":
 
     import argparse
 
+    override_params = {}
+
+    class kvdictAppendAction(argparse.Action):
+        """
+        argparse action to split an argument into KEY=VALUE form
+        on the first = and append to a dictionary.
+        """
+        def __call__(self, parser, args, values, option_string=None):
+            assert(len(values) == 1)
+            try:
+                (k, v) = values[0].split("=", 2)
+            except ValueError as ex:
+                raise argparse.ArgumentError(self, f"could not parse argument \"{values[0]}\" as k=v format")
+
+            if v == "False" or v == "True":
+                v = bool(v)
+            else:
+                try:
+                    v = int(v)
+                except:
+                    try:
+                        v = float(v)
+                    except:
+                        pass
+
+            override_params[k] = v
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-t",
@@ -670,6 +698,14 @@ if __name__ == "__main__":
         action="store",
         default=None
     )
+    parser.add_argument(
+        "-o",
+        "--opt",
+        nargs=1,
+        help="Additional simulation option in KEY=VALUE format (overrides params.py)",
+        action=kvdictAppendAction,
+        metavar="KEY=VALUE"
+    )
     args = parser.parse_args()
     timing = float(args.time)
     gpu = bool(args.gpu)
@@ -681,13 +717,16 @@ if __name__ == "__main__":
     if gpu:
         torch.set_default_device('cuda')
 
-
     if args.name is not None:
         named_dir = (Path(simulations_dir) / args.name).resolve() 
         os.makedirs(named_dir, exist_ok=True)
         os.chdir(named_dir)
         Path("PLOT_SIMS").touch()
         Path("COMPUTE_TRAJECTORIES").touch()
+
+    # Override params with command-line options
+    for k, v in override_params.items():
+        vars(params)[k] = v
 
     if use_wandb:
         import wandb
