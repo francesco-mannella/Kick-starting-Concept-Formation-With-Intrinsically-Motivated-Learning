@@ -1,4 +1,4 @@
-import os
+import subprocess
 from itertools import product
 
 def get_combinations(data):
@@ -25,20 +25,24 @@ params = {
     "modalities_weights": [[1., 1., 1., 1.], [1., 2., 1., 1.], [1., 2., 2., 1.]]
 }
 
-params = {
-    "match_th": [0.3, 0.4],
-    "stm_lr": [0.5, 0.1],
-}
-
 base_name = "grid_search"
 
+processes = []
+MAX_PROCESSES = 4
 
 for i, p in enumerate(get_combinations(params)):
-    base_cmd_str = f"nohup python SMMain.py -n {base_name}_{i} -s 1000 -t 55000 -x -g"
+
+    # If MAX_PROCESSES reached, wait until all of them finish.
+    if len(processes) == MAX_PROCESSES:
+        for process in processes:
+            process.wait()
+        processes = []
+
+    base_cmd_str = f"nohup python SMMain.py -n {base_name}_{i} -s 1000 -t 55000 -x -g -w"
     options_str = ""
     for k, v in p.items():
         options_str += f" -o {k}={v}"
     cmd_str = base_cmd_str + options_str
     print(f"Running: {cmd_str}")
-    os.system(cmd_str)
+    processes.append(subprocess.Popen(cmd_str, shell=True))
 
