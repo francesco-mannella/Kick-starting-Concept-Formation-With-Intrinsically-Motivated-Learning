@@ -245,11 +245,6 @@ class Main:
             v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
             v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
 
-            if use_wandb:
-                table = wandb.Table(data=v_p[:, 0, :], columns = ["x", "y"])
-                wandb.log({"goals_point_representations": wandb.plot.scatter(table, "x", "y",
-                           title="Goals point representations")}, step=epoch)
-
             # get policy at the first timestep
             goals = v_r[:, 0, :]
             (policies,
