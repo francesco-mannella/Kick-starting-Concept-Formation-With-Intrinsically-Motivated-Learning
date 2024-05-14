@@ -55,7 +55,14 @@ class SensoryMotorCicle:
         return state
 
 def modulate_param(base, limit, prop):
-    return base + (limit - base) * prop
+    res = base + (limit - base) * prop
+    if res < 0:
+        print(res)
+        print(prop)
+        print(base)
+        print(limit)
+        exit(1)
+    return res
 
 def softmax(x, t=0.01):
     e = np.exp(x / t)
@@ -374,11 +381,14 @@ class Main:
             print(f"  {curr_loss:#8.7f}")
             print(f" pretest={pretest}", flush=True)
 
+            print(logs[epoch][1])
+
             if use_wandb:
                 wandb.log({'min_comp': logs[epoch][0], 'mean_comp': logs[epoch][1], 'max_comp': logs[epoch][2],
                            'stm_loss': curr_loss, 'stm_modulation': mean_modulation,
                            'stm_sigma': controller.curr_sigma, 'stm_lr': controller.curr_lr,
                            'mean_cum_match': cum_match_increment.mean() / params.cum_match_stop_th,
+                           'grid_comp_mean': comp,
                            }, step=epoch)
 
             self.match_value = match_value

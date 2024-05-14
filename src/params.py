@@ -30,15 +30,15 @@ base_match_sigma = 1
 match_sigma = 3
 base_internal_sigma = 1
 internal_sigma = 3
-base_lr = 0.02
+base_lr = 0.01
 stm_lr = 0.2
 policy_base = np.pi*0.25
 explore_sigma = 8
 
 # Modalities order: visual, touch, proprioception, action
-modalities_weights = [1., 2., 1., 1.]
+modalities_weights = [1., 1., 1., 1.]
 #modalities_weights = [0., 1., 0., 0.]  # select touch only
-match_th = 0.4
+match_th = 0.3
 match_incr_th = 0.05
 cum_match_stop_th = 20.0
 #cum_match_success_th = 4.0
