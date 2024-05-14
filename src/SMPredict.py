@@ -38,6 +38,7 @@ class SMPredict:
         comp = self.model(torch.tensor(inp, dtype=torch.float)).detach().cpu().numpy()
         # Rescale: competence is the fraction of max n_success
         comp = comp / params.cum_match_stop_th
+        comp[comp > 1] = 1.0 # Maximum possible value is 1
         return comp
 
 

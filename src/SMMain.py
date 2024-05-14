@@ -55,14 +55,7 @@ class SensoryMotorCicle:
         return state
 
 def modulate_param(base, limit, prop):
-    res = base + (limit - base) * prop
-    if res < 0:
-        print(res)
-        print(prop)
-        print(base)
-        print(limit)
-        exit(1)
-    return res
+    return base + (limit - base) * prop
 
 def softmax(x, t=0.01):
     e = np.exp(x / t)
