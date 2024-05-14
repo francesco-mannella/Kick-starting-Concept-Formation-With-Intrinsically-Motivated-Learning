@@ -80,6 +80,7 @@ class SMController:
             )
             ** 2
         )
+        self.goal_grid /= self.goal_grid.sum(axis=1)
         self.getCompetenceGrid()
 
         # This effectively ensures that first 10% of simulation steps
