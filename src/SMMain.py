@@ -259,7 +259,8 @@ class Main:
             batch_c[::] = competences[:, None, :]
             batch_log[::] = rcompetences[:, None, :]
 
-            cum_match_increment = np.zeros(params.batch_size)
+            cum_match = np.zeros(params.batch_size)
+            max_match = np.zeros(params.batch_size)
 
             # Main loop through time steps and episodes
             smcycle = SensoryMotorCicle(params.action_steps)
@@ -267,12 +268,8 @@ class Main:
                 if t < params.stime:
                     for episode in range(params.batch_size):
                         # Do not update the episode if it has ended
-                        # TEST: Hard stop condition not modulated by competence
-                        if states[episode] is None or cum_match_increment[episode] > params.cum_match_stop_th:
+                        if states[episode] is None or cum_match[episode] > params.cum_match_stop_th:
                             continue
-                        #if states[episode] is None or cum_match_increment[episode] > params.cum_match_stop_th * competences[episode]:
-                        #    continue
-
 
                         # set correct policy
                         agent.updatePolicy(batch_a[episode, 0, :])
@@ -316,11 +313,12 @@ class Main:
                         controller.computeMatchSimple(v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa])
                     if t > params.action_steps:
                         match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
-                        match_increment[:, t0:t] = np.average(match_increment_per_mod[sa], axis=-1, weights=params.modalities_weights)
+                        match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
                         # update cumulative match
                         if t0 > params.drop_first_n_steps:
-                            cum_match_increment += ((match_increment[:, t0:t] > params.match_incr_th) &
-                                                    (match_value[:, t0:t] > params.match_th)).sum(axis=-1)
+                            for i in range(t0, t):
+                                cum_match += (match_value[:, i] - max_match) > params.match_incr_th
+                                max_match = np.maximum(match_value[:, i] - params.match_incr_th, max_match)
 
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
@@ -380,7 +378,7 @@ class Main:
                 wandb.log({'min_comp': logs[epoch][0], 'mean_comp': logs[epoch][1], 'max_comp': logs[epoch][2],
                            'stm_loss': curr_loss, 'stm_modulation': mean_modulation,
                            'stm_sigma': controller.curr_sigma, 'stm_lr': controller.curr_lr,
-                           'mean_cum_match': cum_match_increment.mean() / params.cum_match_stop_th,
+                           'mean_cum_match': cum_match.mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
                            }, step=epoch)
 
@@ -558,13 +556,16 @@ class Main:
                 match_increment = np.zeros(params.stime)
                 match_increment[1:] = np.average(match_increment_per_mod, axis=-1, weights=params.modalities_weights)
 
-                matches = ((match_increment > params.match_incr_th)
-                           & (match_value > params.match_th))
+                max_match = 0
+                matches = np.zeros(params.stime)
+                for i in range(len(matches)):
+                    if match_value[i] - max_match > params.match_incr_th:
+                        max_match = match_value[i]
+                        matches[i] = 1
+
                 matches[:params.drop_first_n_steps] = 0
                 cum_match = np.cumsum(matches)
 
-                #non_zero = (cum_match > competence[0] * params.cum_match_stop_th).nonzero()[0]
-                # TEST: Hard stop threshold not modulated by competence
                 non_zero = (cum_match > params.cum_match_stop_th).nonzero()[0]
                 if len(non_zero) > 0:
                     match_value = match_value[:non_zero[0]]
