@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
         if use_wandb:
             log_data = {}
-            for f in glob.glob("www/*.gif"):
+            for f in glob.glob("www/demo_????.gif"):
                 fname = Path(f).stem
                 log_data[fname] = wandb.Image(f)
             wandb.log(log_data)

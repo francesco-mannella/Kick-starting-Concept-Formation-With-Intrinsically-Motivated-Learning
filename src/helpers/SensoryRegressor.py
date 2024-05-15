@@ -39,11 +39,9 @@ class SensoryRegressor:
         return self.model.predict(inputs)
 
     def save(self, destfile):
-
         self.model.save(destfile)
 
     def load(self, srcfile):
-
         self.model = tf.keras.models.load_model(srcfile)
 
 class SensoryClassificator:
@@ -81,9 +79,7 @@ class SensoryClassificator:
         return self.model.predict(inputs)
 
     def save(self, destfile):
-
         self.model.save(destfile, save_format="tf")
 
     def load(self, srcfile):
-
         self.model = tf.keras.models.load_model(srcfile)

@@ -135,9 +135,9 @@ class MainUtils(Main):
         ax3 = fig3.add_subplot(111)
         ax3.set_axis_off()
 
-        regress_world = tf.keras.models.load_model("regress0_model")
-        regress_rot = tf.keras.models.load_model("regress1_model")
-        regress_color = tf.keras.models.load_model("regress2_model")
+        regress_world = tf.keras.models.load_model("regress0_model.keras")
+        regress_rot = tf.keras.models.load_model("regress1_model.keras")
+        regress_color = tf.keras.models.load_model("regress2_model.keras")
         regress_rot_data = np.load("regress1_data.npy", allow_pickle=True)[0]
 
         # prototype
@@ -301,9 +301,9 @@ class MainUtils(Main):
         ax3 = fig3.add_subplot(111)
         ax3.set_axis_off()
 
-        regress_world = tf.keras.models.load_model("regress0_model")
-        regress_rot = tf.keras.models.load_model("regress1_model")
-        regress_color = tf.keras.models.load_model("regress2_model")
+        regress_world = tf.keras.models.load_model("regress0_model.keras")
+        regress_rot = tf.keras.models.load_model("regress1_model.keras")
+        regress_color = tf.keras.models.load_model("regress2_model.keras")
         regress_rot_data = np.load("regress1_data.npy", allow_pickle=True)[0]
 
         # iterate prototypes

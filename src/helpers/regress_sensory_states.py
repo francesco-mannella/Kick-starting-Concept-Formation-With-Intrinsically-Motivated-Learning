@@ -79,10 +79,10 @@ def regress():
     # %%
     # save
 
-    regress1.save("regress1_model")
+    regress1.save("regress1_model.keras")
     np.save("regress1_data", [{"rot_min":min_rot, "rot_max": max_rot}])
-    regress2.save("regress2_model")
-    regress0.save("regress0_model")
+    regress2.save("regress2_model.keras")
+    regress0.save("regress0_model.keras")
     print("Regress: Done!!!")
 
 if __name__ == "__main__":
