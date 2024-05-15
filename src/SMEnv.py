@@ -52,7 +52,7 @@ class SMEnv:
     def render_info(self, info, thresh):
         assert self.render is not None
         self.b2d_env.renderer.add_info_to_frames(
-            info, thresh
+            info, thresh, params.cum_match_stop_th
         )
 
     def close(self):

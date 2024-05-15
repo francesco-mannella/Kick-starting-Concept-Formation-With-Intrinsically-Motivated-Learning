@@ -296,7 +296,7 @@ class TestPlotter:
             self.vm.save_frame()
             self.ts += 1
 
-    def add_info_to_frames(self, info, thresh):
+    def add_info_to_frames(self, info, thresh, cum_match_stop_th):
         # Make the rendered frames and info matching lengths
         if len(info) > len(self.vm.frames):
             info = info[:len(self.vm.frames)]
@@ -304,7 +304,9 @@ class TestPlotter:
         elif len(info) < len(self.vm.frames):
             self.vm.frames = self.vm.frames[:len(info)]
 
+        cum_match = 0
         for i, (m, t) in enumerate(zip(info, thresh)):
+            cum_match += int(t)
             if self.ax is not None:
                 plt.delaxes(self.ax)
             self.ax = self.fig.add_subplot(111, aspect="equal")
@@ -315,12 +317,16 @@ class TestPlotter:
                 self.ax.scatter(
                         self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
                         self.ylim[0] + 0.8*(self.ylim[1] - self.ylim[0]),
-                            s = 1000*m, color="red" )
+                        s = 1000*m, color="red" )
             else:
                 self.ax.scatter(
                         self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
                         self.ylim[0] + 0.8*(self.ylim[1] - self.ylim[0]),
-                            s = 1000*m, color="white", edgecolor="red" )
+                        s = 1000*m, color="white", edgecolor="red" )
+                self.ax.bar(
+                        self.xlim[0] + 0.9*(self.xlim[1] - self.xlim[0]),
+                        (cum_match / cum_match_stop_th)*(self.ylim[1] - self.ylim[0]),
+                        )
             self.fig.canvas.draw()
 
             frame2 = Image.frombytes('RGB', 
