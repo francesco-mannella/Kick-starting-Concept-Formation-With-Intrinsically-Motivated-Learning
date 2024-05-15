@@ -16,16 +16,10 @@ def get_combinations(data):
         yield dict(zip(data.keys(), combination))
 
 params = {
-    "match_th": [0.3, 0.4, 0.5],
-    "match_incr_th": [0.05, 0.1],
-    "predict_lr": [0.1, 0.05],
-    "base_lr": [0.01, 0.02, 0.05],
-    "stm_lr": [0.5, 0.2, 0.1],
-    "cum_match_stop_th": [20, 30],
-    "modalities_weights": [[1., 1., 1., 1.], [1., 2., 1., 1.], [1., 2., 2., 1.]]
+    "cum_match_stop_th": [10, 20, 30, 40],
 }
 
-base_name = "grid_search"
+base_name = "gs_cum_match_stop_th"
 
 processes = []
 MAX_PROCESSES = 4
@@ -45,4 +39,3 @@ for i, p in enumerate(get_combinations(params)):
     cmd_str = base_cmd_str + options_str
     print(f"Running: {cmd_str}")
     processes.append(subprocess.Popen(cmd_str, shell=True))
-

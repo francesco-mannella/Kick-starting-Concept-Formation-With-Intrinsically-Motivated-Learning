@@ -38,10 +38,10 @@ def remove_figs(epoch=0):
         os.makedirs(storage_dir, exist_ok=True)
         os.makedirs(epoch_dir, exist_ok=True)
 
-        copyfile(f"{site_dir}/visual_map.png", f"{epoch_dir}/visual_map.png")
-        copyfile(f"{site_dir}/comp_map.png", f"{epoch_dir}/comp_map.png")
-        copyfile(f"{site_dir}/log.png", f"{epoch_dir}/log.png")
         try:
+            copyfile(f"{site_dir}/visual_map.png", f"{epoch_dir}/visual_map.png")
+            copyfile(f"{site_dir}/comp_map.png", f"{epoch_dir}/comp_map.png")
+            copyfile(f"{site_dir}/log.png", f"{epoch_dir}/log.png")
             copyfile(f"{site_dir}/trajectories.png", f"{epoch_dir}/trajectories.png")
         except OSError:
             pass
