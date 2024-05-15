@@ -261,6 +261,7 @@ class Main:
 
             cum_match = np.zeros(params.batch_size)
             max_match = np.zeros(params.batch_size)
+            matches = np.zeros((params.batch_size, params.stime), dtype=bool)
 
             # Main loop through time steps and episodes
             smcycle = SensoryMotorCicle(params.action_steps)
@@ -317,7 +318,8 @@ class Main:
                         # update cumulative match
                         if t0 > params.drop_first_n_steps:
                             for i in range(t0, t):
-                                cum_match += (match_value[:, i] - max_match) > params.match_incr_th
+                                matches[:, i] = (match_value[:, i] - max_match) > params.match_incr_th
+                                cum_match += matches[:, i]
                                 max_match = np.maximum(match_value[:, i] - params.match_incr_th, max_match)
 
             # ---- end of an epoch: controller update
@@ -331,7 +333,7 @@ class Main:
                 batch_a.reshape((bsize, -1)),
                 batch_g.reshape((bsize, -1)),
                 match_value.reshape(-1, 1),
-                match_increment.reshape(-1, 1),
+                matches.reshape(-1),
                 competences=batch_c.reshape((bsize, -1)),
                 pretest=pretest,
             )

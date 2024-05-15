@@ -234,8 +234,8 @@ class SMController:
         proprios,
         policies,
         goals,
+        match_value,
         matches,
-        matches_increment,
         competences,
         pretest=False,
     ):
@@ -245,51 +245,23 @@ class SMController:
 
         if not pretest:
             cgoals = goals * (1 - competences)
-            #cgoals = goals # TEST: no competence modulating goals
-
-            # select base on match_value
-            mch_idcs = matches.ravel() > params.match_th
-
-            # select base on match_increment
-            mch_idcs &= matches_increment.ravel() > params.match_incr_th
-
-            # mask
-            mch_idcs &= self.episode_mask
 
             # compute number of chosen patterns (return)
-            n_items = sum(mch_idcs)
-            idcs = mch_idcs
+            n_items = sum(matches)
 
-            modulate = cgoals[idcs] * matches[idcs]
-
-            #modulate *= 0 # TEST: No learning!!!
-
+            modulate = cgoals[matches] * match_value[matches]
             mean_modulation = modulate.mean()
-            
+
             # update maps
             if n_items > 0:
-                curr_loss = (self.stm_v.update(visuals[idcs], modulate) + \
-                             self.stm_ss.update(ssensories[idcs], modulate) + \
-                             self.stm_p.update(proprios[idcs], modulate) + \
-                             self.stm_a.update(policies[idcs], modulate)) / 4
-
-            # find max match_value within each episode
-            stime = params.stime
-            m = matches.reshape(-1, stime)
-            m = np.eye(stime)[np.argmax(m, 1)]
-            m = m.reshape(-1)
-            idcs = np.where(m == 1)
-
-            # update maxmatch
-            cmm = matches[idcs].max()
-            self.maxmatch = cmm \
-                    if self.maxmatch is None \
-                    else self.maxmatch if cmm < self.maxmatch \
-                    else cmm
+                curr_loss = (self.stm_v.update(visuals[matches], modulate) + \
+                             self.stm_ss.update(ssensories[matches], modulate) + \
+                             self.stm_p.update(proprios[matches], modulate) + \
+                             self.stm_a.update(policies[matches], modulate)) / 4
 
             # update predictor: predictor predicts n_matches for a particular goal
-            n_matches = mch_idcs.reshape((params.batch_size, -1)).sum(axis=-1)[:, None]
-            self.predict.update(goals[idcs], n_matches)
+            n_matches = matches.reshape((params.batch_size, -1)).sum(axis=-1)[:, None]
+            self.predict.update(goals.reshape((params.batch_size, -1, params.internal_size))[:, 0], n_matches)
 
         elif pretest:
             if not hasattr(self, "count"):
@@ -334,7 +306,7 @@ class SMController:
 
             self.count += 1
 
-        return n_items, mch_idcs, curr_loss, mean_modulation
+        return n_items, matches, curr_loss, mean_modulation
 
     def __getstate__(self):
         return {
