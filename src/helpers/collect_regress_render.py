@@ -35,11 +35,34 @@ if __name__ == "__main__":
         help="Use gpu", 
         action="store_true"
     )
+    parser.add_argument(
+        "-w",
+        "--wandb",
+        help="Store simulations results to Weights and Biases",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-n",
+        "--name",
+        help="Simulation name (to store results in named folders)",
+        action="store",
+        default=None
+    )
+
     args = parser.parse_args()
     gpu = bool(args.gpu)
+    use_wandb = bool(args.wandb)
 
     if not gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+    if use_wandb:
+        import wandb
+        run = wandb.init(
+            project="kickstarting_concept",
+            entity="hill_uw",
+            name=args.name
+        )
 
     if os.path.isfile("main.dump.npy"):
         main_core = np.load(
@@ -52,3 +75,10 @@ if __name__ == "__main__":
         main.collect_sensory_states()
         regress()
         main.demo_episodes()
+
+        if use_wandb:
+            log_data = {}
+            for f in glob.glob("www/*.gif"):
+                fname = Path(f).stem
+                log_data[fname] = wandb.Image(f)
+            wandb.log(log_data)
