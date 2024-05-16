@@ -86,7 +86,6 @@ class Main:
             shuffle=params.shuffle_weights,
         )
         self.logs = np.zeros([params.epochs, 3])
-        self.stm_loss = np.zeros([params.epochs, 2])
         self.epoch = 0
 
     def __getstate__(self):
@@ -98,7 +97,6 @@ class Main:
             "plots": self.plots,
             "logs": self.logs,
             "epoch": self.epoch,
-            "stm_loss": self.stm_loss,
         }
 
     def __setstate__(self, state):
@@ -107,7 +105,6 @@ class Main:
         self.logs = state["logs"]
         self.epoch = state["epoch"]
         self.seed = state["seed"]
-        self.stm_loss = state["stm_loss"]
         torch.manual_seed(self.seed)
         self.rng = np.random.RandomState()
         self.rng.__setstate__(state["rng"])
@@ -118,8 +115,6 @@ class Main:
             tmp[:nlogs, : ] = self.logs.copy()
             self.logs = tmp
             tmp = np.zeros([params.epochs, 2])
-            tmp[:nlogs, : ] = self.stm_loss.copy()
-            self.stm_loss = tmp
 
         self.env = SMEnv(self.seed, params.action_steps)
         self.controller = SMController(
@@ -336,10 +331,6 @@ class Main:
                 competences=batch_c.reshape((bsize, -1))
             )
 
-            # Average loss of STM layers updates
-            self.stm_loss[epoch, 0] = curr_loss
-            self.stm_loss[epoch, 1] = mean_modulation
-
             # ---- print
 
             c = np.outer(contexts, np.ones(params.stime)).ravel()
@@ -369,13 +360,17 @@ class Main:
                 ),
                 end="",
             )
-            print(f"  {curr_loss:#8.7f}")
+            print(f"  {np.mean(curr_loss):#8.7f}")
 
             print(logs[epoch][1])
 
             if use_wandb:
                 wandb.log({'min_comp': logs[epoch][0], 'mean_comp': logs[epoch][1], 'max_comp': logs[epoch][2],
-                           'stm_loss': curr_loss, 'stm_modulation': mean_modulation,
+                           'stm_loss': np.mean(curr_loss),
+                           'stm_v_loss': curr_loss[0],
+                           'stm_ss_loss': curr_loss[1],
+                           'stm_p_loss': curr_loss[2],
+                           'stm_a_loss': curr_loss[3],
                            'stm_sigma': controller.curr_sigma, 'stm_lr': controller.curr_lr,
                            'mean_cum_match': cum_match.mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
@@ -460,8 +455,6 @@ class Main:
         np.save(f"{epoch_dir}/data", [data])
         np.save(f"{site_dir}/log", logs[: epoch + 1])
         np.save(f"{epoch_dir}/log", logs[: epoch + 1])
-        np.save(f"{site_dir}/stm_loss", self.stm_loss[: epoch + 1])
-        np.save(f"{epoch_dir}/stm_loss", self.stm_loss[: epoch + 1])
 
         if self.plots is False:
             return

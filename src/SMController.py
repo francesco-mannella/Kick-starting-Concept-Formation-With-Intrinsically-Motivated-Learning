@@ -252,10 +252,10 @@ class SMController:
 
         # update maps
         if n_items > 0:
-            curr_loss = (self.stm_v.update(visuals[match_ind], modulate) + \
-                         self.stm_ss.update(ssensories[match_ind], modulate) + \
-                         self.stm_p.update(proprios[match_ind], modulate) + \
-                         self.stm_a.update(policies[match_ind], modulate)) / 4
+            curr_loss = (self.stm_v.update(visuals[match_ind], modulate).item(),
+                         self.stm_ss.update(ssensories[match_ind], modulate).item(),
+                         self.stm_p.update(proprios[match_ind], modulate).item(),
+                         self.stm_a.update(policies[match_ind], modulate).item())
 
         # update predictor: predictor predicts cumulated matches for a particular goal
         goals0 = goals[::params.stime, :]
