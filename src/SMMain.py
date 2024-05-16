@@ -24,7 +24,6 @@ from SMGraphs import (
     trajectories_map,
     representations_movements,
     log,
-    loss
 )
 
 import matplotlib.pyplot as plt
@@ -463,7 +462,6 @@ class Main:
         remove_figs(epoch)
         visual_map()
         log()
-        loss()
         comp_map()
 
         if os.path.isfile("PLOT_SIMS"):
