@@ -186,8 +186,6 @@ class Main:
             controller.comp_grid = controller.getCompetenceGrid()
             comp = controller.comp_grid.mean()
 
-            #comp = 0 # TEST: no modulation
-
             controller.match_sigma = modulate_param(
                 params.base_match_sigma,
                 params.match_sigma,
@@ -217,7 +215,7 @@ class Main:
             states = []
             for episode in range(params.batch_size):
                 # Each environment should have a different seed
-                env = SMEnv(self.seed + episode, params.action_steps)
+                env = SMEnv(self.seed + episode + epoch, params.action_steps)
                 env.b2d_env.prepare_world(contexts[episode])
                 state = env.reset(contexts[episode])
                 batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
@@ -262,7 +260,7 @@ class Main:
                 if t < params.stime:
                     for episode in range(params.batch_size):
                         # Do not update the episode if it has ended
-                        if states[episode] is None or cum_match[episode] > params.cum_match_stop_th:
+                        if states[episode] is None or cum_match[episode] >= params.cum_match_stop_th:
                             continue
 
                         # set correct policy
@@ -314,6 +312,7 @@ class Main:
                                 matches[:, i] = (match_value[:, i] - max_match) > params.match_incr_th
                                 cum_match += matches[:, i]
                                 max_match = np.maximum(match_value[:, i] - params.match_incr_th, max_match)
+                            cum_match[cum_match > params.cum_match_stop_th] = params.cum_match_stop_th
 
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
@@ -360,17 +359,19 @@ class Main:
                 end="",
             )
             print(f"  {np.mean(curr_loss):#8.7f}")
-
             print(logs[epoch][1])
 
             if use_wandb:
-                wandb.log({'min_comp': logs[epoch][0], 'mean_comp': logs[epoch][1], 'max_comp': logs[epoch][2],
+                wandb.log({'min_comp': logs[epoch][0],
+                           'mean_comp': logs[epoch][1],
+                           'max_comp': logs[epoch][2],
                            'stm_loss': np.mean(curr_loss),
                            'stm_v_loss': curr_loss[0],
                            'stm_ss_loss': curr_loss[1],
                            'stm_p_loss': curr_loss[2],
                            'stm_a_loss': curr_loss[3],
-                           'stm_sigma': controller.curr_sigma, 'stm_lr': controller.curr_lr,
+                           'stm_sigma': controller.curr_sigma,
+                           'stm_lr': controller.curr_lr,
                            'mean_cum_match': cum_match.mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
                            }, step=epoch)
@@ -470,6 +471,7 @@ class Main:
             for k in range(params.tests):
 
                 context = (k // (params.tests//3)) + 1
+                env.b2d_env.prepare_world(context)
                 state = env.reset(
                     context,
                     plot=f"{site_dir}/episode%d" % k,
@@ -541,10 +543,6 @@ class Main:
                 )
                 match_value, match_value_per_mod =\
                     controller.computeMatchSimple(*internal_points)
-
-                match_increment_per_mod = np.maximum(0, match_value_per_mod[1:, :] - match_value_per_mod[:-1, :])
-                match_increment = np.zeros(params.stime)
-                match_increment[1:] = np.average(match_increment_per_mod, axis=-1, weights=params.modalities_weights)
 
                 max_match = 0
                 matches = np.zeros(params.stime)

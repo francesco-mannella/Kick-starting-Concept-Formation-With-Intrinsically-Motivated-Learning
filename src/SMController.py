@@ -135,7 +135,6 @@ class SMController:
         self.policy_noise = self.rng.randn(*policies.shape)
 
         policies = (policies + (1 - comp) * self.policy_noise)
-        #policies = (policies + self.policy_noise) # TEST: no competence exploration
         return policies, comp, rcomp
 
     def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
