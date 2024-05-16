@@ -262,16 +262,14 @@ class SMController:
 
             modulate = cgoals[idcs] * matches[idcs]
 
-            #modulate *= 0 # TEST: No learning!!!
-
             mean_modulation = modulate.mean()
             
             # update maps
             if n_items > 0:
-                curr_loss = (self.stm_v.update(visuals[idcs], modulate) + \
-                             self.stm_ss.update(ssensories[idcs], modulate) + \
-                             self.stm_p.update(proprios[idcs], modulate) + \
-                             self.stm_a.update(policies[idcs], modulate)) / 4
+                curr_loss = (self.stm_v.update(visuals[idcs], modulate).item(),
+                             self.stm_ss.update(ssensories[idcs], modulate).item(),
+                             self.stm_p.update(proprios[idcs], modulate).item(),
+                             self.stm_a.update(policies[idcs], modulate).item())
 
             # find max match_value within each episode
             stime = params.stime
