@@ -38,7 +38,6 @@ explore_sigma = 8
 # Modalities order: visual, touch, proprioception, action
 modalities_weights = [1., 2., 1., 1.]
 #modalities_weights = [0., 1., 0., 0.]  # select touch only
-match_th = 0.3
 match_incr_th = 0.05
 cum_match_stop_th = 20.0
 #cum_match_success_th = 4.0
