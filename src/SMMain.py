@@ -212,10 +212,9 @@ class Main:
 
             controller.explore_sigma = params.explore_sigma
 
-            if epoch > params.pretest_epochs:
-                controller.updateParams(
-                    controller.curr_sigma, controller.curr_lr
-                )
+            controller.updateParams(
+                controller.curr_sigma, controller.curr_lr
+            )
 
             print(f"{controller.curr_sigma}, {controller.curr_lr}")
 
@@ -324,7 +323,6 @@ class Main:
 
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
-            pretest = epoch <= params.pretest_epochs
             (update_items, update_episodes, curr_loss, mean_modulation) =\
             controller.update(
                 batch_v.reshape((bsize, -1)),
@@ -372,7 +370,6 @@ class Main:
                 end="",
             )
             print(f"  {curr_loss:#8.7f}")
-            print(f" pretest={pretest}", flush=True)
 
             print(logs[epoch][1])
 
