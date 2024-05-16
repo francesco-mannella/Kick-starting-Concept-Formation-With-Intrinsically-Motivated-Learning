@@ -235,78 +235,34 @@ class SMController:
         policies,
         goals,
         match_value,
-        matches,
-        competences,
-        pretest=False,
+        match_ind,
+        cum_match,
+        competences
     ):
-
         curr_loss = None
         mean_modulation = None
 
-        if not pretest:
-            cgoals = goals * (1 - competences)
+        cgoals = goals * (1 - competences)
 
-            # compute number of chosen patterns (return)
-            n_items = sum(matches)
+        # compute number of chosen patterns (return)
+        n_items = sum(cum_match)
 
-            modulate = cgoals[matches] * match_value[matches]
-            mean_modulation = modulate.mean()
+        modulate = cgoals[match_ind] * match_value[match_ind, None]
+        mean_modulation = modulate.mean()
 
-            # update maps
-            if n_items > 0:
-                curr_loss = (self.stm_v.update(visuals[matches], modulate) + \
-                             self.stm_ss.update(ssensories[matches], modulate) + \
-                             self.stm_p.update(proprios[matches], modulate) + \
-                             self.stm_a.update(policies[matches], modulate)) / 4
+        # update maps
+        if n_items > 0:
+            curr_loss = (self.stm_v.update(visuals[match_ind], modulate) + \
+                         self.stm_ss.update(ssensories[match_ind], modulate) + \
+                         self.stm_p.update(proprios[match_ind], modulate) + \
+                         self.stm_a.update(policies[match_ind], modulate)) / 4
 
-            # update predictor: predictor predicts n_matches for a particular goal
-            n_matches = matches.reshape((params.batch_size, -1)).sum(axis=-1)[:, None]
-            self.predict.update(goals.reshape((params.batch_size, -1, params.internal_size))[:, 0], n_matches)
+        # update predictor: predictor predicts cumulated matches for a particular goal
+        goals0 = goals[::params.stime, :]
+        assert goals0.shape[0] == params.batch_size
+        self.predict.update(goals0, cum_match[:, None])
 
-        elif pretest:
-            if not hasattr(self, "count"):
-                self.count = 0
-                self.init_data = {
-                    "visuals": [],
-                    "ssensories": [],
-                    "proprios": [],
-                    "policies": [],
-                }
-
-            mch_idcs = np.ones_like(matches.ravel()) > 0
-            n_items = sum(1 * mch_idcs)
-
-            if self.count < params.pretest_epochs:
-
-                if n_items > 0:
-                    self.init_data["visuals"].append(visuals[mch_idcs])
-                    self.init_data["ssensories"].append(ssensories[mch_idcs])
-                    self.init_data["proprios"].append(proprios[mch_idcs])
-                    self.init_data["policies"].append(policies[mch_idcs])
-
-            if self.count == params.pretest_epochs - 1:
-
-                for k in self.init_data.keys():
-                    self.init_data[k] = np.vstack(self.init_data[k])
-
-                for t in range(400):
-                    h = 3.0 * np.exp(-t / 15)
-                    s = 0.7 + 8 * np.exp(-t / 15)
-                    self.updateParams(s, h)
-
-                    ones = np.ones(self.init_data["visuals"].shape[0])
-                    lv = self.stm_v.update(self.init_data["visuals"], ones)
-                    ones = np.ones(self.init_data["ssensories"].shape[0])
-                    ls = self.stm_ss.update(self.init_data["ssensories"], ones)
-                    ones = np.ones(self.init_data["proprios"].shape[0])
-                    lp = self.stm_p.update(self.init_data["proprios"], ones)
-                    ones = np.ones(self.init_data["policies"].shape[0])
-                    la = self.stm_a.update(self.init_data["policies"], ones)
-                    print(lv, ls, lp, la)
-
-            self.count += 1
-
-        return n_items, matches, curr_loss, mean_modulation
+        return n_items, match_ind, curr_loss, mean_modulation
 
     def __getstate__(self):
         return {

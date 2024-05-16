@@ -259,7 +259,7 @@ class Main:
             batch_c[::] = competences[:, None, :]
             batch_log[::] = rcompetences[:, None, :]
 
-            cum_match = np.zeros(params.batch_size)
+            cum_match = np.zeros(params.batch_size, dtype=int)
             max_match = np.zeros(params.batch_size)
             matches = np.zeros((params.batch_size, params.stime), dtype=bool)
 
@@ -332,10 +332,10 @@ class Main:
                 batch_p.reshape((bsize, -1)),
                 batch_a.reshape((bsize, -1)),
                 batch_g.reshape((bsize, -1)),
-                match_value.reshape(-1, 1),
+                match_value.reshape(-1),
                 matches.reshape(-1),
-                competences=batch_c.reshape((bsize, -1)),
-                pretest=pretest,
+                cum_match,
+                competences=batch_c.reshape((bsize, -1))
             )
 
             # Average loss of STM layers updates
