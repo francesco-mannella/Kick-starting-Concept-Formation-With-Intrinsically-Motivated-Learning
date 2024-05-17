@@ -66,6 +66,8 @@ class SMController:
         self.comp_sigma = params.base_internal_sigma
         self.explore_sigma = params.explore_sigma
         self.policy_noise = None
+        self.curr_lr = None
+        self.comp_grid = None
 
         self.internal_side = int(np.sqrt(params.internal_size))
         x = np.arange(self.internal_side)
