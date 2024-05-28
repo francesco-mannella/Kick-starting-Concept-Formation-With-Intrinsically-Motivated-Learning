@@ -296,37 +296,44 @@ class TestPlotter:
             self.vm.save_frame()
             self.ts += 1
 
-    def add_info_to_frames(self, info, thresh, cum_match_stop_th):
+    def add_info_to_frames(self, match_value, matches, cum_match_stop_th, match_incr_th, drop_first_n_steps):
+
         # Make the rendered frames and info matching lengths
-        if len(info) > len(self.vm.frames):
-            info = info[:len(self.vm.frames)]
-            thresh = thresh[:len(self.vm.frames)]
-        elif len(info) < len(self.vm.frames):
-            self.vm.frames = self.vm.frames[:len(info)]
+        if len(match_value) > len(self.vm.frames):
+            match_value = match_value[:len(self.vm.frames)]
+            matches = matches[:len(self.vm.frames)]
+        elif len(match_value) < len(self.vm.frames):
+            self.vm.frames = self.vm.frames[:len(match_value)]
 
         cum_match = 0
-        for i, (m, t) in enumerate(zip(info, thresh)):
-            cum_match += int(t)
+        max_match = 0
+        for i, (match, tmatch) in enumerate(zip(match_value, matches)):
+            cum_match += tmatch
+            if i >= drop_first_n_steps:
+                if max_match < match - match_incr_th:
+                    max_match = match
             if self.ax is not None:
                 plt.delaxes(self.ax)
             self.ax = self.fig.add_subplot(111, aspect="equal")
             self.ax.set_xlim(self.xlim)
             self.ax.set_ylim(self.ylim)
             self.ax.set_axis_off()
-            if t:
-                self.ax.scatter(
-                        self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
-                        self.ylim[0] + 0.8*(self.ylim[1] - self.ylim[0]),
-                        s = 1000*m, color="red" )
-            else:
-                self.ax.scatter(
-                        self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
-                        self.ylim[0] + 0.8*(self.ylim[1] - self.ylim[0]),
-                        s = 1000*m, color="white", edgecolor="red" )
-                self.ax.bar(
-                        self.xlim[0] + 0.9*(self.xlim[1] - self.xlim[0]),
-                        (cum_match / cum_match_stop_th)*(self.ylim[1] - self.ylim[0]),
-                        )
+
+            # Current match value
+            self.ax.bar(
+                    self.xlim[0] + 0.7*(self.xlim[1] - self.xlim[0]),
+                    match*self.ylim[1],
+                    )
+            # Current max match
+            self.ax.bar(
+                    self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
+                    max_match*self.ylim[1],
+                    )
+            # Current cummulative success
+            self.ax.bar(
+                    self.xlim[0] + 0.9*(self.xlim[1] - self.xlim[0]),
+                    (cum_match / cum_match_stop_th)*self.ylim[1],
+                    )
             self.fig.canvas.draw()
 
             frame2 = Image.frombytes('RGB', 

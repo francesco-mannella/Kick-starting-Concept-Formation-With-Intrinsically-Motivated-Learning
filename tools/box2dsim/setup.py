@@ -18,6 +18,6 @@ setup(name='box2dsim',
             },
         packages=find_packages(where="."),
         package_data={"": ["*.npy", "*.json"]},
-        install_requires=['gym', 'box2d_py', 'numpy', 
+        install_requires=['gymnasium', 'box2d_py', 'numpy', 
             'matplotlib','scikit-image']
         )

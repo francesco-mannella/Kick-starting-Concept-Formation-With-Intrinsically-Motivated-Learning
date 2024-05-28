@@ -1,4 +1,4 @@
-gym
+gymnasium
 box2d_py
 numpy
 matplotlib

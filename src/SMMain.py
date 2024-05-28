@@ -145,21 +145,9 @@ class Main:
                      match_increment_per_mod,
                      match_increment,
                      agent, controller,
-                     contexts, epoch
+                     contexts, envs, states
                      ):
-        # ----- prepare episodes
-        envs = []
-        states = []
-        for episode in range(params.batch_size):
-            # Each environment in each epoch should have a different seed
-            env = SMEnv(self.seed + episode + epoch, params.action_steps)
-            env.b2d_env.prepare_world(contexts[episode])
-            state = env.reset(contexts[episode])
-            batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
-            batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
-            batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
-            states.append(state)
-            envs.append(env)
+        batch_size = len(contexts)
 
         # get Representations for initial states
         Rs, Rp = controller.spread(
@@ -187,15 +175,15 @@ class Main:
         batch_c[::] = competences[:, None, :]
         batch_log[::] = rcompetences[:, None, :]
 
-        cum_match = np.zeros(params.batch_size, dtype=int)
-        max_match = np.zeros(params.batch_size)
-        matches = np.zeros((params.batch_size, params.stime), dtype=bool)
+        cum_match = np.zeros(batch_size, dtype=int)
+        max_match = np.zeros(batch_size)
+        matches = np.zeros((batch_size, params.stime), dtype=bool)
 
         # Main loop through time steps and episodes
         smcycle = SensoryMotorCicle(params.action_steps)
         for t in range(1, params.stime+1):
             if t < params.stime:
-                for episode in range(params.batch_size):
+                for episode in range(batch_size):
                     # Do not update the episode if it has ended
                     if states[episode] is None or cum_match[episode] >= params.cum_match_stop_th:
                         continue
@@ -216,7 +204,7 @@ class Main:
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
                 t0 = t - params.action_steps
-                bsize = params.batch_size * params.action_steps
+                bsize = batch_size * params.action_steps
                 sa = np.s_[:, t0:t, :]
                 Rs, Rp = controller.spread(
                     [
@@ -246,9 +234,10 @@ class Main:
                     # update cumulative match
                     if t0 > params.drop_first_n_steps:
                         for i in range(t0, t):
-                            matches[:, i] = (match_value[:, i] - max_match) > params.match_incr_th
-                            cum_match += matches[:, i]
-                            max_match = np.maximum(match_value[:, i] - params.match_incr_th, max_match)
+                            mmask = (match_value[:, i] - max_match) > params.match_incr_th
+                            matches[:, i] = mmask
+                            cum_match += mmask
+                            max_match[mmask] = match_value[mmask, i]
                         cum_match[cum_match > params.cum_match_stop_th] = params.cum_match_stop_th
         
         return matches, cum_match
@@ -327,16 +316,32 @@ class Main:
 
             print(f"{controller.curr_sigma}, {controller.curr_lr}")
 
+            # ----- prepare episodes
+            envs = []
+            states = []
+            for episode in range(params.batch_size):
+                # Each environment in each epoch should have a different seed
+                env = SMEnv(self.seed + episode + epoch, params.action_steps)
+                env.b2d_env.prepare_world(contexts[episode])
+                state = env.reset(contexts[episode])
+                batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
+                batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
+                batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
+                states.append(state)
+                envs.append(env)
+
             # ---- run all episodes
-            matches, cum_match = self.run_episodes(batch_v, batch_ss, batch_p, batch_a, batch_g,
-                                                   batch_c, batch_log,
-                                                   v_r, ss_r, p_r, a_r,
-                                                   v_p, ss_p, p_p, a_p, g_p,
-                                                   match_value_per_mod,
-                                                   match_value,
-                                                   match_increment_per_mod,
-                                                   match_increment,
-                                                   agent, controller, contexts, epoch)
+            matches, cum_match = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a, batch_g,
+                batch_c, batch_log,
+                v_r, ss_r, p_r, a_r,
+                v_p, ss_p, p_p, a_p, g_p,
+                match_value_per_mod,
+                match_value,
+                match_increment_per_mod,
+                match_increment,
+                agent, controller, contexts,
+                envs, states)
 
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
@@ -491,110 +496,64 @@ class Main:
         if os.path.isfile("PLOT_SIMS"):
             print("----> Test Sims ...", end=" ", flush=True)
 
-            for k in range(params.tests):
+            contexts = [(k // (params.tests//3)) + 1 for k in range(params.tests)]
 
-                context = (k // (params.tests//3)) + 1
-                env.b2d_env.prepare_world(context)
-                state = env.reset(
-                    context,
-                    plot=f"{site_dir}/episode%d" % k,
-                    render="offline",
-                )
-                agent.reset()
+            batch_v = np.zeros([params.tests, params.stime, params.visual_size])
+            batch_ss = np.zeros([params.tests, params.stime, params.somatosensory_size])
+            batch_p = np.zeros([params.tests, params.stime, params.proprioception_size])
+            batch_a = np.zeros([params.tests, params.stime, params.policy_size])
+            batch_c = np.ones([params.tests, params.stime, 1])
+            batch_log = np.ones([params.tests, params.stime, 1])
+            batch_g = np.zeros([params.tests, params.stime, params.internal_size])
+            v_r = np.zeros([params.tests, params.stime, params.internal_size])
+            ss_r = np.zeros([params.tests, params.stime, params.internal_size])
+            p_r = np.zeros([params.tests, params.stime, params.internal_size])
+            a_r = np.zeros([params.tests, params.stime, params.internal_size])
+            v_p = np.zeros([params.tests, params.stime, 2])
+            ss_p = np.zeros([params.tests, params.stime, 2])
+            p_p = np.zeros([params.tests, params.stime, 2])
+            a_p = np.zeros([params.tests, params.stime, 2])
+            g_p = np.zeros([params.tests, params.stime, 2])
 
-                v = state["VISUAL_SENSORS"].ravel()
-                ss = state["TOUCH_SENSORS"]
-                p = state["JOINT_POSITIONS"][:5]
-                a = np.zeros(agent.params_size)
+            match_value = np.zeros([params.tests, params.stime])
+            match_value_per_mod = np.zeros([params.tests, params.stime, 4])
+            match_increment = np.zeros([params.tests, params.stime])
+            match_increment_per_mod = np.zeros([params.tests, params.stime, 4])
 
-                (
-                    internal_representations,
-                    internal_points,
-                ) = controller.spread([np.array([v]), np.array([ss]), np.array([p]), np.array([a])])
+            # ----- prepare episodes
+            envs = []
+            states = []
+            for episode in range(len(contexts)):
+                # Each environment in each epoch should have a different seed
+                env = SMEnv(self.seed + episode + epoch, params.action_steps)
+                env.b2d_env.prepare_world(contexts[episode])
+                state = env.reset(contexts[episode],
+                                  plot=f"{site_dir}/episode%d" % episode,
+                                  render="offline")
+                batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
+                batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
+                batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
+                states.append(state)
+                envs.append(env)
 
-                # take only vision
-                internal_mean = internal_representations[0]
-                policy, competence, *_ = controller.getPoliciesFromRepresentationsWithNoise(
-                    internal_mean
-                )
-                agent.updatePolicy(policy)
+            matches, cum_match = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a, batch_g,
+                batch_c, batch_log,
+                v_r, ss_r, p_r, a_r,
+                v_p, ss_p, p_p, a_p, g_p,
+                match_value_per_mod,
+                match_value,
+                match_increment_per_mod,
+                match_increment,
+                agent, controller, contexts,
+                envs, states)
 
-                batch_v = np.zeros([params.stime, params.visual_size])
-                batch_ss = np.zeros(
-                    [
-                        params.stime,
-                        params.somatosensory_size,
-                    ]
-                )
-                batch_p = np.zeros(
-                    [
-                        params.stime,
-                        params.proprioception_size,
-                    ]
-                )
-                batch_a = np.zeros([params.stime, params.policy_size])
-                batch_g = np.zeros([params.stime, params.internal_size])
-
-                batch_v[0] = v
-                batch_ss[0] = ss
-                batch_p[0] = p
-                batch_a[0] = policy.reshape(-1)
-                batch_g[0] = internal_mean.reshape(-1)
-
-                smcycle = SensoryMotorCicle()
-                for t in range(params.stime):
-                    state = smcycle.step(env, agent, state)
-
-                    v = state["VISUAL_SENSORS"].ravel()
-                    ss = state["TOUCH_SENSORS"]
-                    p = state["JOINT_POSITIONS"][:5]
-
-                    batch_v[t] = v
-                    batch_ss[t] = ss
-                    batch_p[t] = p
-                    batch_a[t] = policy.reshape(-1)
-                    batch_g[t] = internal_mean.reshape(-1)
-
-                    if self.is_object_out_of_taskspace(state):
-                        break
-
-                (
-                    internal_representations,
-                    internal_points,
-                ) = controller.spread(
-                    [batch_v, batch_ss, batch_p, batch_a, batch_g]
-                )
-                match_value, match_value_per_mod =\
-                    controller.computeMatchSimple(*internal_points)
-
-                max_match = 0
-                matches = np.zeros(params.stime)
-                for i in range(len(matches)):
-                    if match_value[i] - max_match > params.match_incr_th:
-                        max_match = match_value[i]
-                        matches[i] = 1
-
-                matches[:params.drop_first_n_steps] = 0
-                cum_match = np.cumsum(matches)
-
-                non_zero = (cum_match > params.cum_match_stop_th).nonzero()[0]
-                if len(non_zero) > 0:
-                    match_value = match_value[:non_zero[0]]
-                    matches = matches[:non_zero[0]]
-
+            for i, env in enumerate(envs):
                 env.render_info(
-                    match_value,
-                    matches
+                    match_value[i],
+                    matches[i]
                 )
-
                 env.close()
-                if k % 2 == 0 or k == params.tests - 1:
-                    print(
-                        "{:d}% ".format(int(100 * (k / (params.tests - 1)))),
-                        end=" ",
-                        flush=True,
-                    )
-            print(flush=True)
 
         if os.path.isfile("COMPUTE_TRAJECTORIES"):
             print(

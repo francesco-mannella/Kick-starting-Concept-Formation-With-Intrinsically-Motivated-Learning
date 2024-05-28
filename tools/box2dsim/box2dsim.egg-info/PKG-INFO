@@ -1,7 +1,7 @@
 Metadata-Version: 2.1
 Name: box2dsim
 Version: 0.1
-Requires-Dist: gym
+Requires-Dist: gymnasium
 Requires-Dist: box2d_py
 Requires-Dist: numpy
 Requires-Dist: matplotlib
