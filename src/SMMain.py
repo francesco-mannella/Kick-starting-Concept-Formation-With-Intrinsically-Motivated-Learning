@@ -589,7 +589,7 @@ class Main:
                 'visual_map': wandb.Image("www/visual_map.png"),
                 'comp_map': wandb.Image("www/comp_map.png"),
             }
-            for i in range(12):
+            for i in range(params.tests):
                 log_data[f"episode{i}"] = wandb.Image(f"www/episode{i}.gif")
             wandb.log(log_data, step=epoch)
 
