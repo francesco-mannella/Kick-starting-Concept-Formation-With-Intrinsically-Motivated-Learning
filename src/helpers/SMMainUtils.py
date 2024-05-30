@@ -272,20 +272,20 @@ class MainUtils(Main):
         controller = self.controller
         
         
-        batch_v = np.zeros([params.stime, params.visual_size])
-        batch_ss = np.zeros([params.stime, params.somatosensory_size])
-        batch_p = np.zeros([params.stime, params.proprioception_size])
-        batch_a = np.zeros([params.stime, params.policy_size])
+        batch_v = np.zeros([1, params.stime, params.visual_size])
+        batch_ss = np.zeros([1, params.stime, params.somatosensory_size])
+        batch_p = np.zeros([1, params.stime, params.proprioception_size])
+        batch_a = np.zeros([1, params.stime, params.policy_size])
 
-        v_r = np.zeros([params.stime, params.internal_size])
-        ss_r = np.zeros([params.stime, params.internal_size])
-        p_r = np.zeros([params.stime, params.internal_size])
-        a_r = np.zeros([params.stime, params.internal_size])
+        v_r = np.zeros([1, params.stime, params.internal_size])
+        ss_r = np.zeros([1, params.stime, params.internal_size])
+        p_r = np.zeros([1, params.stime, params.internal_size])
+        a_r = np.zeros([1, params.stime, params.internal_size])
 
-        v_p = np.zeros([params.stime, 2])
-        ss_p = np.zeros([params.stime, 2])
-        p_p = np.zeros([params.stime, 2])
-        a_p = np.zeros([params.stime, 2])
+        v_p = np.zeros([1, params.stime, 2])
+        ss_p = np.zeros([1, params.stime, 2])
+        p_p = np.zeros([1, params.stime, 2])
+        a_p = np.zeros([1, params.stime, 2])
         
         # init figure
         fig1 = plt.figure()
@@ -301,10 +301,42 @@ class MainUtils(Main):
         ax3 = fig3.add_subplot(111)
         ax3.set_axis_off()
 
-        regress_world = tf.keras.models.load_model("regress0_model.keras")
-        regress_rot = tf.keras.models.load_model("regress1_model.keras")
-        regress_color = tf.keras.models.load_model("regress2_model.keras")
-        regress_rot_data = np.load("regress1_data.npy", allow_pickle=True)[0]
+        g_p_set = set()
+        envs = []
+        states = []
+        i = 0
+        while len(g_p_set) < params.internal_size:
+            context = i % 3
+            env = SMEnv(self.seed + i, params.action_steps)
+            env.b2d_env.prepare_world(context)
+            state = env.reset(context,
+                              plot=f"{site_dir}/demo%d" % i,
+                              render="offline")
+            batch_v[0, 0, :] = state["VISUAL_SENSORS"].ravel()
+            batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
+            batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
+           
+            i += 1
+
+            # get Representations for initial states
+            Rs, Rp = controller.spread(
+                    [
+                        batch_v[:, 0, :],
+                        batch_ss[:, 0, :],
+                        batch_p[:, 0, :],
+                        batch_a[:, 0, :],
+                        batch_g[:, 0, :],
+                    ])
+            v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
+            v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
+
+            if g_p[:, 0, :] in g_p_set:
+                continue
+
+            states.append(state)
+            envs.append(env)
+        
+        # WIP
 
         # iterate prototypes
         for i, goal_p in enumerate(controller.radial_grid):
