@@ -296,11 +296,11 @@ class MainUtils(Main):
         match_increment = np.zeros([1, params.stime])
         match_increment_per_mod = np.zeros([1, params.stime, 4])
 
-        g_p_set = set()
+        v_p_set = set()
         i = 0
 
         env = self.env
-        while len(g_p_set) < n_episodes:
+        while len(v_p_set) < n_episodes:
             context = (i % 3) + 1
             env.b2d_env.prepare_world(context)
             state = env.reset(context,
@@ -324,18 +324,15 @@ class MainUtils(Main):
 
             i += 1
             
-            goal = tuple(g_p[0, 0, :])
-            if goal in g_p_set:
+            goal = tuple(v_p[0, 0, :])
+            if goal in v_p_set:
                 print(f"Skipping repeated prototype: {int(goal[0])}{int(goal[1])}")
-                print(context)
-                print(i)
-                print(v_r[0, 0])
                 continue
 
             print(f"{site_dir}/demo_00{int(goal[0])}{int(goal[1])}")
             print(goal)
             print(context)
-            g_p_set.add(goal)
+            v_p_set.add(goal)
             
             matches, cum_match = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g,
