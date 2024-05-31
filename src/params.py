@@ -39,7 +39,7 @@ explore_sigma = 8
 modalities_weights = [1., 2., 1., 1.]
 #modalities_weights = [0., 1., 0., 0.]  # select touch only
 match_incr_th = 0.05
-cum_match_stop_th = 15.0
+cum_match_stop_th = 10.0
 predict_lr = 0.1
 reach_grip_prop = 0.1
 
@@ -47,7 +47,7 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 10
+epochs = 800
 batch_size = 24
 tests = 12
 epochs_to_test = 200

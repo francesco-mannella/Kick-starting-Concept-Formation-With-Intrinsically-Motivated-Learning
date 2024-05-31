@@ -145,7 +145,8 @@ class Main:
                      match_increment_per_mod,
                      match_increment,
                      agent, controller,
-                     contexts, envs, states
+                     contexts, envs, states,
+                     noise=True
                      ):
         batch_size = len(contexts)
 
@@ -163,17 +164,24 @@ class Main:
 
         # get policy at the first timestep
         goals = v_r[:, 0, :]
-        (policies,
-         competences,
-         rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
+        if noise:
+            (policies,
+             competences,
+             rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
+
+            # fill all batches with policies, goals, and competences
+            # (goal is different for each episode, but the same for each
+            # time step within an episode)
+            batch_c[::] = competences[:, None, :]
+            batch_log[::] = rcompetences[:, None, :]
+        else:
+            policies = controller.getPoliciesFromRepresentations(goals)
 
         # fill all batches with policies, goals, and competences
         # (goal is different for each episode, but the same for each
         # time step within an episode)
         batch_a[::] = policies[:, None, :]
         batch_g[::] = goals[:, None, :]
-        batch_c[::] = competences[:, None, :]
-        batch_log[::] = rcompetences[:, None, :]
 
         cum_match = np.zeros(batch_size, dtype=int)
         max_match = np.zeros(batch_size)
@@ -546,7 +554,7 @@ class Main:
                 match_increment_per_mod,
                 match_increment,
                 agent, controller, contexts,
-                envs, states)
+                envs, states, noise=False)
 
             for i, env in enumerate(envs):
                 env.render_info(
@@ -593,16 +601,16 @@ class Main:
                 log_data[f"episode{i}"] = wandb.Image(f"www/episode{i}.gif")
             wandb.log(log_data, step=epoch)
 
-    def collect_sensory_states():
+    def collect_sensory_states(self):
         pass
 
-    def demo_episode(idx):                  
+    def demo_episode(self, idx):
         pass
 
-    def demo_episodes():                  
+    def demo_episodes(self, n_episodes):
         pass
 
-    def get_context_from_visual():
+    def get_context_from_visual(self):
         pass
 
 

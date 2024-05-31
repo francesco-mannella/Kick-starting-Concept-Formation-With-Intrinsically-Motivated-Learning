@@ -1,9 +1,8 @@
 import glob
 import os, sys
 from pathlib import Path
+import shutil
 import matplotlib
-
-import tensorflow as tf
 
 matplotlib.use("Agg")
 
@@ -261,21 +260,25 @@ class MainUtils(Main):
 
         return data
 
-    def demo_episodes(self):
-        
+    def demo_episodes(self, n_episodes=params.internal_size):
+       
+        if n_episodes > params.internal_size:
+            n_episodes = params.internal_size
+
         side = int(np.sqrt(params.visual_size // 3))
         params.base_internal_sigma = 0.1
 
         env = self.env
-        env.b2d_env.rendererType = TestPlotterVisualSalience
         agent = self.agent
         controller = self.controller
-        
         
         batch_v = np.zeros([1, params.stime, params.visual_size])
         batch_ss = np.zeros([1, params.stime, params.somatosensory_size])
         batch_p = np.zeros([1, params.stime, params.proprioception_size])
         batch_a = np.zeros([1, params.stime, params.policy_size])
+        batch_g = np.zeros([1, params.stime, params.internal_size])
+        batch_c = np.ones([1, params.stime, 1])
+        batch_log = np.ones([1, params.stime, 1])
 
         v_r = np.zeros([1, params.stime, params.internal_size])
         ss_r = np.zeros([1, params.stime, params.internal_size])
@@ -286,38 +289,27 @@ class MainUtils(Main):
         ss_p = np.zeros([1, params.stime, 2])
         p_p = np.zeros([1, params.stime, 2])
         a_p = np.zeros([1, params.stime, 2])
+        g_p = np.zeros([1, params.stime, 2])
         
-        # init figure
-        fig1 = plt.figure()
-        ax1 = fig1.add_subplot(111)
-        img_vis = ax1.imshow(np.zeros([10, 10]))
-        ax1.set_axis_off()
-
-        fig2 = plt.figure()
-        ax2 = fig2.add_subplot(111)
-        ax2.set_axis_off()
-
-        fig3 = plt.figure()
-        ax3 = fig3.add_subplot(111)
-        ax3.set_axis_off()
+        match_value = np.zeros([1, params.stime])
+        match_value_per_mod = np.zeros([1, params.stime, 4])
+        match_increment = np.zeros([1, params.stime])
+        match_increment_per_mod = np.zeros([1, params.stime, 4])
 
         g_p_set = set()
-        envs = []
-        states = []
         i = 0
-        while len(g_p_set) < params.internal_size:
-            context = i % 3
-            env = SMEnv(self.seed + i, params.action_steps)
+
+        env = self.env
+        while len(g_p_set) < n_episodes:
+            context = (i % 3) + 1
             env.b2d_env.prepare_world(context)
             state = env.reset(context,
-                              plot=f"{site_dir}/demo%d" % i,
+                              plot=f"{site_dir}/demo",
                               render="offline")
             batch_v[0, 0, :] = state["VISUAL_SENSORS"].ravel()
             batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
             batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
            
-            i += 1
-
             # get Representations for initial states
             Rs, Rp = controller.spread(
                     [
@@ -330,136 +322,38 @@ class MainUtils(Main):
             v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
             v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
 
-            if g_p[:, 0, :] in g_p_set:
+            i += 1
+            
+            goal = tuple(g_p[0, 0, :])
+            if goal in g_p_set:
+                print(f"Skipping repeated prototype: {int(goal[0])}{int(goal[1])}")
+                print(context)
+                print(i)
+                print(v_r[0, 0])
                 continue
 
-            states.append(state)
-            envs.append(env)
-        
-        # WIP
-
-        # iterate prototypes
-        for i, goal_p in enumerate(controller.radial_grid):
-            goal_r = controller.stm_a.getRepresentation(
-                    goal_p, 0.5)
-
-
-            visual = controller.getVisualsFromRepresentations(goal_r.reshape(1, -1))
-            touch = controller.getTouchesFromRepresentations(goal_r.reshape(1, -1))
-            proprio = controller.getPropriosFromRepresentations(goal_r.reshape(1, -1))
-            policy = controller.getPoliciesFromRepresentations(goal_r.reshape(1, -1))
-            policy *= params.explore_sigma
-        
-            
-            visual = visual / visual.max()
-            img_vis.set_array(visual.reshape(side, side, 3))
-            fig1.savefig(f"{site_dir}/demo_{i:04d}_goal.png")
-    
-            figs.ssensory(touch.ravel(), ax2)
-            fig2.savefig(f"{site_dir}/demo_{i:04d}_touch.png")
-
-            figs.proprio(proprio.ravel(), ax3)
-            fig3.savefig(f"{site_dir}/demo_{i:04d}_proprio.png")
-
-            # find context from visual
-            context = self.get_context_from_visual(visual)
-            
-
-            w_rot = regress_rot.predict(visual.reshape(1, -1), verbose=0).ravel()
-            w_color = regress_color.predict(visual.reshape(1, -1), verbose=0).ravel()
-            
-            colors = np.array([
-                [1, 1, 0],
-                [0, 0, 1],
-                [1, 0, 0],
-                [0, 1, 0],
-                ])
-
-            context = np.argmin(np.linalg.norm(colors - 
-                w_color.reshape(1, -1), axis=1))
-
+            print(f"{site_dir}/demo_00{int(goal[0])}{int(goal[1])}")
+            print(goal)
             print(context)
-            mparams = { 
-                    "rot": w_rot,
-                    "rot_min": regress_rot_data["rot_min"],
-                    "rot_max": regress_rot_data["rot_max"],
-                    "color": np.maximum(0, np.minimum(1, w_color))
-                    }
+            g_p_set.add(goal)
             
-            world_id = context
-            world_dict = env.b2d_env.prepare_world(world_id=world_id)
-            env.b2d_env.set_objects_params_rot(mparams)
-                
-            # reset env and agent
-            state = env.reset(
-                world = world_id,
-                world_dict = world_dict,
-                plot=f"{site_dir}/demo_%04d" % i,
-                render="offline",
-            )
-
-            agent.reset()
-            agent.updatePolicy(policy)
-                    
-            batch_v[0, :] = state["VISUAL_SENSORS"].ravel()
-            batch_ss[0, :] = state["TOUCH_SENSORS"]
-            batch_p[0, :] = state["JOINT_POSITIONS"][:5]
-            batch_a[0, :] = policy
-
-            # iterate
-            smcycle = SensoryMotorCicle()
-            poses = np.zeros([params.stime, params.grip_output])
-            for t in range(1, params.stime):
-                state = smcycle.step(env, agent, state)
-
-                poses[t] = state["JOINT_POSITIONS"][:5]
-                batch_v[t, :] = state["VISUAL_SENSORS"].ravel()
-                batch_ss[t, :] = state["TOUCH_SENSORS"]
-                batch_p[t, :] = state["JOINT_POSITIONS"][:5]
-                batch_a[t, :] = policy
+            matches, cum_match = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a, batch_g,
+                batch_c, batch_log,
+                v_r, ss_r, p_r, a_r,
+                v_p, ss_p, p_p, a_p, g_p,
+                match_value_per_mod,
+                match_value,
+                match_increment_per_mod,
+                match_increment,
+                agent, controller, [context],
+                [env], [state], noise=False)
+            
+            env.render_info(match_value[0], matches[0])
             env.close()
-            
-            np.save(f"{site_dir}/demo_{i:04d}", poses)
-            
-            # get all representations
-            Rs, Rp = controller.spread(
-                [
-                    batch_v,
-                    batch_ss,
-                    batch_p,
-                    batch_a,
-                    batch_a,
-                ]
-            )
-            v_r, ss_r, p_r, a_r, _ = Rs
-            v_p, ss_p, p_p, a_p, _ = Rp
-            mx = np.argmax(goal_r.ravel())
-            mx = np.argmax(a_r.ravel())
+            shutil.copyfile(f"{site_dir}/demo.gif", f"{site_dir}/demo_00{int(goal[0])}{int(goal[1])}.gif")
 
-            # get matches 
-            match_value, match_increment, _, _ = controller.computeMatch(
-                    np.stack([v_p, ss_p, p_p, a_p]), a_p) 
-
-            visual_gens = controller.getVisualsFromRepresentations(v_r)
-
-            data = {}
-            data["match_value"] = match_value
-            data["match_increment"] = match_increment
-            data["v_g"] = visual_gens
-            data["v_r"] = v_r
-            data["ss_r"] = ss_r
-            data["p_r"] = p_r
-            data["a_r"] = a_r
-            data["v_p"] = v_p
-            data["ss_p"] = ss_p
-            data["p_p"] = p_p
-            data["a_p"] = a_p
-            data["ss"] = batch_ss
-            data["v"] = batch_v
-            
-            np.save(f"{site_dir}/demo_{i:04d}_data", [data])
-
-            print(f"{site_dir}/demo_{i:04d}")
+        
         print("demo episodes: Done!!!")        
 
 

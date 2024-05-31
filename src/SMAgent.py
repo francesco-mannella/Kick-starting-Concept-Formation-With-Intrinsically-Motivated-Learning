@@ -43,7 +43,6 @@ class SMAgent:
         self.grip_agent.reset()
 
     def updatePolicy(self, policyParams):
-        #self.grip_agent.updatePolicy(policyParams)
         self.grip_agent.updatePolicy(params.explore_sigma * policyParams)
 
 if __name__ == "__main__":
