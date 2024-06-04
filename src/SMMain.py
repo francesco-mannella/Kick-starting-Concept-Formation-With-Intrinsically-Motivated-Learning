@@ -330,7 +330,7 @@ class Main:
 
             # ----- prepare episodes
             for episode in range(params.batch_size):
-                if envs[episode] is None:
+                if envs[episode] is None or states[episode] is None:
                     # Each environment in each epoch should have a different seed
                     env = SMEnv(self.seed + episode + epoch, params.action_steps)
                     env.b2d_env.prepare_world(contexts[episode])
