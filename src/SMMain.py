@@ -288,6 +288,10 @@ class Main:
         match_increment = np.zeros([params.batch_size, params.stime])
         match_increment_per_mod = np.zeros([params.batch_size, params.stime, 4])
 
+        cum_match = None
+        envs = [None] * params.batch_size
+        states = [None] * params.batch_size
+
         while epoch < params.epochs:
 
             total_time_elapsed = time.perf_counter() - self.start
@@ -325,18 +329,16 @@ class Main:
             print(f"{controller.curr_sigma}, {controller.curr_lr}")
 
             # ----- prepare episodes
-            envs = []
-            states = []
             for episode in range(params.batch_size):
                 # Each environment in each epoch should have a different seed
-                env = SMEnv(self.seed + episode + epoch, params.action_steps)
-                env.b2d_env.prepare_world(contexts[episode])
-                state = env.reset(contexts[episode])
+                if envs[episode] is None:
+                    env = SMEnv(self.seed + episode + epoch, params.action_steps)
+                    env.b2d_env.prepare_world(contexts[episode])
+                    states[episode] = env.reset(contexts[episode])
+                    envs[episode] = env
                 batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
-                states.append(state)
-                envs.append(env)
 
             # ---- run all episodes
             matches, cum_match = self.run_episodes(
@@ -350,6 +352,11 @@ class Main:
                 match_increment,
                 agent, controller, contexts,
                 envs, states)
+
+            # ---- preserve successful episodes, reset the rest
+            for episode in range(params.batch_size):
+                if cum_match[episode] < params.cum_match_stop_th:
+                    envs[episode] = None
 
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
