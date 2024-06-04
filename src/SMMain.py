@@ -330,12 +330,13 @@ class Main:
 
             # ----- prepare episodes
             for episode in range(params.batch_size):
-                # Each environment in each epoch should have a different seed
                 if envs[episode] is None:
+                    # Each environment in each epoch should have a different seed
                     env = SMEnv(self.seed + episode + epoch, params.action_steps)
                     env.b2d_env.prepare_world(contexts[episode])
                     states[episode] = env.reset(contexts[episode])
                     envs[episode] = env
+                state = states[episode]
                 batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
