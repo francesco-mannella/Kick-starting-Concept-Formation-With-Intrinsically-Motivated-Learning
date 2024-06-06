@@ -308,10 +308,15 @@ class TestPlotter:
         cum_match = 0
         max_match = 0
         for i, (match, tmatch) in enumerate(zip(match_value, matches)):
+            if cum_match >= params.cum_match_stop_th:
+                cum_match = 0
+                max_match = 0
+
             cum_match += tmatch
             if i >= drop_first_n_steps:
                 if max_match < match - match_incr_th:
                     max_match = match
+
             if self.ax is not None:
                 plt.delaxes(self.ax)
             self.ax = self.fig.add_subplot(111, aspect="equal")

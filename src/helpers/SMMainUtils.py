@@ -260,7 +260,7 @@ class MainUtils(Main):
 
         return data
 
-    def demo_episodes(self, n_episodes=params.internal_size):
+    def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo"):
        
         if n_episodes > params.internal_size:
             n_episodes = params.internal_size
@@ -304,7 +304,7 @@ class MainUtils(Main):
             context = (i % 3) + 1
             env.b2d_env.prepare_world(context)
             state = env.reset(context,
-                              plot=f"{site_dir}/demo",
+                              plot=f"{site_dir}/{plot_prefix}",
                               render="offline")
             batch_v[0, 0, :] = state["VISUAL_SENSORS"].ravel()
             batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
@@ -329,28 +329,35 @@ class MainUtils(Main):
                 print(f"Skipping repeated prototype: {int(goal[0])}{int(goal[1])}")
                 continue
 
-            print(f"{site_dir}/demo_00{int(goal[0])}{int(goal[1])}")
+            print(f"{site_dir}/{plot_prefix}_00{int(goal[0])}{int(goal[1])}")
             print(goal)
             print(context)
             v_p_set.add(goal)
+
+            full_match_value = []
+            full_matches = []
+            while True:
+                matches, cum_match, episodes_len = self.run_episodes(
+                    batch_v, batch_ss, batch_p, batch_a, batch_g,
+                    batch_c, batch_log,
+                    v_r, ss_r, p_r, a_r,
+                    v_p, ss_p, p_p, a_p, g_p,
+                    match_value_per_mod,
+                    match_value,
+                    match_increment_per_mod,
+                    match_increment,
+                    agent, controller, [context],
+                    [env], [state], noise=False)
+                if cum_match[0] < params.cum_match_stop_th or state[0] is None:
+                    break
+                full_match_value.append(match_value[0, :episodes_len[0]])
+                full_matches.append(matches[0, :episodes_len[0]])
+
+            full_match_value = np.concatenate(full_match_value)
+            full_matches = np.concatenate(full_matches)
             
-            matches, cum_match = self.run_episodes(
-                batch_v, batch_ss, batch_p, batch_a, batch_g,
-                batch_c, batch_log,
-                v_r, ss_r, p_r, a_r,
-                v_p, ss_p, p_p, a_p, g_p,
-                match_value_per_mod,
-                match_value,
-                match_increment_per_mod,
-                match_increment,
-                agent, controller, [context],
-                [env], [state], noise=False)
-            
-            env.render_info(match_value[0], matches[0])
+            env.render_info(full_match_value, full_matches)
             env.close()
-            shutil.copyfile(f"{site_dir}/demo.gif", f"{site_dir}/demo_00{int(goal[0])}{int(goal[1])}.gif")
+            shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal[0])}{int(goal[1])}.gif")
 
-        
-        print("demo episodes: Done!!!")        
-
-
+        print("demo episodes: Done!!!")      

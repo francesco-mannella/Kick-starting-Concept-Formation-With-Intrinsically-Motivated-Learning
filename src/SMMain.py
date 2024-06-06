@@ -184,6 +184,7 @@ class Main:
         batch_g[::] = goals[:, None, :]
 
         cum_match = np.zeros(batch_size, dtype=int)
+        episode_len = np.zeros(batch_size, dtype=int)
         max_match = np.zeros(batch_size)
         matches = np.zeros((batch_size, params.stime), dtype=bool)
 
@@ -195,6 +196,7 @@ class Main:
                     # Do not update the episode if it has ended
                     if states[episode] is None or cum_match[episode] >= params.cum_match_stop_th:
                         continue
+                    episode_len[episode] = t
 
                     # set correct policy
                     agent.updatePolicy(batch_a[episode, 0, :])
@@ -248,7 +250,7 @@ class Main:
                             max_match[mmask] = match_value[mmask, i]
                         cum_match[cum_match > params.cum_match_stop_th] = params.cum_match_stop_th
         
-        return matches, cum_match
+        return matches, cum_match, episode_len
 
     def train(self, time_limits):
 
@@ -342,7 +344,7 @@ class Main:
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
             # ---- run all episodes
-            matches, cum_match = self.run_episodes(
+            matches, cum_match, _ = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g,
                 batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
@@ -552,7 +554,7 @@ class Main:
                 states.append(state)
                 envs.append(env)
 
-            matches, cum_match = self.run_episodes(
+            matches, cum_match, _ = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g,
                 batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
