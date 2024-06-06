@@ -635,6 +635,9 @@ class Main:
 
             full_match_value = []
             full_matches = []
+            envs = [env]
+            states = [state]
+            contexts = [context]
             while True:
                 matches, cum_match, episodes_len = self.run_episodes(
                     batch_v, batch_ss, batch_p, batch_a, batch_g,
@@ -645,11 +648,11 @@ class Main:
                     match_value,
                     match_increment_per_mod,
                     match_increment,
-                    agent, controller, [context],
-                    [env], [state], noise=False)
+                    agent, controller, contexts,
+                    envs, states, noise=False)
                 full_match_value.append(match_value[0, :episodes_len[0]])
                 full_matches.append(matches[0, :episodes_len[0]])
-                if cum_match[0] < params.cum_match_stop_th or state[0] is None:
+                if cum_match[0] < params.cum_match_stop_th or states[0] is None:
                     break
 
             full_match_value = np.concatenate(full_match_value)
@@ -660,7 +663,7 @@ class Main:
             if plot_prefix == "demo":
                 shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal[0])}{int(goal[1])}.gif")
             else:
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_{len(v_p_set)}.gif")
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
 
         print("demo episodes: Done!!!")      
 

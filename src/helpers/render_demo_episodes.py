@@ -63,7 +63,7 @@ if __name__ == "__main__":
         main = np.load(
             "main.dump.npy", allow_pickle="True"
         )[0]
-        main.demo_episodes(n_episodes=3)
+        main.demo_episodes(n_episodes=20)
 
         if use_wandb:
             log_data = {}
