@@ -308,7 +308,7 @@ class TestPlotter:
         cum_match = 0
         max_match = 0
         for i, (match, tmatch) in enumerate(zip(match_value, matches)):
-            if cum_match >= params.cum_match_stop_th:
+            if cum_match >= cum_match_stop_th:
                 cum_match = 0
                 max_match = 0
 

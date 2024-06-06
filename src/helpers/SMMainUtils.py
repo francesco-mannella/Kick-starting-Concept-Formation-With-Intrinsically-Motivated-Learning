@@ -348,10 +348,10 @@ class MainUtils(Main):
                     match_increment,
                     agent, controller, [context],
                     [env], [state], noise=False)
-                if cum_match[0] < params.cum_match_stop_th or state[0] is None:
-                    break
                 full_match_value.append(match_value[0, :episodes_len[0]])
                 full_matches.append(matches[0, :episodes_len[0]])
+                if cum_match[0] < params.cum_match_stop_th or state[0] is None:
+                    break
 
             full_match_value = np.concatenate(full_match_value)
             full_matches = np.concatenate(full_matches)
