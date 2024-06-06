@@ -40,7 +40,7 @@ os.makedirs(simulations_dir, exist_ok=True)
 class TimeLimitsException(Exception):
     pass
 
-class SensoryMotorCicle:
+class SensoryMotorCircle:
     def __init__(self, action_steps=5):
         self.t = 0
         self.action_steps = action_steps
@@ -188,7 +188,7 @@ class Main:
         matches = np.zeros((batch_size, params.stime), dtype=bool)
 
         # Main loop through time steps and episodes
-        smcycle = SensoryMotorCicle(params.action_steps)
+        smcycles = [SensoryMotorCircle(params.action_steps)] * batch_size
         for t in range(1, params.stime+1):
             if t < params.stime:
                 for episode in range(batch_size):
@@ -198,7 +198,7 @@ class Main:
 
                     # set correct policy
                     agent.updatePolicy(batch_a[episode, 0, :])
-                    state = smcycle.step(envs[episode], agent, states[episode])
+                    state = smcycles[episode].step(envs[episode], agent, states[episode])
 
                     # End the episode if object moves too far away
                     if self.is_object_out_of_taskspace(state):
@@ -585,7 +585,7 @@ class Main:
             for i, goal_r in enumerate(controller.goal_grid):
                 policy = controller.getPoliciesFromRepresentations(np.array([goal_r]))
                 agent.updatePolicy(policy)
-                smcycle = SensoryMotorCicle()
+                smcycle = SensoryMotorCircle()
                 for t in range(params.stime):
                     state = smcycle.step(env, agent, state)
                     trj[i, t] = state["JOINT_POSITIONS"][-2:]
