@@ -137,7 +137,6 @@ class Main:
                 or obj_xy[1] < ylim[0] or obj_xy[1] > ylim[1])
 
     def run_episodes(self, batch_v, batch_ss, batch_p, batch_a, batch_g,
-                     batch_c, batch_log,
                      v_r, ss_r, p_r, a_r,
                      v_p, ss_p, p_p, a_p, g_p,
                      match_value_per_mod,
@@ -146,42 +145,8 @@ class Main:
                      match_increment,
                      agent, controller,
                      contexts, envs, states,
-                     noise=True
                      ):
         batch_size = len(contexts)
-
-        # get Representations for initial states
-        Rs, Rp = controller.spread(
-                [
-                    batch_v[:, 0, :],
-                    batch_ss[:, 0, :],
-                    batch_p[:, 0, :],
-                    batch_a[:, 0, :],
-                    batch_g[:, 0, :],
-                ])
-        v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
-        v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
-
-        # get policy at the first timestep
-        goals = v_r[:, 0, :]
-        if noise:
-            (policies,
-             competences,
-             rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
-
-            # fill all batches with policies, goals, and competences
-            # (goal is different for each episode, but the same for each
-            # time step within an episode)
-            batch_c[::] = competences[:, None, :]
-            batch_log[::] = rcompetences[:, None, :]
-        else:
-            policies = controller.getPoliciesFromRepresentations(goals)
-
-        # fill all batches with policies, goals, and competences
-        # (goal is different for each episode, but the same for each
-        # time step within an episode)
-        batch_a[::] = policies[:, None, :]
-        batch_g[::] = goals[:, None, :]
 
         cum_match = np.zeros(batch_size, dtype=int)
         episode_len = np.zeros(batch_size, dtype=int)
@@ -293,6 +258,8 @@ class Main:
         cum_match = None
         envs = [None] * params.batch_size
         states = [None] * params.batch_size
+        reset_goal_mask = np.zeros(params.batch_size, dtype=bool)
+        goals = np.zeros([params.batch_size, params.internal_size])
 
         while epoch < params.epochs:
 
@@ -331,22 +298,49 @@ class Main:
             print(f"{controller.curr_sigma}, {controller.curr_lr}")
 
             # ----- prepare episodes
-            for episode in range(params.batch_size):
-                if envs[episode] is None or states[episode] is None:
+            for episode in range(params.batch_size): 
+                # Reset environment every env_reset_freq epochs or when the object is out of reach
+                if states[episode] is None or epoch % params.env_reset_freq == 0:
                     # Each environment in each epoch should have a different seed
                     env = SMEnv(self.seed + episode + epoch, params.action_steps)
                     env.b2d_env.prepare_world(contexts[episode])
                     states[episode] = env.reset(contexts[episode])
                     envs[episode] = env
+                    reset_goal_mask[episode] = True
                 state = states[episode]
                 batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
+            # get Representations for initial states
+            Rs, Rp = controller.spread(
+                    [
+                        batch_v[:, 0, :],
+                        batch_ss[:, 0, :],
+                        batch_p[:, 0, :],
+                        batch_a[:, 0, :],
+                        batch_g[:, 0, :],
+                    ])
+            v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
+            v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
+
+            # get policy at the first timestep
+            goals[reset_goal_mask] = v_r[reset_goal_mask, 0, :]
+            (policies,
+             competences,
+             rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
+            
+            # fill all batches with policies, goals, and competences
+            # (goal is different for each episode, but the same for each
+            # time step within an episode)
+            batch_a[::] = policies[:, None, :]
+            batch_g[::] = goals[:, None, :]
+            batch_c[::] = competences[:, None, :]
+            batch_log[::] = rcompetences[:, None, :]
+
             # ---- run all episodes
             matches, cum_match, _ = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g,
-                batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
                 v_p, ss_p, p_p, a_p, g_p,
                 match_value_per_mod,
@@ -356,10 +350,8 @@ class Main:
                 agent, controller, contexts,
                 envs, states)
 
-            # ---- preserve successful episodes, reset the rest
-            for episode in range(params.batch_size):
-                if cum_match[episode] < params.cum_match_stop_th:
-                    envs[episode] = None
+            # ---- reset goals in the successful episodes
+            reset_goal_mask = cum_match >= params.cum_match_stop_th
 
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
@@ -605,43 +597,58 @@ class Main:
             state = env.reset(context,
                               plot=f"{site_dir}/{plot_prefix}",
                               render="offline")
-            batch_v[0, 0, :] = state["VISUAL_SENSORS"].ravel()
-            batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
-            batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
-           
-            # get Representations for initial states
-            Rs, Rp = controller.spread(
-                    [
-                        batch_v[:, 0, :],
-                        batch_ss[:, 0, :],
-                        batch_p[:, 0, :],
-                        batch_a[:, 0, :],
-                        batch_g[:, 0, :],
-                    ])
-            v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
-            v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
-
-            i += 1
-            
-            goal = tuple(v_p[0, 0, :])
-            if goal in v_p_set:
-                print(f"Skipping repeated prototype: {int(goal[0])}{int(goal[1])}")
-                continue
-
-            print(f"{site_dir}/{plot_prefix}_00{int(goal[0])}{int(goal[1])}")
-            print(goal)
-            print(context)
-            v_p_set.add(goal)
 
             full_match_value = []
             full_matches = []
             envs = [env]
             states = [state]
             contexts = [context]
-            while True:
+            goals = None
+            for j in range(params.env_reset_freq):
+                batch_v[0, 0, :] = state["VISUAL_SENSORS"].ravel()
+                batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
+                batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
+               
+                # get Representations for initial states
+                Rs, Rp = controller.spread(
+                        [
+                            batch_v[:, 0, :],
+                            batch_ss[:, 0, :],
+                            batch_p[:, 0, :],
+                            batch_a[:, 0, :],
+                            batch_g[:, 0, :],
+                        ])
+                v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
+                v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
+
+                # get policy at the first timestep
+                if goals is None:
+                    goals = v_r[:, 0, :]
+                (policies,
+                 competences,
+                 rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
+                
+                # fill all batches with policies, goals, and competences
+                # (goal is different for each episode, but the same for each
+                # time step within an episode)
+                batch_a[::] = policies[:, None, :]
+                batch_g[::] = goals[:, None, :]
+                batch_c[::] = competences[:, None, :]
+                batch_log[::] = rcompetences[:, None, :]
+           
+                if j == 0:
+                    policy = tuple(v_p[0, 0, :])
+                    if policy in v_p_set:
+                        print(f"Skipping repeated prototype: {int(policy[0])}{int(policy[1])}")
+                        break
+
+                    print(f"{site_dir}/{plot_prefix}_00{int(policy[0])}{int(policy[1])}")
+                    print(policy)
+                    print(context)
+                    v_p_set.add(policy)
+
                 matches, cum_match, episodes_len = self.run_episodes(
                     batch_v, batch_ss, batch_p, batch_a, batch_g,
-                    batch_c, batch_log,
                     v_r, ss_r, p_r, a_r,
                     v_p, ss_p, p_p, a_p, g_p,
                     match_value_per_mod,
@@ -649,19 +656,25 @@ class Main:
                     match_increment_per_mod,
                     match_increment,
                     agent, controller, contexts,
-                    envs, states, noise=False)
+                    envs, states)
+
+                if cum_match > params.cum_match_stop_th:
+                    goals = None
+
                 full_match_value.append(match_value[0, :episodes_len[0]])
                 full_matches.append(matches[0, :episodes_len[0]])
-                if cum_match[0] < params.cum_match_stop_th or states[0] is None:
+                if states[0] is None:
                     break
 
+            i += 1
+            
             full_match_value = np.concatenate(full_match_value)
             full_matches = np.concatenate(full_matches)
             
             env.render_info(full_match_value, full_matches)
             env.close()
             if plot_prefix == "demo":
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal[0])}{int(goal[1])}.gif")
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(policy[0])}{int(policy[1])}.gif")
             else:
                 shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
 
