@@ -333,10 +333,10 @@ class Main:
             # fill all batches with policies, goals, and competences
             # (goal is different for each episode, but the same for each
             # time step within an episode)
-            batch_a[::] = policies[:, None, :]
-            batch_g[::] = goals[:, None, :]
-            batch_c[::] = competences[:, None, :]
-            batch_log[::] = rcompetences[:, None, :]
+            batch_a[reset_goal_mask, :, :] = policies[reset_goal_mask, None, :]
+            batch_g[reset_goal_mask, :, :] = goals[reset_goal_mask, None, :]
+            batch_c[reset_goal_mask, :, :] = competences[reset_goal_mask, None, :]
+            batch_log[reset_goal_mask, :, :] = rcompetences[reset_goal_mask, None, :]
 
             # ---- run all episodes
             matches, cum_match, _ = self.run_episodes(
@@ -621,21 +621,6 @@ class Main:
                 v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
                 v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
 
-                # get policy at the first timestep
-                if goals is None:
-                    goals = v_r[:, 0, :]
-                (policies,
-                 competences,
-                 rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
-                
-                # fill all batches with policies, goals, and competences
-                # (goal is different for each episode, but the same for each
-                # time step within an episode)
-                batch_a[::] = policies[:, None, :]
-                batch_g[::] = goals[:, None, :]
-                batch_c[::] = competences[:, None, :]
-                batch_log[::] = rcompetences[:, None, :]
-           
                 if j == 0:
                     policy = tuple(v_p[0, 0, :])
                     if policy in v_p_set:
@@ -647,6 +632,21 @@ class Main:
                     print(context)
                     v_p_set.add(policy)
 
+                # get policy at the first timestep
+                if goals is None:
+                    goals = v_r[:, 0, :]
+                    (policies,
+                     competences,
+                     rcompetences) = controller.getPoliciesFromRepresentationsWithNoise(goals)
+                
+                    # fill all batches with policies, goals, and competences
+                    # (goal is different for each episode, but the same for each
+                    # time step within an episode)
+                    batch_a[::] = policies[:, None, :]
+                    batch_g[::] = goals[:, None, :]
+                    batch_c[::] = competences[:, None, :]
+                    batch_log[::] = rcompetences[:, None, :]
+           
                 matches, cum_match, episodes_len = self.run_episodes(
                     batch_v, batch_ss, batch_p, batch_a, batch_g,
                     v_r, ss_r, p_r, a_r,
@@ -667,16 +667,17 @@ class Main:
                     break
 
             i += 1
-            
-            full_match_value = np.concatenate(full_match_value)
-            full_matches = np.concatenate(full_matches)
-            
-            env.render_info(full_match_value, full_matches)
-            env.close()
-            if plot_prefix == "demo":
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(policy[0])}{int(policy[1])}.gif")
-            else:
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
+           
+            if len(full_match_value) > 0:
+                full_match_value = np.concatenate(full_match_value)
+                full_matches = np.concatenate(full_matches)
+                
+                env.render_info(full_match_value, full_matches)
+                env.close()
+                if plot_prefix == "demo":
+                    shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(policy[0])}{int(policy[1])}.gif")
+                else:
+                    shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
 
         print("demo episodes: Done!!!")      
 
