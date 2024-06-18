@@ -49,11 +49,11 @@ class SMEnv:
 
         return observation
 
-    def render_info(self, info, thresh):
+    def render_info(self, match_value, max_match, cum_match, f_vp, f_ssp, f_pp, f_ap, f_gp):
         assert self.render is not None
         self.b2d_env.renderer.add_info_to_frames(
-            info, thresh, params.cum_match_stop_th, params.match_incr_th,
-            params.drop_first_n_steps
+            match_value, max_match, cum_match, f_vp, f_ssp, f_pp, f_ap, f_gp,
+            visual_map_path="./www/visual_map.png"
         )
 
     def close(self):

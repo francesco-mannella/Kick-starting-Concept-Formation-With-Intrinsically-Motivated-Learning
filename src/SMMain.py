@@ -600,6 +600,7 @@ class Main:
 
             full_match_value = []
             full_matches = []
+            f_vp, f_ssp, f_pp, f_ap, f_gp = [], [], [], [], []
             envs = [env]
             states = [state]
             contexts = [context]
@@ -661,18 +662,40 @@ class Main:
                 if cum_match > params.cum_match_stop_th:
                     goals = None
 
-                full_match_value.append(match_value[0, :episodes_len[0]])
-                full_matches.append(matches[0, :episodes_len[0]])
+                l = episodes_len[0]
+                full_match_value.append(match_value[0, :l])
+                full_matches.append(matches[0, :l])
+                f_vp.append(v_p[0, :l])
+                f_ssp.append(ss_p[0, :l])
+                f_pp.append(p_p[0, :l])
+                f_ap.append(a_p[0, :l])
+                f_gp.append(g_p[0, :l])
                 if states[0] is None:
                     break
 
             i += 1
            
             if len(full_match_value) > 0:
+                full_cum_match = np.concatenate([np.cumsum(fm) / params.cum_match_stop_th for fm in full_matches])
+
+                full_max_match = []
+                for fm, fv in zip(full_matches, full_match_value):
+                    m = np.zeros(len(fm))
+                    m[fm] = fv[fm]
+                    full_max_match.append(np.maximum.accumulate(m))
+                full_max_match = np.concatenate(full_max_match)
+
                 full_match_value = np.concatenate(full_match_value)
                 full_matches = np.concatenate(full_matches)
+
+                f_vp = np.concatenate(f_vp)
+                f_ssp = np.concatenate(f_ssp)
+                f_pp = np.concatenate(f_pp)
+                f_ap = np.concatenate(f_ap)
+                f_gp = np.concatenate(f_gp)
                 
-                env.render_info(full_match_value, full_matches)
+                env.render_info(full_match_value, full_max_match, full_cum_match,
+                                f_vp, f_ssp, f_pp, f_ap, f_gp)
                 env.close()
                 if plot_prefix == "demo":
                     shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(policy[0])}{int(policy[1])}.gif")

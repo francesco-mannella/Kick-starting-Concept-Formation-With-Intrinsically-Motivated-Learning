@@ -211,6 +211,12 @@ def merge_frames(frame1, frame2, alphacolor=(255,255,255,255)):
 
     return Image.alpha_composite(frame1, frame2)
 
+def concat_frames_h(im1, im2):
+    dst = Image.new('RGB', (im1.width + im2.width, im1.height))
+    dst.paste(im1, (0, 0))
+    dst.paste(im2, (im1.width, 0))
+    return dst
+
 
 class TestPlotter:
     """ Plotter of simulations
@@ -219,11 +225,12 @@ class TestPlotter:
 
     """
 
-    def __init__(self, env, xlim=[-10, 30], ylim=[-10, 30], figsize=None, offline=False):
+    def __init__(self, env, xlim=[-10, 30], ylim=[-10, 30],
+                 int_xlim=[0, 10], int_ylim=[0, 10],
+                 figsize=None, offline=False):
         """
         Args:
             env (Box2DSim): a emulator object
-
         """
 
         self.env = env
@@ -231,13 +238,16 @@ class TestPlotter:
         self.xlim = xlim
         self.ylim = ylim
 
+        self.int_xlim = int_xlim
+        self.int_ylim = int_ylim
+
         if figsize is None:
             self.fig = plt.figure()
         else:
             self.fig = plt.figure(figsize=figsize)
         
         if self.offline:
-            self.vm = vidManager(self.fig, name="frame", duration=30)
+            self.vm = vidManager(self.fig, name="frame", duration=60)
 
         self.ax = None
 
@@ -296,27 +306,17 @@ class TestPlotter:
             self.vm.save_frame()
             self.ts += 1
 
-    def add_info_to_frames(self, match_value, matches, cum_match_stop_th, match_incr_th, drop_first_n_steps):
-
+    def add_info_to_frames(self, match_value, max_match, cum_match,
+                           f_vp, f_ssp, f_pp, f_ap, f_gp, visual_map_path=None):
         # Make the rendered frames and info matching lengths
-        if len(match_value) > len(self.vm.frames):
-            match_value = match_value[:len(self.vm.frames)]
-            matches = matches[:len(self.vm.frames)]
-        elif len(match_value) < len(self.vm.frames):
+        if len(match_value) < len(self.vm.frames):
             self.vm.frames = self.vm.frames[:len(match_value)]
 
-        cum_match = 0
-        max_match = 0
-        for i, (match, tmatch) in enumerate(zip(match_value, matches)):
-            if cum_match >= cum_match_stop_th:
-                cum_match = 0
-                max_match = 0
+        n_steps = max(len(self.vm.frames), len(match_value))
 
-            cum_match += tmatch
-            if i >= drop_first_n_steps:
-                if max_match < match - match_incr_th:
-                    max_match = match
-
+        ax_r = None
+        for i in range(n_steps):
+            # Plot match values
             if self.ax is not None:
                 plt.delaxes(self.ax)
             self.ax = self.fig.add_subplot(111, aspect="equal")
@@ -327,17 +327,17 @@ class TestPlotter:
             # Current match value
             self.ax.bar(
                     self.xlim[0] + 0.7*(self.xlim[1] - self.xlim[0]),
-                    match*self.ylim[1],
+                    match_value[i]*self.ylim[1],
                     )
             # Current max match
             self.ax.bar(
                     self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
-                    max_match*self.ylim[1],
+                    max_match[i]*self.ylim[1],
                     )
             # Current cummulative success
             self.ax.bar(
                     self.xlim[0] + 0.9*(self.xlim[1] - self.xlim[0]),
-                    (cum_match / cum_match_stop_th)*self.ylim[1],
+                    cum_match[i]*self.ylim[1],
                     )
             self.fig.canvas.draw()
 
@@ -346,6 +346,30 @@ class TestPlotter:
                     self.fig.canvas.tostring_rgb())
             
             merged_frame = merge_frames(self.vm.frames[i], frame2)
+
+            # Plot internal representations
+            if self.ax is not None:
+                plt.delaxes(self.ax)
+            self.ax = self.fig.add_subplot(111, aspect="equal")
+            self.ax.set_xlim(self.int_xlim)
+            self.ax.set_ylim(self.int_ylim)
+
+            if visual_map_path is not None:
+                im = plt.imread(visual_map_path)
+                im = np.rot90(im)
+                self.ax.imshow(im, alpha=0.3, aspect="auto", interpolation='nearest', extent=(0, 10, 0, 10))
+
+            self.ax.scatter(f_vp[i, 0], f_vp[i, 1], marker="$v$")
+            self.ax.scatter(f_ssp[i, 0], f_ssp[i, 1], marker="$ss$")
+            self.ax.scatter(f_pp[i, 0], f_pp[i, 1], marker="$p$")
+            self.ax.scatter(f_gp[i, 0], f_gp[i, 1], marker="$g$")
+            self.fig.canvas.draw()
+
+            frame2 = Image.frombytes('RGB', 
+                    self.fig.canvas.get_width_height(), 
+                    self.fig.canvas.tostring_rgb())
+
+            merged_frame = concat_frames_h(merged_frame, frame2)
             self.vm.frames[i] = merged_frame
 
 
