@@ -40,7 +40,7 @@ explore_sigma = 8
 modalities_weights = [1., 2., 1., 1.]
 #modalities_weights = [0., 1., 0., 0.]  # select touch only
 match_incr_th = 0.02
-cum_match_stop_th = 4.0
+cum_match_stop_th = 2.0
 predict_lr = 0.1
 reach_grip_prop = 0.1
 

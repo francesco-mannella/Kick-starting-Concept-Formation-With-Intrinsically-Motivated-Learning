@@ -134,6 +134,7 @@ class SMController:
         rcomp = self.predict.spread(representations)
         #comp = SMController.comp_fun(rcomp)
         comp = rcomp
+
         self.policy_noise = self.rng.randn(*policies.shape)
 
         policies = (policies + (1 - comp) * self.policy_noise)
