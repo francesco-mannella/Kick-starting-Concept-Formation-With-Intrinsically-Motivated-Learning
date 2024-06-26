@@ -174,10 +174,12 @@ class Main:
         batch_c[::] = competences[:, None, :]
         batch_log[::] = rcompetences[:, None, :]
 
-        cum_match = np.zeros(batch_size, dtype=int)
+        cum_match = np.zeros((batch_size, params.stime), dtype=int)
         episode_len = np.zeros(batch_size, dtype=int)
-        max_match = np.zeros(batch_size)
+        max_match = np.zeros((batch_size, params.stime))
         matches = np.zeros((batch_size, params.stime), dtype=bool)
+        policy_changed = np.zeros((batch_size, params.stime), dtype=bool)
+        policy_changed[:, 0] = 1
 
         # Main loop through time steps and episodes
         smcycles = [SensoryMotorCircle(params.action_steps)] * batch_size
@@ -235,13 +237,15 @@ class Main:
                     # update cumulative match
                     if t0 > params.drop_first_n_steps:
                         for i in range(t0, t):
-                            mmask = (match_value[:, i] - max_match) > params.match_incr_th
+                            mmask = (match_value[:, i] - max_match[:, i-1]) > params.match_incr_th
                             matches[:, i] = mmask
-                            cum_match += mmask
-                            max_match[mmask] = match_value[mmask, i]
-                        success_mask = cum_match >= params.cum_match_stop_th
+                            cum_match[:, i] = cum_match[:, i-1] + mmask
+                            max_match[:, i] = max_match[:, i-1]
+                            max_match[mmask, i] = match_value[mmask, i]
+                        success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
 
                         if t < params.stime:
+                            policy_changed[success_mask, t-2] = 1
                             goals = v_r[success_mask, t-1, :]
                             # update policies in succesful episodes
                             (policies,
@@ -255,10 +259,10 @@ class Main:
                             batch_c[success_mask, t:, :] = competences[:, None, :]
                             batch_log[success_mask, t:, :] = rcompetences[:, None, :]
                             
-                            cum_match[success_mask] = 0
-                            max_match[success_mask] = 0
-        
-        return matches, cum_match, episode_len
+                            cum_match[success_mask, t-1] = 0
+                            max_match[success_mask, t-1] = 0
+                        
+        return matches, max_match, cum_match, episode_len, policy_changed
 
     def train(self, time_limits):
 
@@ -301,8 +305,6 @@ class Main:
         cum_match = None
         envs = [None] * params.batch_size
         states = [None] * params.batch_size
-        reset_goal_mask = np.zeros(params.batch_size, dtype=bool)
-        goals = np.zeros([params.batch_size, params.internal_size])
 
         while epoch < params.epochs:
 
@@ -352,7 +354,7 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, cum_match, _ = self.run_episodes(
+            matches, max_match, cum_match, _, policy_changed = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
                 v_p, ss_p, p_p, a_p, g_p,
@@ -375,6 +377,7 @@ class Main:
                 match_value.reshape(-1),
                 matches.reshape(-1),
                 cum_match,
+                policy_changed,
                 competences=batch_c.reshape((bsize, -1))
             )
 
@@ -420,7 +423,7 @@ class Main:
                            'stm_a_loss': curr_loss[3],
                            'stm_sigma': controller.curr_sigma,
                            'stm_lr': controller.curr_lr,
-                           'mean_cum_match': cum_match.mean() / params.cum_match_stop_th,
+                           'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
                            }, step=epoch)
 
@@ -608,13 +611,9 @@ class Main:
                               plot=f"{site_dir}/{plot_prefix}",
                               render="offline")
 
-            full_match_value = []
-            full_matches = []
-            f_vp, f_ssp, f_pp, f_ap, f_gp = [], [], [], [], []
             envs = [env]
             states = [state]
             contexts = [context]
-            goals = None
             
             batch_v[0, 0, :] = state["VISUAL_SENSORS"].ravel()
             batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
@@ -632,17 +631,18 @@ class Main:
             v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
             v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
 
-            policy = tuple(v_p[0, 0, :])
-            if policy in v_p_set:
-                print(f"Skipping repeated prototype: {int(policy[0])}{int(policy[1])}")
-                break
+            visual_goal = tuple(v_p[0, 0, :])
+            if visual_goal in v_p_set:
+                print(f"Skipping repeated prototype: {int(visual_goal[0])}{int(visual_goal[1])}")
+                continue
 
-            print(f"{site_dir}/{plot_prefix}_00{int(policy[0])}{int(policy[1])}")
-            print(policy)
+            i += 1
+            print(f"{site_dir}/{plot_prefix}_00{int(visual_goal[0])}{int(visual_goal[1])}")
+            print(visual_goal)
             print(context)
-            v_p_set.add(policy)
+            v_p_set.add(visual_goal)
 
-            matches, cum_match, episodes_len = self.run_episodes(
+            matches, max_match, cum_match, episodes_len, visual_goal_changed = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
                 v_p, ss_p, p_p, a_p, g_p,
@@ -656,24 +656,19 @@ class Main:
             l = episodes_len[0]
             full_match_value = match_value[0, :l]
             full_matches = matches[0, :l]
+            full_cum_match = cum_match[0, :l] / params.cum_match_stop_th
+            full_max_match = max_match[0, :l]
             f_vp = v_p[0, :l]
             f_ssp = ss_p[0, :l]
             f_pp = p_p[0, :l]
             f_ap = a_p[0, :l]
             f_gp = g_p[0, :l]
 
-            full_cum_match = np.cumsum(full_matches) / params.cum_match_stop_th
-
-            full_max_match = []
-            m = np.zeros(len(full_matches))
-            m[full_matches] = full_match_value[full_matches]
-            full_max_match = np.maximum.accumulate(m)
-
             env.render_info(full_match_value, full_max_match, full_cum_match,
                             f_vp, f_ssp, f_pp, f_ap, f_gp)
             env.close()
             if plot_prefix == "demo":
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(policy[0])}{int(policy[1])}.gif")
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(visual_goal[0])}{int(visual_goal[1])}.gif")
             else:
                 shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
 

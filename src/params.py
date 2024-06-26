@@ -49,7 +49,7 @@ predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
 epochs = 10
-batch_size = 24
+batch_size = 24 
 tests = 12
 epochs_to_test = 150
 load_weights = False

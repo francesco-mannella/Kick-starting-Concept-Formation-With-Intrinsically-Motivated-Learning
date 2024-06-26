@@ -239,6 +239,7 @@ class SMController:
         match_value,
         match_ind,
         cum_match,
+        policy_changed,
         competences
     ):
         curr_loss = None
@@ -247,7 +248,7 @@ class SMController:
         cgoals = goals * (1 - competences)
 
         # compute number of chosen patterns (return)
-        n_items = sum(cum_match)
+        n_items = sum(match_ind)
 
         modulate = cgoals[match_ind] * match_value[match_ind, None]
         mean_modulation = modulate.mean()
@@ -260,9 +261,8 @@ class SMController:
                          self.stm_a.update(policies[match_ind], modulate).item())
 
         # update predictor: predictor predicts cumulated matches for a particular goal
-        goals0 = goals[::params.stime, :]
-        assert goals0.shape[0] == params.batch_size
-        self.predict.update(goals0, cum_match[:, None])
+        goals = goals.reshape((params.batch_size, params.stime, -1))
+        self.predict.update(goals[policy_changed], cum_match[policy_changed, None])
 
         return n_items, match_ind, curr_loss, mean_modulation
 
