@@ -339,7 +339,8 @@ class Main:
             controller.updateParams(
                 controller.curr_sigma, controller.curr_lr
             )
-
+            
+            print(f"{params.base_internal_sigma} {params.internal_sigma}")
             print(f"{controller.curr_sigma}, {controller.curr_lr}")
 
             # ----- prepare episodes
@@ -570,7 +571,7 @@ class Main:
             n_episodes = params.internal_size
 
         side = int(np.sqrt(params.visual_size // 3))
-        params.base_internal_sigma = 0.1
+        controller.curr_sigma = 0.1
 
         env = self.env
         agent = self.agent
