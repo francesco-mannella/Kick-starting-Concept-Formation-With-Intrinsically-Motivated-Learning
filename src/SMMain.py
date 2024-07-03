@@ -246,7 +246,10 @@ class Main:
 
                         if t < params.stime:
                             policy_changed[success_mask, t-2] = 1
-                            goals = v_r[success_mask, t-1, :]
+                            w = params.modalities_weights
+                            # use weighted average of visual, touch, and proprioception to choose the next goal
+                            goals = (w[0]*v_r[success_mask, t-1, :] + w[1]*ss_r[success_mask, t-1, :]
+                                     + w[2]*p_r[success_mask, t-1, :]) / sum(w)
                             # update policies in succesful episodes
                             (policies,
                              competences,
