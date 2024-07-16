@@ -34,7 +34,7 @@ class SMPredict:
             self.model.weight.copy_(torch.tensor(weights, dtype=torch.float))
 
     def spread(self, inp):
-        assert len(inp.shape) == 2
+        #assert len(inp.shape) == 2
         comp = self.model(torch.tensor(inp, dtype=torch.float)).detach().cpu().numpy()
         # Rescale: competence is the fraction of max n_success
         comp = comp / params.cum_match_stop_th

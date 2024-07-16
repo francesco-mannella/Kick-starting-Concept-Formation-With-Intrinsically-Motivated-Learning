@@ -53,6 +53,15 @@ class SensoryMotorCircle:
         self.t += 1
         return state
 
+    def noisy_step(self, env, agent, state):
+        if self.t % self.action_steps == 0:
+            self.action = agent.step(state)
+        state = env.step(self.action + np.random.normal(scale=params.motor_noise,
+                                                        size=self.action.shape))
+
+        self.t += 1
+        return state
+
 def modulate_param(base, limit, prop):
     return base + (limit - base) * prop
 
@@ -148,39 +157,16 @@ class Main:
                      ):
         batch_size = len(contexts)
 
-        # get Representations for initial states
-        Rs, Rp = self.controller.spread(
-                [
-                    batch_v[:, 0, :],
-                    batch_ss[:, 0, :],
-                    batch_p[:, 0, :],
-                    batch_a[:, 0, :],
-                    batch_g[:, 0, :],
-                ])
-        v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
-        v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
-
-        # get policy at the first timestep
-        goals = v_r[:, 0, :]
-        (policies,
-         competences,
-         rcompetences) = self.controller.getPoliciesFromRepresentationsWithNoise(goals)
-
-        # fill all batches with policies, goals, and competences
-        # (goal is different for each episode, but the same for each
-        # time step within an episode)
-        batch_a[::] = policies[:, None, :]
-        batch_g[::] = goals[:, None, :]
-        batch_c[::] = competences[:, None, :]
-        batch_log[::] = rcompetences[:, None, :]
-
+        # fill all batches with zero policy
+        batch_a[::] = 0
+                
         cum_match = np.zeros((batch_size, params.stime), dtype=int)
         episode_len = np.zeros(batch_size, dtype=int)
         max_match = np.zeros((batch_size, params.stime))
         matches = np.zeros((batch_size, params.stime), dtype=bool)
         policy_changed = np.zeros((batch_size, params.stime), dtype=bool)
-        policy_changed[:, 0] = 1
-
+        bsize = batch_size * params.action_steps
+        
         # Main loop through time steps and episodes
         smcycles = [SensoryMotorCircle(params.action_steps)] * batch_size
         for t in range(1, params.stime+1):
@@ -193,7 +179,10 @@ class Main:
 
                     # set correct policy
                     agent.updatePolicy(batch_a[episode, t, :])
-                    state = smcycles[episode].step(envs[episode], agent, states[episode])
+                    if t >= params.drop_first_n_steps and t < params.drop_first_n_steps + params.action_steps:
+                        state = smcycles[episode].noisy_step(envs[episode], agent, states[episode])
+                    else:
+                        state = smcycles[episode].step(envs[episode], agent, states[episode])
 
                     # End the episode if object moves too far away
                     if self.is_object_out_of_taskspace(state):
@@ -207,7 +196,6 @@ class Main:
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
                 t0 = t - params.action_steps
-                bsize = batch_size * params.action_steps
                 sa = np.s_[:, t0:t, :]
                 Rs, Rp = controller.spread(
                     [
@@ -228,43 +216,73 @@ class Main:
                 a_p[sa].flat = Rp[3].flat
                 g_p[sa].flat = Rp[4].flat
 
+                # Do not update match during warmup
+                if t <= params.drop_first_n_steps:
+                    continue
+
                 # calculate match value
                 match_value[:, t0:t], match_value_per_mod[sa] =\
                     controller.computeMatchSimple(v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa])
-                if t > params.action_steps:
-                    match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
-                    match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
-                    # update cumulative match
-                    if t0 > params.drop_first_n_steps:
-                        for i in range(t0, t):
-                            mmask = (match_value[:, i] - max_match[:, i-1]) > params.match_incr_th
-                            matches[:, i] = mmask
-                            cum_match[:, i] = cum_match[:, i-1] + mmask
-                            max_match[:, i] = max_match[:, i-1]
-                            max_match[mmask, i] = match_value[mmask, i]
-                        success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
+                match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
+                match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
+                # update cumulative match
+                for i in range(t0, t):
+                    mmask = (match_value[:, i] - max_match[:, i-1]) > params.match_incr_th
+                    # Update max match
+                    max_match[:, i] = max_match[:, i-1]
+                    max_match[mmask, i] = match_value[mmask, i]
+                    # Update match and cumulative match 
+                    mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
+                    matches[:, i] = mmask
+                    cum_match[:, i] = cum_match[:, i-1] + mmask
+                success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
 
-                        if t < params.stime:
-                            policy_changed[success_mask, t-2] = 1
-                            w = params.modalities_weights
-                            # use weighted average of visual, touch, and proprioception to choose the next goal
-                            goals = (w[0]*v_r[success_mask, t-1, :] + w[1]*ss_r[success_mask, t-1, :]
-                                     + w[2]*p_r[success_mask, t-1, :]) / sum(w)
-                            # update policies in succesful episodes
-                            (policies,
-                             competences,
-                             rcompetences) = self.controller.getPoliciesFromRepresentationsWithNoise(goals)
+                if t < params.stime:
+                    policy_changed[success_mask, t-2] = 1
 
-                            # fill successful batches with policies, goals, and competences
-                            # (from the current timestep onward)
-                            batch_a[success_mask, t:, :] = policies[:, None, :]
-                            batch_g[success_mask, t:, :] = goals[:, None, :]
-                            batch_c[success_mask, t:, :] = competences[:, None, :]
-                            batch_log[success_mask, t:, :] = rcompetences[:, None, :]
-                            
-                            cum_match[success_mask, t-1] = 0
-                            max_match[success_mask, t-1] = 0
-                        
+                    # Set initial policy after warmup steps + action_steps
+                    if t == params.drop_first_n_steps + params.action_steps:
+                        success_mask[:] = 1
+
+                    # Use double weighted average of visual, touch, and proprioception
+                    # over 5 timesteps to choose the next goal.
+                    v_rt = v_r[success_mask, t0:t, :]
+                    ss_rt = ss_r[success_mask, t0:t, :]
+                    p_rt = p_r[success_mask, t0:t, :]
+                    # TODO: ugly hack to avoid division by 0
+                    v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
+                    ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
+                    p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
+
+                    v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
+                    ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
+                    p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
+
+                    goals = np.average([v_rt, ss_rt, p_rt],
+                                       axis=0,
+                                       weights=[params.modalities_weights[0],
+                                                params.modalities_weights[1],
+                                                params.modalities_weights[2]])
+                    goals = v_rt # TEST
+                    goals = (v_rt + ss_rt + p_rt) / 3 # TEST
+
+                    # update policies in succesful episodes
+                    (policies,
+                     competences,
+                     rcompetences) = self.controller.getPoliciesFromRepresentationsWithNoise(goals)
+
+                    # fill successful batches with policies, goals, and competences
+                    # (from the current timestep onward)
+                    batch_a[success_mask, t:, :] = policies[:, None, :]
+                    batch_g[success_mask, t:, :] = goals[:, None, :]
+                    batch_c[success_mask, t:, :] = competences[:, None, :]
+                    batch_log[success_mask, t:, :] = rcompetences[:, None, :]
+                    
+                    cum_match[success_mask, t-1] = 0
+                    max_match[success_mask, t-1] = 0
+
+        policy_changed[:, -1] = 1
+
         return matches, max_match, cum_match, episode_len, policy_changed
 
     def train(self, time_limits):
@@ -287,8 +305,8 @@ class Main:
         batch_ss = np.zeros([params.batch_size, params.stime, params.somatosensory_size])
         batch_p = np.zeros([params.batch_size, params.stime, params.proprioception_size])
         batch_a = np.zeros([params.batch_size, params.stime, params.policy_size])
-        batch_c = np.ones([params.batch_size, params.stime, 1])
-        batch_log = np.ones([params.batch_size, params.stime, 1])
+        batch_c = np.zeros([params.batch_size, params.stime, 1])
+        batch_log = np.zeros([params.batch_size, params.stime, 1])
         batch_g = np.zeros([params.batch_size, params.stime, params.internal_size])
         v_r = np.zeros([params.batch_size, params.stime, params.internal_size])
         ss_r = np.zeros([params.batch_size, params.stime, params.internal_size])
@@ -371,18 +389,18 @@ class Main:
             # ---- end of an epoch: controller update
             bsize = params.batch_size * params.stime
             (update_items, update_episodes, curr_loss, mean_modulation) =\
-            controller.update(
-                batch_v.reshape((bsize, -1)),
-                batch_ss.reshape((bsize, -1)),
-                batch_p.reshape((bsize, -1)),
-                batch_a.reshape((bsize, -1)),
-                batch_g.reshape((bsize, -1)),
-                match_value.reshape(-1),
-                matches.reshape(-1),
-                cum_match,
-                policy_changed,
-                competences=batch_c.reshape((bsize, -1))
-            )
+                controller.update(
+                    batch_v.reshape((bsize, -1)),
+                    batch_ss.reshape((bsize, -1)),
+                    batch_p.reshape((bsize, -1)),
+                    batch_a.reshape((bsize, -1)),
+                    batch_g.reshape((bsize, -1)),
+                    match_value.reshape(-1),
+                    matches.reshape(-1),
+                    cum_match,
+                    policy_changed,
+                    competences=batch_c.reshape((bsize, -1))
+                )
 
             # ---- print
             c = np.outer(contexts, np.ones(params.stime)).ravel()
@@ -398,17 +416,18 @@ class Main:
 
             print(f"{update_items:#7d} {items}", end=" ", flush=True)
             print(f"{batch_ss.sum():#10.2f}", end=" ", flush=True)
+            warmup = params.drop_first_n_steps + params.action_steps
             logs[epoch] = [
-                batch_log.min(),
-                batch_log.mean(),
-                batch_log.max(),
+                batch_log[policy_changed].min(),
+                batch_log[policy_changed].mean(),
+                batch_log[policy_changed].max(),
             ]
             print(
                 ("%8.7f " * 3)
                 % (
-                    batch_log.min(),
-                    batch_log.mean(),
-                    batch_log.max(),
+                    batch_log[policy_changed].min(),
+                    batch_log[policy_changed].mean(),
+                    batch_log[policy_changed].max(),
                 ),
                 end="",
             )

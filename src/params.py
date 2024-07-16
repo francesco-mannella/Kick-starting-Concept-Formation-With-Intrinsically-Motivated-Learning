@@ -35,6 +35,7 @@ base_lr = 0.005
 stm_lr = 0.2
 policy_base = np.pi*0.25
 explore_sigma = 8
+motor_noise = 1.0
 
 # Modalities order: visual, touch, proprioception, action
 modalities_weights = [1., 2., 1., 1.]
@@ -48,10 +49,10 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 400
+epochs = 10
 batch_size = 24 
 tests = 12
-epochs_to_test = 100
+epochs_to_test = 50
 load_weights = False
 shuffle_weights = False
 action_steps = 5
