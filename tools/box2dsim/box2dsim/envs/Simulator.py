@@ -363,6 +363,7 @@ class TestPlotter:
             self.ax.scatter(f_ssp[i, 0], f_ssp[i, 1], marker="$ss$")
             self.ax.scatter(f_pp[i, 0], f_pp[i, 1], marker="$p$")
             self.ax.scatter(f_gp[i, 0], f_gp[i, 1], marker="$g$")
+            self.ax.scatter(f_ap[i, 0], f_ap[i, 1], marker="$a$")
             self.fig.canvas.draw()
 
             frame2 = Image.frombytes('RGB', 

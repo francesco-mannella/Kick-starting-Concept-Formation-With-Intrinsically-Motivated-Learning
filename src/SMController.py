@@ -135,7 +135,9 @@ class SMController:
         #comp = SMController.comp_fun(rcomp)
         comp = rcomp
 
-        self.policy_noise = self.rng.randn(*policies.shape)
+        #self.policy_noise = self.rng.randn(*policies.shape)
+        # TEST: smaller policy noise
+        self.policy_noise = self.rng.randn(*policies.shape)*0.1
 
         policies = (policies + (1 - comp) * self.policy_noise)
         return policies, comp, rcomp

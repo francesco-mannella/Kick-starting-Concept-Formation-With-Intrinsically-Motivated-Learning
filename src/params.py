@@ -1,7 +1,7 @@
 import numpy as np
 task_space = {"xlim": [-10, 50], "ylim": [-10, 50]}
 stime = 200
-drop_first_n_steps = 20
+drop_first_n_steps = 25
 env_reset_freq = 2
 
 esn_tau = 5.0
@@ -49,10 +49,10 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 10
+epochs = 800
 batch_size = 24 
 tests = 12
-epochs_to_test = 50
+epochs_to_test = 100
 load_weights = False
 shuffle_weights = False
 action_steps = 5

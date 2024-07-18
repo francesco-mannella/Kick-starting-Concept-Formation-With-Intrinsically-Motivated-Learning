@@ -237,18 +237,19 @@ class Main:
                     cum_match[:, i] = cum_match[:, i-1] + mmask
                 success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
 
-                if t < params.stime:
+                if t < params.stime and t >= 2*params.drop_first_n_steps:
                     policy_changed[success_mask, t-2] = 1
 
-                    # Set initial policy after warmup steps + action_steps
-                    if t == params.drop_first_n_steps + params.action_steps:
+                    # Set initial policy after warmup steps + action selection steps 
+                    if t == 2*params.drop_first_n_steps:
                         success_mask[:] = 1
 
                     # Use double weighted average of visual, touch, and proprioception
-                    # over 5 timesteps to choose the next goal.
-                    v_rt = v_r[success_mask, t0:t, :]
-                    ss_rt = ss_r[success_mask, t0:t, :]
-                    p_rt = p_r[success_mask, t0:t, :]
+                    # over last X timesteps to choose the next goal.
+                    # For now, we use X = params.drop_first_n_steps.
+                    v_rt = v_r[success_mask, t-2*params.drop_first_n_steps:t, :]
+                    ss_rt = ss_r[success_mask, t-2*params.drop_first_n_steps:t, :]
+                    p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
                     # TODO: ugly hack to avoid division by 0
                     v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
                     ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
@@ -258,13 +259,13 @@ class Main:
                     ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
                     p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
 
-                    goals = np.average([v_rt, ss_rt, p_rt],
-                                       axis=0,
-                                       weights=[params.modalities_weights[0],
-                                                params.modalities_weights[1],
-                                                params.modalities_weights[2]])
-                    goals = v_rt # TEST
-                    goals = (v_rt + ss_rt + p_rt) / 3 # TEST
+                    #goals = np.average([v_rt, ss_rt, p_rt],
+                    #                   axis=0,
+                    #                   weights=[params.modalities_weights[0],
+                    #                            params.modalities_weights[1],
+                    #                            params.modalities_weights[2]])
+                    #goals = (v_rt + ss_rt + p_rt) / 3 # TEST
+                    goals = (v_rt + p_rt) / 2 # TEST: no touch modality
 
                     # update policies in succesful episodes
                     (policies,
@@ -281,6 +282,8 @@ class Main:
                     cum_match[success_mask, t-1] = 0
                     max_match[success_mask, t-1] = 0
 
+        # At the end of the episode we mark all policies as finished to
+        # count cumulative match properly.
         policy_changed[:, -1] = 1
 
         return matches, max_match, cum_match, episode_len, policy_changed
@@ -447,6 +450,7 @@ class Main:
                            'stm_lr': controller.curr_lr,
                            'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
+                           'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
                            }, step=epoch)
 
             self.match_value = match_value
