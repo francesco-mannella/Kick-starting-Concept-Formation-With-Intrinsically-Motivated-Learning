@@ -87,6 +87,7 @@ class STM(torch.nn.Module):
         extrinsic_distances=None,
         radial_fun=radial2d,
         external_radial_prop=0.2,
+        weights_init_sigma=1.0,
         **kwargs,
     ):
         """
@@ -115,7 +116,7 @@ class STM(torch.nn.Module):
 
         self.kernel = torch.nn.Parameter(torch.zeros(input_size, output_size),
                                          requires_grad=True)
-        torch.nn.init.xavier_normal_(self.kernel)
+        torch.nn.init.xavier_normal_(self.kernel, gain=weights_init_sigma)
 
     def forward(self, x):
         norms2, radials = self.get_norms_and_activation(x)

@@ -50,6 +50,7 @@ class SMController:
             output_size=params.internal_size,
             sigma=params.internal_sigma,
             external_radial_prop=params.a_eradial_prop,
+            weights_init_sigma=2.0 # TEST
         )
         if load is True:
             self.load(tag=tag, shuffle=shuffle)
@@ -135,9 +136,7 @@ class SMController:
         #comp = SMController.comp_fun(rcomp)
         comp = rcomp
 
-        #self.policy_noise = self.rng.randn(*policies.shape)
-        # TEST: smaller policy noise
-        self.policy_noise = self.rng.randn(*policies.shape)*0.1
+        self.policy_noise = self.rng.randn(*policies.shape) * params.policy_noise_sigma
 
         policies = (policies + (1 - comp) * self.policy_noise)
         return policies, comp, rcomp

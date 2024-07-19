@@ -35,6 +35,7 @@ base_lr = 0.005
 stm_lr = 0.2
 policy_base = np.pi*0.25
 explore_sigma = 8
+policy_noise_sigma = 0.1
 motor_noise = 1.0
 
 # Modalities order: visual, touch, proprioception, action
