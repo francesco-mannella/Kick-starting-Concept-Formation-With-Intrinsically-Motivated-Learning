@@ -50,7 +50,7 @@ class SMController:
             output_size=params.internal_size,
             sigma=params.internal_sigma,
             external_radial_prop=params.a_eradial_prop,
-            weights_init_sigma=2.0 # TEST
+            weights_init_sigma=params.policy_weights_sigma
         )
         if load is True:
             self.load(tag=tag, shuffle=shuffle)
@@ -66,7 +66,6 @@ class SMController:
         self.curr_sigma = self.sigma
         self.comp_sigma = params.base_internal_sigma
         self.explore_sigma = params.explore_sigma
-        self.policy_noise = None
         self.curr_lr = None
         self.comp_grid = None
 
@@ -130,15 +129,30 @@ class SMController:
         policies = self.getPoliciesFromRepresentations(representations)
         return policies, representations
 
+    def add_noise_to_vector_maintaining_norm(self, vector, noise_level=0.1):
+        noise = self.rng.randn(*vector.shape)
+
+        # Normalize the noise to the desired level
+        norm_noise = noise_level * np.linalg.norm(vector, axis=-1)[:, None] * noise / np.linalg.norm(noise, axis=-1)[:, None]
+
+        # Orthogonalize the noise
+        noise_orthogonal = norm_noise - np.sum(vector * norm_noise, axis=-1)[:, None] * vector / np.linalg.norm(vector, axis=-1)[:, None]**2
+        # Add orthogonal noise to the original vector
+        noisy_vector = vector + noise_orthogonal
+        # Rescale to maintain original norm
+        noisy_vector = np.linalg.norm(vector) * noisy_vector / np.linalg.norm(noisy_vector)
+
+        return noisy_vector
+
     def getPoliciesFromRepresentationsWithNoise(self, representations):
         policies = self.getPoliciesFromRepresentations(representations)
         rcomp = self.predict.spread(representations)
         #comp = SMController.comp_fun(rcomp)
         comp = rcomp
 
-        self.policy_noise = self.rng.randn(*policies.shape) * params.policy_noise_sigma
-
-        policies = (policies + (1 - comp) * self.policy_noise)
+        policies = self.add_noise_to_vector_maintaining_norm(policies,
+                            noise_level=params.policy_noise_sigma*comp)
+        
         return policies, comp, rcomp
 
     def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):

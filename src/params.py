@@ -36,6 +36,7 @@ stm_lr = 0.2
 policy_base = np.pi*0.25
 explore_sigma = 8
 policy_noise_sigma = 0.1
+policy_weights_sigma = 2
 motor_noise = 1.0
 
 # Modalities order: visual, touch, proprioception, action
@@ -50,7 +51,7 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 800
+epochs = 10
 batch_size = 24 
 tests = 12
 epochs_to_test = 100

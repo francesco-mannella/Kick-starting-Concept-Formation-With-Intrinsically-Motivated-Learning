@@ -451,6 +451,7 @@ class Main:
                            'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
+                           'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
                            }, step=epoch)
 
             self.match_value = match_value
