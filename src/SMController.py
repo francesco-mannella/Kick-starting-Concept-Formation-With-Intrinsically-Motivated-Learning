@@ -68,6 +68,7 @@ class SMController:
         self.explore_sigma = params.explore_sigma
         self.curr_lr = None
         self.comp_grid = None
+        self.policy_noise_sigma = params.policy_noise_sigma
 
         self.internal_side = int(np.sqrt(params.internal_size))
         x = np.arange(self.internal_side)
@@ -150,8 +151,11 @@ class SMController:
         #comp = SMController.comp_fun(rcomp)
         comp = rcomp
 
-        policies = self.add_noise_to_vector_maintaining_norm(policies,
-                            noise_level=params.policy_noise_sigma*comp)
+        noise = self.rng.randn(*policies.shape)
+        #policies = policies + params.policy_noise_sigma*(1-comp)*noise
+        policies = policies + self.policy_noise_sigma*noise
+        #policies = self.add_noise_to_vector_maintaining_norm(policies,
+        #                    noise_level=params.policy_noise_sigma*comp)
         
         return policies, comp, rcomp
 
@@ -234,6 +238,23 @@ class SMController:
         p_p, p_r = self.stm_p.get_point_and_representation(p_out, sigma)
         a_p, a_r = self.stm_a.get_point_and_representation(a_out, sigma)
         g_p, _ = self.stm_a.get_point_and_representation(g_out, sigma)
+
+        print("-----")
+
+        self.stm_a.sigma = params.base_internal_sigma
+        point = np.array([[5., 11.]])
+        representation = self.stm_a.getRepresentation(point)
+        policy = self.stm_a.backward(representation)
+        policy_activation = self.stm_a.spread(policy)
+        policy_point, _ = self.stm_a.get_point_and_representation(policy_activation)
+
+        print(point)
+        print(policy_point)
+        print(np.abs(policy_activation - representation).mean())
+
+        exit(1) 
+
+        print("-----")
 
         return (v_r, ss_r, p_r, a_r, g_out), (v_p, ss_p, p_p, a_p, g_p)
 

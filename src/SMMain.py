@@ -220,6 +220,17 @@ class Main:
                 if t <= params.drop_first_n_steps:
                     continue
 
+                if t > 2*params.drop_first_n_steps:
+                    #print(batch_a[0, t-1, :])
+                    #print(batch_g[0, t-1, :])
+                    #gp, gr = self.controller.stm_a.get_point_and_representation(g_p[:1, t-1, :], sigma=params.base_internal_sigma) 
+                    #policy = self.controller.getPoliciesFromRepresentations(gr)
+
+                    #print(a_p[0, t-1, :])
+                    #print(g_p[0, t-1, :])
+                    #exit(1)
+                    pass
+
                 # calculate match value
                 match_value[:, t0:t], match_value_per_mod[sa] =\
                     controller.computeMatchSimple(v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa])
@@ -233,6 +244,11 @@ class Main:
                     max_match[mmask, i] = match_value[mmask, i]
                     # Update match and cumulative match 
                     mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
+
+                    # Select time steps when the gripper touches object
+                    mmask = batch_ss[:, i].any(axis=-1)
+                    match_value[:, i] = mmask
+
                     matches[:, i] = mmask
                     cum_match[:, i] = cum_match[:, i-1] + mmask
                 success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
@@ -250,6 +266,7 @@ class Main:
                     v_rt = v_r[success_mask, t-2*params.drop_first_n_steps:t, :]
                     ss_rt = ss_r[success_mask, t-2*params.drop_first_n_steps:t, :]
                     p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
+
                     # TODO: ugly hack to avoid division by 0
                     v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
                     ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
@@ -265,12 +282,16 @@ class Main:
                     #                            params.modalities_weights[1],
                     #                            params.modalities_weights[2]])
                     #goals = (v_rt + ss_rt + p_rt) / 3 # TEST
-                    goals = (v_rt + p_rt) / 2 # TEST: no touch modality
+                    goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
+                    goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.base_internal_sigma) 
 
                     # update policies in succesful episodes
                     (policies,
                      competences,
                      rcompetences) = self.controller.getPoliciesFromRepresentationsWithNoise(goals)
+
+                    # TEST
+                    policies = self.controller.getPoliciesFromRepresentations(goals)
 
                     # fill successful batches with policies, goals, and competences
                     # (from the current timestep onward)
@@ -278,7 +299,7 @@ class Main:
                     batch_g[success_mask, t:, :] = goals[:, None, :]
                     batch_c[success_mask, t:, :] = competences[:, None, :]
                     batch_log[success_mask, t:, :] = rcompetences[:, None, :]
-                    
+
                     cum_match[success_mask, t-1] = 0
                     max_match[success_mask, t-1] = 0
 
@@ -602,7 +623,7 @@ class Main:
         env = self.env
         agent = self.agent
         controller = self.controller
-        
+
         batch_v = np.zeros([1, params.stime, params.visual_size])
         batch_ss = np.zeros([1, params.stime, params.somatosensory_size])
         batch_p = np.zeros([1, params.stime, params.proprioception_size])
