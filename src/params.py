@@ -35,7 +35,7 @@ base_lr = 0.005
 stm_lr = 0.2
 policy_base = np.pi*0.25
 explore_sigma = 8
-policy_noise_sigma = 0.0
+policy_noise_sigma = 0.1
 policy_weights_sigma = 2
 motor_noise = 1.0
 

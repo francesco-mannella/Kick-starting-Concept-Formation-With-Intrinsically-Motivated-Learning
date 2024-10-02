@@ -290,9 +290,6 @@ class Main:
                      competences,
                      rcompetences) = self.controller.getPoliciesFromRepresentationsWithNoise(goals)
 
-                    # TEST
-                    policies = self.controller.getPoliciesFromRepresentations(goals)
-
                     # fill successful batches with policies, goals, and competences
                     # (from the current timestep onward)
                     batch_a[success_mask, t:, :] = policies[:, None, :]

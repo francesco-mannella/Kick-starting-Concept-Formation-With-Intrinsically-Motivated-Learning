@@ -148,6 +148,7 @@ class STM(torch.nn.Module):
 
     def backward(self, radials):
         radials = radials / radials.sum(dim=1).reshape(-1, 1)
+    
         x = torch.matmul(radials, self.kernel.T)
         return x
 
@@ -189,22 +190,22 @@ class SMSTM(STM):
         idx = torch.argmax(out, dim=1).detach().float()
         point = torch.stack((idx // self.side, idx % self.side)).T
 
-        distance = point.reshape(-1, 1, 2) - self.grid.reshape(1, -1, 2)
-        distance = torch.norm(distance, dim=2)
-        rep = torch.exp(-0.5 * (sigma**-2) * (distance) ** 2)
-        rep = rep / rep.sum(dim=1).reshape(-1, 1)
-
-        return point.cpu().numpy(), rep.cpu().numpy()
+        radials = self.radial_fun(point, sigma, self.output_size)
+        radials = radials / (sigma * np.sqrt(np.pi * 2))
+        radials = radials / (torch.sum(radials, dim=1).reshape(-1, 1) + 1e-5)
+        
+        return point.cpu().numpy(), radials.cpu().numpy()
 
     def getRepresentation(self, point, sigma=None):
         if sigma is None:
             sigma = self.sigma
 
-        distance = point.reshape(-1, 1, 2) - self.grid.cpu().numpy().reshape(1, -1, 2)
-        distance = np.linalg.norm(distance, axis=2)
-        rep = np.exp(-0.5 * (sigma**-2) * (distance) ** 2)
-        rep = rep / rep.sum(1).reshape(-1, 1)
-        return rep
+        point = torch.tensor(point, dtype=torch.float)
+        radials = self.radial_fun(point, sigma, self.output_size)
+        radials = radials / (sigma * np.sqrt(np.pi * 2))
+        radials = radials / (torch.sum(radials, dim=1).reshape(-1, 1) + 1e-5)
+        
+        return radials.cpu().numpy()
 
     def update_params(self, sigma=None, lr=None):
         if sigma is not None:
