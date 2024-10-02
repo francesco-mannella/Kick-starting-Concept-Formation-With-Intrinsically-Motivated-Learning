@@ -239,8 +239,6 @@ class SMController:
         a_p, a_r = self.stm_a.get_point_and_representation(a_out, sigma)
         g_p, _ = self.stm_a.get_point_and_representation(g_out, sigma)
 
-        print((g_p - a_p).sum())
-
         return (v_r, ss_r, p_r, a_r, g_out), (v_p, ss_p, p_p, a_p, g_p)
 
     def updateParams(self, sigma, lr):
