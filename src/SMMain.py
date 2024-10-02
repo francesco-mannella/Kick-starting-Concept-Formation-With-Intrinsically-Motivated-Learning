@@ -245,10 +245,6 @@ class Main:
                     # Update match and cumulative match 
                     mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
 
-                    # Select time steps when the gripper touches object
-                    mmask = batch_ss[:, i].any(axis=-1)
-                    match_value[:, i] = mmask
-
                     matches[:, i] = mmask
                     cum_match[:, i] = cum_match[:, i-1] + mmask
                 success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
