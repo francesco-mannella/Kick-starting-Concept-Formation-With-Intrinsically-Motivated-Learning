@@ -179,10 +179,7 @@ class Main:
 
                     # set correct policy
                     agent.updatePolicy(batch_a[episode, t, :])
-                    if t >= params.drop_first_n_steps and t < params.drop_first_n_steps + params.action_steps:
-                        state = smcycles[episode].noisy_step(envs[episode], agent, states[episode])
-                    else:
-                        state = smcycles[episode].step(envs[episode], agent, states[episode])
+                    state = smcycles[episode].step(envs[episode], agent, states[episode])
 
                     # End the episode if object moves too far away
                     if self.is_object_out_of_taskspace(state):
@@ -219,17 +216,6 @@ class Main:
                 # Do not update match during warmup
                 if t <= params.drop_first_n_steps:
                     continue
-
-                if t > 2*params.drop_first_n_steps:
-                    #print(batch_a[0, t-1, :])
-                    #print(batch_g[0, t-1, :])
-                    #gp, gr = self.controller.stm_a.get_point_and_representation(g_p[:1, t-1, :], sigma=params.base_internal_sigma) 
-                    #policy = self.controller.getPoliciesFromRepresentations(gr)
-
-                    #print(a_p[0, t-1, :])
-                    #print(g_p[0, t-1, :])
-                    #exit(1)
-                    pass
 
                 # calculate match value
                 match_value[:, t0:t], match_value_per_mod[sa] =\
@@ -268,21 +254,21 @@ class Main:
                     p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
 
                     # TODO: ugly hack to avoid division by 0
-                    v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
-                    ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
-                    p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
+                    #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
+                    #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
+                    #p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
 
-                    v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
-                    ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
-                    p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
+                    #v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
+                    #ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
+                    #p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
 
                     #goals = np.average([v_rt, ss_rt, p_rt],
                     #                   axis=0,
                     #                   weights=[params.modalities_weights[0],
                     #                            params.modalities_weights[1],
                     #                            params.modalities_weights[2]])
-                    #goals = (v_rt + ss_rt + p_rt) / 3 # TEST
-                    goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
+                    goals = (v_rt + ss_rt + p_rt) / 3 # TEST
+                    #goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
                     goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.base_internal_sigma) 
 
                     # update policies in succesful episodes
