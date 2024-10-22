@@ -246,29 +246,21 @@ class Main:
                     if t == 2*params.drop_first_n_steps:
                         success_mask[:] = 1
 
-                    # Use double weighted average of visual, touch, and proprioception
+                    # Use maximum over visual, touch, and proprioception
                     # over last X timesteps to choose the next goal.
                     # For now, we use X = params.drop_first_n_steps.
-                    v_rt = v_r[success_mask, t-2*params.drop_first_n_steps:t, :]
-                    ss_rt = ss_r[success_mask, t-2*params.drop_first_n_steps:t, :]
-                    p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
+                    v_rt = v_r[success_mask, t-params.drop_first_n_steps:t, :]
+                    ss_rt = ss_r[success_mask, t-params.drop_first_n_steps:t, :]
+                    p_rt = p_r[success_mask, t-params.drop_first_n_steps:t, :]
 
-                    # TODO: ugly hack to avoid division by 0
-                    #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
-                    #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
-                    #p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
+                    v_comp = self.controller.predict.spread(v_rt)
+                    ss_comp = self.controller.predict.spread(ss_rt)
+                    p_comp = self.controller.predict.spread(p_rt)
 
-                    #v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
-                    #ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
-                    #p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
+                    representations = np.concatenate((v_rt, ss_rt, p_rt), axis=1)
+                    comps = np.concatenate((v_comp, ss_comp, p_comp), axis=1)
 
-                    #goals = np.average([v_rt, ss_rt, p_rt],
-                    #                   axis=0,
-                    #                   weights=[params.modalities_weights[0],
-                    #                            params.modalities_weights[1],
-                    #                            params.modalities_weights[2]])
-                    goals = (v_rt + ss_rt + p_rt) / 3 # TEST
-                    #goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
+                    goals_out = representations[np.arange(comps.shape[0]), comps.argmax(axis=1)[:, 0]]
                     goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.base_internal_sigma) 
 
                     # update policies in succesful episodes
