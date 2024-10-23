@@ -193,7 +193,7 @@ class Main:
             # Set a random policy to use between N+1 and 2*N steps
             if t == params.drop_first_n_steps + 1:
                 rpoints = np.random.randint(0, np.sqrt(params.internal_size),
-                                            (params.batch_size, 2))
+                                            (batch_size, 2))
                 batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
 
             if t % params.action_steps == 0 or t == params.stime:
