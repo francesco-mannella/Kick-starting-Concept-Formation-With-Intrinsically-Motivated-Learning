@@ -157,7 +157,7 @@ class Main:
                      ):
         batch_size = len(contexts)
 
-        # fill all batches with zero policy
+        # fill all batches with zero policy with is used for first N steps
         batch_a[::] = 0
                 
         cum_match = np.zeros((batch_size, params.stime), dtype=int)
@@ -189,6 +189,12 @@ class Main:
                         batch_v[episode, t, :] = state["VISUAL_SENSORS"].ravel()
                         batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
                         batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
+
+            # Set a random policy to use between N+1 and 2*N steps
+            if t == params.drop_first_n_steps + 1:
+                rpoints = np.random.randint(0, np.sqrt(params.internal_size),
+                                            (params.batch_size, 2))
+                batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
 
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
