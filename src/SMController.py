@@ -2,6 +2,9 @@ import os
 import glob
 import params
 import numpy as np
+import pathlib
+
+
 from stm import SMSTM
 from SMPredict import SMPredict
 
@@ -61,7 +64,8 @@ class SMController:
             lr=params.predict_lr
         )
 
-        initial_policy = np.load("policy_weights.npy", allow_pickle=True)
+        weights_path = pathlib.Path(__file__).parent.resolve() / "policy_weights.npy"
+        initial_policy = np.load(weights_path, allow_pickle=True)
         self.stm_a.set_weights(initial_policy)
 
         self.match_sigma = params.match_sigma
