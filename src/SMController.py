@@ -61,6 +61,9 @@ class SMController:
             lr=params.predict_lr
         )
 
+        initial_policy = np.load("policy_weights.npy", allow_pickle=True)
+        self.stm_a.set_weights(initial_policy)
+
         self.match_sigma = params.match_sigma
         self.sigma = params.internal_sigma
         self.curr_sigma = self.sigma
