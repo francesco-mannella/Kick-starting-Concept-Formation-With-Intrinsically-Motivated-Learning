@@ -263,10 +263,14 @@ class Main:
                     ss_comp = self.controller.predict.spread(ss_rt)
                     p_comp = self.controller.predict.spread(p_rt)
 
-                    # Choose a maximum compentence across timesteps and modalities to select goal
                     representations = np.concatenate((v_rt, ss_rt, p_rt), axis=1)
                     comps = np.concatenate((v_comp, ss_comp, p_comp), axis=1)
-                    goals_out = representations[np.arange(comps.shape[0]), comps.argmax(axis=1)[:, 0]]
+                    # Choose a maximum compentence across timesteps and modalities to select goal
+                    #goals_out = representations[np.arange(comps.shape[0]), comps.argmax(axis=1)[:, 0]]
+
+                    # Calculated a mean of representations weighted by competences across timesteps
+                    # and modalities to select goal
+                    goals_out = (representations * comps).sum(axis=1) / comps.sum(axis=1)
                    
                     # Choose a maximum compentence of visual modality across timesteps to select goal
                     #goals_out = v_rt[np.arange(v_comp.shape[0]), v_comp.argmax(axis=1)[:, 0]]
