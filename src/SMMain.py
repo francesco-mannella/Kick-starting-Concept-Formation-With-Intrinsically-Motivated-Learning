@@ -252,7 +252,7 @@ class Main:
                     if t == 2*params.drop_first_n_steps:
                         success_mask[:] = 1
 
-                    # Use maximum over visual, touch, and proprioception
+                    # Use a weighted mean over visual, touch, and proprioception
                     # over last X timesteps to choose the next goal.
                     # For now, we use X = params.drop_first_n_steps.
                     v_rt = v_r[success_mask, t-params.drop_first_n_steps:t, :]
@@ -263,17 +263,14 @@ class Main:
                     ss_comp = self.controller.predict.spread(ss_rt)
                     p_comp = self.controller.predict.spread(p_rt)
 
-                    representations = np.concatenate((v_rt, ss_rt, p_rt), axis=1)
-                    comps = np.concatenate((v_comp, ss_comp, p_comp), axis=1)
-                    # Choose a maximum compentence across timesteps and modalities to select goal
-                    #goals_out = representations[np.arange(comps.shape[0]), comps.argmax(axis=1)[:, 0]]
+                    # Mean competence for the whole time step
+                    comp = np.mean((v_comp, ss_comp, p_comp), axis=0)
+                    comp_sum = comp.sum(axis=1)
+                    v_rw = (v_rt * comp).sum(axis=1) / comp_sum
+                    ss_rw = (ss_rt * comp).sum(axis=1) / comp_sum
+                    p_rw = (p_rt * comp).sum(axis=1) / comp_sum
 
-                    # Calculated a mean of representations weighted by competences across timesteps
-                    # and modalities to select goal
-                    goals_out = (representations * comps).sum(axis=1) / comps.sum(axis=1)
-                   
-                    # Choose a maximum compentence of visual modality across timesteps to select goal
-                    #goals_out = v_rt[np.arange(v_comp.shape[0]), v_comp.argmax(axis=1)[:, 0]]
+                    goals_out = (v_rw + p_rw + ss_rw) / 3
 
                     goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.base_internal_sigma) 
 
