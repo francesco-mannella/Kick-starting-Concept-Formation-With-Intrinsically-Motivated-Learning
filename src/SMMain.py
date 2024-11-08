@@ -346,9 +346,12 @@ class Main:
 
             print(f"{epoch:6d}", end=" ", flush=True)
 
+            # TODO: Move all parameter update after run_episodes
+            # Use actual matches as competence measure instead of compatences predicted by predictor
             controller.comp_grid = controller.getCompetenceGrid()
             comp = controller.comp_grid.mean()
 
+            # TODO: This match_sigma is not used in the supervised version
             controller.match_sigma = modulate_param(
                 params.base_match_sigma,
                 params.match_sigma,
@@ -365,8 +368,10 @@ class Main:
                 1 - comp,
             )
 
+            # TODO: explore sigma is not use right now
             controller.explore_sigma = params.explore_sigma
 
+            # TODO: Move after run_episodes. Set local sigma (as vector) instead of a global one.
             controller.updateParams(
                 controller.curr_sigma, controller.curr_lr
             )

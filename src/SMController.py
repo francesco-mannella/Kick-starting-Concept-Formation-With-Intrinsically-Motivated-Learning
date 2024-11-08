@@ -276,6 +276,9 @@ class SMController:
         # compute number of chosen patterns (return)
         n_items = sum(match_ind)
 
+        # TODO: Do we need hard and soft attention filtering simultaneously?
+        # Furthermore, the soft part should be relative: normalized in relation to maximum value.
+        # In the supervised version match_value is binary (0 or 1), so there is not soft filtering effectively.
         modulate = cgoals[match_ind] * match_value[match_ind, None]
         mean_modulation = modulate.mean()
 
