@@ -76,7 +76,7 @@ def remove_figs(epoch=0):
 def trajectories_map(wfile=None):
     if wfile is None: 
         wfile = f"{site_dir}/trajectories.npy"
-    data = np.load(wfile)
+    data = np.load(wfile, allow_pickle=True)
     cells, stime, _ = data.shape
     side = int(np.sqrt(cells))
     fig = plt.figure(figsize=(8, 8))
@@ -109,7 +109,7 @@ def trajectories_map(wfile=None):
 def visual_map(wfile=None):
     if wfile is None: wfile = f"{site_dir}/visual_weights.npy"
     # visual map
-    data_v = np.load(wfile)
+    data_v = np.load(wfile, allow_pickle=True)
     data_v = data_v.reshape(visual_side, visual_side, 3, internal_side, internal_side)
     data_v = data_v.transpose(3, 0, 4, 1, 2)
     data_v = data_v.reshape(visual_side * internal_side, visual_side * internal_side, 3)
@@ -126,7 +126,7 @@ def visual_map(wfile=None):
 def somatosensory_map(wfile=None):
     if wfile is None: wfile = f"{site_dir}/ssensory_weights.npy"
     # visual map
-    data_v = np.load(wfile)
+    data_v = np.load(wfile, allow_pickle=True)
     data_v = data_v.reshape(4, internal_side, internal_side)
     data_v = data_v.transpose(1, 2, 0)
     data_v = data_v.reshape(internal_side, internal_side * 4)
@@ -143,7 +143,7 @@ def somatosensory_map(wfile=None):
 def comp_map(wfile=None):
     if wfile is None: wfile = f"{site_dir}/comp_grid.npy"
     # comp map
-    data_c = np.load(wfile)
+    data_c = np.load(wfile, allow_pickle=True)
     data_c = data_c.reshape(internal_side, internal_side)
 
     fig = plt.figure(figsize=(8, 8))
@@ -201,7 +201,7 @@ def blank_video():
 
 def log(wfile=None):
     if wfile is None: wfile = f"{site_dir}/log.npy"
-    log = np.load(wfile)
+    log = np.load(wfile, allow_pickle=True)
     fig = plt.figure(figsize=(4, 2))
     ax = fig.add_subplot(111)
     stime = len(log)

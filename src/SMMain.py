@@ -370,7 +370,9 @@ class Main:
                 match_increment,
                 agent, controller, contexts,
                 envs, states)
-
+            
+            controller.comp_grid = controller.getCompetenceGrid()
+            
             # Average competence over all goals from an epoch
             comp = cum_match[policy_changed].mean() / params.cum_match_stop_th
             # Local competences based on predictor
@@ -668,6 +670,8 @@ class Main:
             batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
             batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
                
+            # Use minimal sigma for building within-episode representations
+            self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
             # get Representations for initial states
             Rs, Rp = controller.spread(
                 [
