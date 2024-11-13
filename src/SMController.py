@@ -72,7 +72,6 @@ class SMController:
         self.sigma = params.internal_sigma
         self.curr_sigma = self.sigma
         self.comp_sigma = params.base_internal_sigma
-        self.explore_sigma = params.explore_sigma
         self.curr_lr = None
         self.comp_grid = None
         self.policy_noise_sigma = params.policy_noise_sigma
@@ -266,12 +265,13 @@ class SMController:
         match_ind,
         cum_match,
         policy_changed,
-        competences
+        incompetences,
+        local_sigma
     ):
         curr_loss = None
         mean_modulation = None
 
-        cgoals = goals * (1 - competences)
+        cgoals = goals * incompetences
 
         # compute number of chosen patterns (return)
         n_items = sum(match_ind)
@@ -279,11 +279,19 @@ class SMController:
         # TODO: Do we need hard and soft attention filtering simultaneously?
         # Furthermore, the soft part should be relative: normalized in relation to maximum value.
         # In the supervised version match_value is binary (0 or 1), so there is not soft filtering effectively.
-        modulate = cgoals[match_ind] * match_value[match_ind, None]
+        # For now, we simplify to hard filtering.
+        #modulate = cgoals[match_ind] * match_value[match_ind, None]
+        modulate = cgoals[match_ind]
         mean_modulation = modulate.mean()
+
+        local_sigma = local_sigma[match_ind]
 
         # update maps
         if n_items > 0:
+            self.stm_v.update_params(sigma = local_sigma)
+            self.stm_ss.update_params(sigma = local_sigma)
+            self.stm_p.update_params(sigma = local_sigma)
+            self.stm_a.update_params(sigma = local_sigma)
             curr_loss = (self.stm_v.update(visuals[match_ind], modulate).item(),
                          self.stm_ss.update(ssensories[match_ind], modulate).item(),
                          self.stm_p.update(proprios[match_ind], modulate).item(),

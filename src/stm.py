@@ -63,7 +63,6 @@ def radial2d(mean, sigma, size):
         torch.Tensor: each row is a flattened radial basis in
                  the (sqrt(size), sqrt(size)) space
     """
-    #TODO: Check if sigma is float, otherwise reshape to [1, -1] (to fit [batch_size*timesteps])
     grid_points = make_grid(np.sqrt(size))
     diff = grid_points.unsqueeze(0) - mean.unsqueeze(1)
     radial_basis = torch.exp(-0.5 * (sigma ** -2) * torch.norm(diff, dim=-1) **2)
@@ -210,10 +209,10 @@ class SMSTM(STM):
 
     def update_params(self, sigma=None, lr=None):
         if sigma is not None:
-            self.sigma = sigma
+            self.sigma = torch.tensor(sigma)
         if lr is not None:
             self.lr = lr
-        self.optimizer.param_groups[0]['lr'] = lr
+            self.optimizer.param_groups[0]['lr'] = lr
 
     def update(self, data, dists):
         assert len(data.shape) == 2

@@ -62,8 +62,6 @@ class SensoryMotorCircle:
         self.t += 1
         return state
 
-def modulate_param(base, limit, prop):
-    return base + (limit - base) * prop
 
 def softmax(x, t=0.01):
     e = np.exp(x / t)
@@ -200,6 +198,8 @@ class Main:
                 # get Representations for the last N = params.action_steps steps
                 t0 = t - params.action_steps
                 sa = np.s_[:, t0:t, :]
+                # Use minimal sigma for building within-episode representations
+                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
                 Rs, Rp = controller.spread(
                     [
                         batch_v[sa].reshape((bsize, -1)),
@@ -246,12 +246,13 @@ class Main:
                 success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
 
                 if t < params.stime and t >= 2*params.drop_first_n_steps:
-                    policy_changed[success_mask, t-2] = 1
 
                     # Set initial policy after warmup steps + action selection steps 
                     if t == 2*params.drop_first_n_steps:
                         success_mask[:] = 1
 
+                    policy_changed[success_mask, t-2] = 1
+                    
                     # Use a weighted mean over visual, touch, and proprioception
                     # over last X timesteps to choose the next goal.
                     # For now, we use X = params.drop_first_n_steps.
@@ -270,7 +271,8 @@ class Main:
                     ss_rw = (ss_rt * comp).sum(axis=1) / comp_sum
                     p_rw = (p_rt * comp).sum(axis=1) / comp_sum
 
-                    goals_out = (v_rw + p_rw + ss_rw) / 3
+                    #goals_out = (v_rw + p_rw + ss_rw) / 3
+                    goals_out = (v_rw + p_rw) / 2
 
                     goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.base_internal_sigma) 
 
@@ -346,38 +348,6 @@ class Main:
 
             print(f"{epoch:6d}", end=" ", flush=True)
 
-            # TODO: Move all parameter update after run_episodes
-            # Use actual matches as competence measure instead of compatences predicted by predictor
-            controller.comp_grid = controller.getCompetenceGrid()
-            comp = controller.comp_grid.mean()
-
-            # TODO: This match_sigma is not used in the supervised version
-            controller.match_sigma = modulate_param(
-                params.base_match_sigma,
-                params.match_sigma,
-                1 - comp,
-            )
-            controller.curr_sigma = modulate_param(
-                params.base_internal_sigma,
-                params.internal_sigma,
-                1 - comp,
-            )
-            controller.curr_lr = modulate_param(
-                params.base_lr,
-                params.stm_lr,
-                1 - comp,
-            )
-
-            # TODO: explore sigma is not use right now
-            controller.explore_sigma = params.explore_sigma
-
-            # TODO: Move after run_episodes. Set local sigma (as vector) instead of a global one.
-            controller.updateParams(
-                controller.curr_sigma, controller.curr_lr
-            )
-            
-            print(f"{controller.curr_sigma}, {controller.curr_lr}")
-
             # ----- prepare episodes
             for episode in range(params.batch_size): 
                 # Each environment in each epoch should have a different seed
@@ -401,8 +371,48 @@ class Main:
                 agent, controller, contexts,
                 envs, states)
 
-            # ---- end of an epoch: controller update
+            # Average competence over all goals from an epoch
+            comp = cum_match[policy_changed].mean() / params.cum_match_stop_th
+            # Local competences based on predictor
+            global_incompetence = 1 - np.tanh(params.decay * comp)
+            local_incompetences = global_incompetence * (1 - np.tanh(params.local_decay * batch_c))
+
             bsize = params.batch_size * params.stime
+            local_incompetences = local_incompetences.reshape((bsize, -1))
+            
+            def modulate_param(base, limit, prop):
+                return base + (limit - base) * prop
+            # TODO: This match_sigma is not used in the supervised version
+            controller.match_sigma = modulate_param(
+                params.base_match_sigma,
+                params.match_sigma,
+                global_incompetence,
+            )
+            controller.curr_lr = modulate_param(
+                params.base_lr,
+                params.stm_lr,
+                global_incompetence,
+            )
+            controller.curr_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                global_incompetence,
+            )
+
+            # Local sigma is a vector of length batch_size * timesteps
+            local_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                global_incompetence * local_incompetences,
+            )
+            
+            controller.updateParams(
+                controller.curr_sigma, controller.curr_lr
+            )
+
+            print(f"{controller.curr_sigma.mean()}, {controller.curr_lr}")
+
+            # ---- end of an epoch: controller update
             (update_items, update_episodes, curr_loss, mean_modulation) =\
                 controller.update(
                     batch_v.reshape((bsize, -1)),
@@ -414,7 +424,8 @@ class Main:
                     matches.reshape(-1),
                     cum_match,
                     policy_changed,
-                    competences=batch_c.reshape((bsize, -1))
+                    local_incompetences,
+                    local_sigma
                 )
 
             # ---- print
@@ -431,7 +442,6 @@ class Main:
 
             print(f"{update_items:#7d} {items}", end=" ", flush=True)
             print(f"{batch_ss.sum():#10.2f}", end=" ", flush=True)
-            warmup = params.drop_first_n_steps + params.action_steps
             logs[epoch] = [
                 batch_log[policy_changed].min(),
                 batch_log[policy_changed].mean(),
