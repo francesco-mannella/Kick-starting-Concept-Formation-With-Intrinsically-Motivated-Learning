@@ -188,11 +188,11 @@ class Main:
                         batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
                         batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
 
-            # Set a random policy to use during the warmup
-            #if t == params.drop_first_n_steps + 1:
-            #    rpoints = np.random.randint(0, np.sqrt(params.internal_size),
-            #                                (batch_size, 2))
-            #    batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
+            # Set a random policy to use after the warmup
+            if t == params.drop_first_n_steps + 1:
+                rpoints = np.random.randint(0, np.sqrt(params.internal_size),
+                                            (batch_size, 2))
+                batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
 
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
