@@ -188,11 +188,11 @@ class Main:
                         batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
                         batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
 
-            # Set a random policy to use between N+1 and 2*N steps
-            if t == params.drop_first_n_steps + 1:
-                rpoints = np.random.randint(0, np.sqrt(params.internal_size),
-                                            (batch_size, 2))
-                batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
+            # Set a random policy to use during the warmup
+            #if t == params.drop_first_n_steps + 1:
+            #    rpoints = np.random.randint(0, np.sqrt(params.internal_size),
+            #                                (batch_size, 2))
+            #    batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
 
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
@@ -219,7 +219,7 @@ class Main:
                 a_p[sa].flat = Rp[3].flat
                 g_p[sa].flat = Rp[4].flat
 
-                # Do not update match during warmup
+                # Do not update match during the initial empty steps
                 if t <= params.drop_first_n_steps:
                     continue
 
@@ -245,20 +245,19 @@ class Main:
                     cum_match[:, i] = cum_match[:, i-1] + mmask
                 success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
 
-                if t < params.stime and t >= 2*params.drop_first_n_steps:
+                if t < params.stime and t >= params.drop_first_n_steps + params.policy_selection_steps:
 
                     # Set initial policy after warmup steps + action selection steps 
-                    if t == 2*params.drop_first_n_steps:
+                    if t == params.drop_first_n_steps + params.policy_selection_steps:
                         success_mask[:] = 1
 
                     policy_changed[success_mask, t-2] = 1
                     
                     # Use a weighted mean over visual, touch, and proprioception
                     # over last X timesteps to choose the next goal.
-                    # For now, we use X = params.drop_first_n_steps.
-                    v_rt = v_r[success_mask, t-params.drop_first_n_steps:t, :]
-                    ss_rt = ss_r[success_mask, t-params.drop_first_n_steps:t, :]
-                    p_rt = p_r[success_mask, t-params.drop_first_n_steps:t, :]
+                    v_rt = v_r[success_mask, t-params.policy_selection_steps:t, :]
+                    ss_rt = ss_r[success_mask, t-params.policy_selection_steps:t, :]
+                    p_rt = p_r[success_mask, t-params.policy_selection_steps:t, :]
 
                     v_comp = self.controller.predict.spread(v_rt)
                     ss_comp = self.controller.predict.spread(ss_rt)
@@ -405,7 +404,7 @@ class Main:
             local_sigma = modulate_param(
                 params.base_internal_sigma,
                 params.internal_sigma,
-                global_incompetence * local_incompetences,
+                local_incompetences,
             )
             
             controller.updateParams(

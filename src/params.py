@@ -1,7 +1,8 @@
 import numpy as np
 task_space = {"xlim": [-10, 50], "ylim": [-10, 50]}
 stime = 200
-drop_first_n_steps = 25
+drop_first_n_steps = 10
+policy_selection_steps = 25
 env_reset_freq = 2
 
 esn_tau = 5.0
@@ -36,8 +37,8 @@ base_match_sigma = 1
 match_sigma = 3
 base_internal_sigma = 0.5*np.sqrt(2)
 internal_sigma = 30
-base_lr = 0.005
-stm_lr = 0.2
+base_lr = 0.01
+stm_lr = 0.5
 policy_base = np.pi*0.25
 policy_noise_sigma = 0.5
 policy_weights_sigma = 2
@@ -55,7 +56,7 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 400
+epochs = 400 
 batch_size = 24 
 tests = 12
 epochs_to_test = 100
