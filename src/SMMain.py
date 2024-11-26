@@ -220,7 +220,7 @@ class Main:
                 g_p[sa].flat = Rp[4].flat
 
                 # Do not update match during the initial empty steps
-                if t <= params.drop_first_n_steps:
+                if t <= max(params.drop_first_n_steps, params.action_steps):
                     continue
 
                 # calculate match value

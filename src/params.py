@@ -1,7 +1,7 @@
 import numpy as np
 task_space = {"xlim": [-10, 50], "ylim": [-10, 50]}
 stime = 200
-drop_first_n_steps = 10
+drop_first_n_steps = 0
 policy_selection_steps = 25
 env_reset_freq = 2
 
