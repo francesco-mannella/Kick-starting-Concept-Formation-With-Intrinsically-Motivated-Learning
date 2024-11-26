@@ -192,6 +192,7 @@ class Main:
             if t == params.drop_first_n_steps + 1:
                 rpoints = np.random.randint(0, np.sqrt(params.internal_size),
                                             (batch_size, 2))
+                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
                 batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
 
             if t % params.action_steps == 0 or t == params.stime:
