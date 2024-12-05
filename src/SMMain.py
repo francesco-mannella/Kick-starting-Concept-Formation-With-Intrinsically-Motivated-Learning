@@ -178,13 +178,13 @@ class Main:
                     # set correct policy
                     agent.updatePolicy(batch_a[episode, t, :])
 
-                    state = smcycles[episode].step(envs[episode], agent, states[episode])
+                    #state = smcycles[episode].step(envs[episode], agent, states[episode])
                     
                     # Noisy policy for initial steps
-                    #if t > params.drop_first_n_steps + params.policy_selection_steps:
-                    #    state = smcycles[episode].step(envs[episode], agent, states[episode])
-                    #else:
-                    #    state = smcycles[episode].noisy_step(envs[episode], agent, states[episode])
+                    if t > params.drop_first_n_steps + params.policy_selection_steps:
+                        state = smcycles[episode].step(envs[episode], agent, states[episode])
+                    else:
+                        state = smcycles[episode].noisy_step(envs[episode], agent, states[episode])
 
                     # End the episode if object moves too far away
                     if self.is_object_out_of_taskspace(state):
@@ -278,7 +278,7 @@ class Main:
                     # Mean competence for the whole time step
                     comp = np.mean((v_comp, ss_comp, p_comp), axis=0)
                     #TEST: Inverse competence weighting
-                    comp = 1.1 - np.mean((v_comp, ss_comp, p_comp), axis=0)
+                    #comp = 1.1 - np.mean((v_comp, ss_comp, p_comp), axis=0)
                     comp_sum = comp.sum(axis=1)
                     v_rw = (v_rt * comp).sum(axis=1) / comp_sum
                     ss_rw = (ss_rt * comp).sum(axis=1) / comp_sum
