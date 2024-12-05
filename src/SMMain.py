@@ -203,6 +203,8 @@ class Main:
                 batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
                 # TEST: Large policy
                 #batch_a[:, t:, :] = 20.0
+                # TEST: Zero policy
+                #batch_a[:, t:, :] = 0.0
 
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
@@ -275,6 +277,8 @@ class Main:
 
                     # Mean competence for the whole time step
                     comp = np.mean((v_comp, ss_comp, p_comp), axis=0)
+                    #TEST: Inverse competence weighting
+                    comp = 1.1 - np.mean((v_comp, ss_comp, p_comp), axis=0)
                     comp_sum = comp.sum(axis=1)
                     v_rw = (v_rt * comp).sum(axis=1) / comp_sum
                     ss_rw = (ss_rt * comp).sum(axis=1) / comp_sum
