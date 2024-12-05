@@ -1,8 +1,8 @@
 import numpy as np
 task_space = {"xlim": [-10, 50], "ylim": [-10, 50]}
 stime = 200
-drop_first_n_steps = 0
-policy_selection_steps = 25
+drop_first_n_steps = 15
+policy_selection_steps = 20
 env_reset_freq = 2
 
 esn_tau = 5.0
@@ -37,7 +37,7 @@ base_match_sigma = 1
 match_sigma = 3
 base_internal_sigma = 0.5*np.sqrt(2)
 internal_sigma = 30
-base_lr = 0.01
+base_lr = 0.005
 stm_lr = 0.5
 policy_base = np.pi*0.25
 policy_noise_sigma = 0.5

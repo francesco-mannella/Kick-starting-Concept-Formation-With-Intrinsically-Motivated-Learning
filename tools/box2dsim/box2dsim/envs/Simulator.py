@@ -324,6 +324,8 @@ class TestPlotter:
             self.ax.set_ylim(self.ylim)
             self.ax.set_axis_off()
 
+            self.ax.text(self.xlim[0], self.ylim[1], i)
+
             # Current match value
             self.ax.bar(
                     self.xlim[0] + 0.7*(self.xlim[1] - self.xlim[0]),

@@ -201,6 +201,8 @@ class Main:
                                             (batch_size, 2))
                 self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
                 batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
+                # TEST: Large policy
+                #batch_a[:, t:, :] = 20.0
 
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
@@ -228,7 +230,7 @@ class Main:
                 g_p[sa].flat = Rp[4].flat
 
                 # Do not update match during the initial empty steps
-                if t <= max(params.drop_first_n_steps, params.action_steps):
+                if t < max(params.drop_first_n_steps + params.policy_selection_steps, params.action_steps):
                     continue
 
                 # calculate match value
