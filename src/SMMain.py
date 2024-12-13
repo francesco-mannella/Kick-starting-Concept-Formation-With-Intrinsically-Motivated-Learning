@@ -386,8 +386,8 @@ class Main:
             
             controller.comp_grid = controller.getCompetenceGrid()
             
-            # Average competence over all goals from an epoch
-            comp = cum_match[policy_changed].mean() / params.cum_match_stop_th
+            # Average predicted competence over all goals from an epoch
+            comp = batch_c[policy_changed].mean()
             # Local competences based on predictor
             global_incompetence = 1 - np.tanh(params.decay * comp)
             local_incompetences = global_incompetence * (1 - np.tanh(params.local_decay * batch_c))
@@ -403,16 +403,18 @@ class Main:
                 params.match_sigma,
                 global_incompetence,
             )
-            controller.curr_lr = modulate_param(
-                params.base_lr,
-                params.stm_lr,
-                global_incompetence,
-            )
-            controller.curr_sigma = modulate_param(
-                params.base_internal_sigma,
-                params.internal_sigma,
-                global_incompetence,
-            )
+            
+            # No global modulation of LR and sigma
+            #controller.curr_lr = modulate_param(
+            #    params.base_lr,
+            #    params.stm_lr,
+            #    global_incompetence,
+            #)
+            #controller.curr_sigma = modulate_param(
+            #    params.base_internal_sigma,
+            #    params.internal_sigma,
+            #    global_incompetence,
+            #)
 
             # Local sigma is a vector of length batch_size * timesteps
             local_sigma = modulate_param(
@@ -421,11 +423,11 @@ class Main:
                 local_incompetences,
             )
             
-            controller.updateParams(
-                controller.curr_sigma, controller.curr_lr
-            )
+            #controller.updateParams(
+            #    controller.curr_sigma, controller.curr_lr
+            #)
 
-            print(f"{controller.curr_sigma.mean()}, {controller.curr_lr}")
+            #print(f"{controller.curr_sigma.mean()}, {controller.curr_lr}")
 
             # ---- end of an epoch: controller update
             (update_items, update_episodes, curr_loss, mean_modulation) =\
@@ -483,8 +485,7 @@ class Main:
                            'stm_ss_loss': curr_loss[1],
                            'stm_p_loss': curr_loss[2],
                            'stm_a_loss': curr_loss[3],
-                           'stm_sigma': controller.curr_sigma,
-                           'stm_lr': controller.curr_lr,
+                           'mean_sigma': local_sigma.mean(),
                            'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 

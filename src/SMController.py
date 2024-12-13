@@ -66,7 +66,7 @@ class SMController:
 
         weights_path = pathlib.Path(__file__).parent.resolve() / "policy_weights_random.npy"
         initial_policy = np.load(weights_path, allow_pickle=True)
-        self.stm_a.set_weights(initial_policy)
+        #self.stm_a.set_weights(initial_policy)
 
         self.match_sigma = params.match_sigma
         self.sigma = params.internal_sigma
