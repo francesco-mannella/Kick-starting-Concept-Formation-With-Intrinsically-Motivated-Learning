@@ -199,7 +199,8 @@ class Main:
             if t == params.drop_first_n_steps + 1:
                 rpoints = np.random.randint(0, np.sqrt(params.internal_size),
                                             (batch_size, 2))
-                self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
+                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+                #self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
                 #self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
                 batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
                 # TEST: Large policy
@@ -213,8 +214,8 @@ class Main:
                 sa = np.s_[:, t0:t, :]
                 
                 # Use minimal sigma for building within-episode representations
-                #self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
-                self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
+                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+                #self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
                 
                 # Use current sigma modulated by competence
                 #self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
