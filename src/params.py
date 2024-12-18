@@ -36,13 +36,14 @@ local_decay = 1.0
 base_match_sigma = 1
 match_sigma = 3
 base_internal_sigma = 0.5*np.sqrt(2)
-internal_sigma = 30
+internal_sigma = 30.0
 base_lr = 0.005
 stm_lr = 0.1
 policy_base = np.pi*0.25
 policy_noise_sigma = 0.5
 policy_weights_sigma = 2
 motor_noise = 1.0
+representation_sigma = 5.0
 
 # Modalities order: visual, touch, proprioception, action
 modalities_weights = [1., 2., 1., 1.]

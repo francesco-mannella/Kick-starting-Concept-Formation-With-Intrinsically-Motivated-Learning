@@ -199,7 +199,8 @@ class Main:
             if t == params.drop_first_n_steps + 1:
                 rpoints = np.random.randint(0, np.sqrt(params.internal_size),
                                             (batch_size, 2))
-                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+                self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
+                #self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
                 batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
                 # TEST: Large policy
                 #batch_a[:, t:, :] = 20.0
@@ -210,8 +211,13 @@ class Main:
                 # get Representations for the last N = params.action_steps steps
                 t0 = t - params.action_steps
                 sa = np.s_[:, t0:t, :]
+                
                 # Use minimal sigma for building within-episode representations
-                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+                #self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+                self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
+                
+                # Use current sigma modulated by competence
+                #self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
                 Rs, Rp = controller.spread(
                     [
                         batch_v[sa].reshape((bsize, -1)),
@@ -287,7 +293,7 @@ class Main:
                     #goals_out = (v_rw + p_rw + ss_rw) / 3
                     goals_out = (v_rw + p_rw) / 2
 
-                    goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.base_internal_sigma) 
+                    goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
 
                     # update policies in succesful episodes
                     (policies,
@@ -410,11 +416,11 @@ class Main:
             #    params.stm_lr,
             #    global_incompetence,
             #)
-            #controller.curr_sigma = modulate_param(
-            #    params.base_internal_sigma,
-            #    params.internal_sigma,
-            #    global_incompetence,
-            #)
+            controller.curr_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                global_incompetence,
+            )
 
             # Local sigma is a vector of length batch_size * timesteps
             local_sigma = modulate_param(
@@ -423,9 +429,9 @@ class Main:
                 local_incompetences,
             )
             
-            #controller.updateParams(
-            #    controller.curr_sigma, controller.curr_lr
-            #)
+            controller.updateParams(
+                controller.curr_sigma, controller.curr_lr
+            )
 
             #print(f"{controller.curr_sigma.mean()}, {controller.curr_lr}")
 
