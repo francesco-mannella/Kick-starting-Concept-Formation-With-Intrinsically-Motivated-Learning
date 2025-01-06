@@ -265,13 +265,13 @@ class SMController:
         match_ind,
         cum_match,
         policy_changed,
-        incompetences,
+        local_lr,
         local_sigma
     ):
         curr_loss = None
         mean_modulation = None
 
-        cgoals = goals * incompetences
+        cgoals = goals * local_lr
 
         # compute number of chosen patterns (return)
         n_items = sum(match_ind)

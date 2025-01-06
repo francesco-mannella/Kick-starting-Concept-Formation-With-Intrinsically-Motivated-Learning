@@ -429,6 +429,12 @@ class Main:
                 params.internal_sigma,
                 local_incompetences,
             )
+            local_lr = modulate_param(
+                params.base_lr,
+                params.max_lr,
+                local_incompetences,
+            )
+
             
             controller.updateParams(
                 controller.curr_sigma, controller.curr_lr
@@ -436,6 +442,8 @@ class Main:
 
             #print(f"{controller.curr_sigma.mean()}, {controller.curr_lr}")
 
+            print(f"sigma: {local_sigma.mean()}")
+            
             # ---- end of an epoch: controller update
             (update_items, update_episodes, curr_loss, mean_modulation) =\
                 controller.update(
@@ -448,7 +456,7 @@ class Main:
                     matches.reshape(-1),
                     cum_match,
                     policy_changed,
-                    local_incompetences,
+                    local_lr,
                     local_sigma
                 )
 
