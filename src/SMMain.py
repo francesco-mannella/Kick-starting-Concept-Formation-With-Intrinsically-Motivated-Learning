@@ -198,9 +198,8 @@ class Main:
                 t0 = t - params.action_steps
                 sa = np.s_[:, t0:t, :]
                 
-                # Use minimal sigma for building within-episode representations
-                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
-                #self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
+                # Use representation sigma for building within-episode representations
+                self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
                 
                 # Use current sigma modulated by competence
                 #self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
@@ -684,8 +683,7 @@ class Main:
             batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
             batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
                
-            # Use minimal sigma for building within-episode representations
-            self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+            self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
             # get Representations for initial states
             Rs, Rp = controller.spread(
                 [
