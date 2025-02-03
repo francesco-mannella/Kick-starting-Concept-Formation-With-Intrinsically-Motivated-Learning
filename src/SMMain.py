@@ -374,11 +374,11 @@ class Main:
                 match_increment,
                 agent, controller, contexts,
                 envs, states)
-            
+           
+            # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
+            comp = controller.comp_grid.mean()
             
-            # Average predicted competence over all goals from an epoch
-            comp = batch_c[policy_changed].mean()
             # Local competences based on predictor
             global_incompetence = 1 - np.tanh(params.decay * comp)
             local_incompetences = global_incompetence * (1 - np.tanh(params.local_decay * batch_c))
