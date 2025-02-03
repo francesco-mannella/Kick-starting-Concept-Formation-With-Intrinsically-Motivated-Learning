@@ -178,14 +178,12 @@ class Main:
                     # set correct policy
                     agent.updatePolicy(batch_a[episode, t, :])
 
-                    #state = smcycles[episode].step(envs[episode], agent, states[episode])
-                    
-                    # Noisy policy for initial steps
-                    if t > params.drop_first_n_steps + params.policy_selection_steps:
-                        state = smcycles[episode].step(envs[episode], agent, states[episode])
-                    else:
+                    # Noisy policy for the exploration period
+                    if t >= params.drop_first_n_steps and t < params.drop_first_n_steps + params.action_steps:
                         state = smcycles[episode].noisy_step(envs[episode], agent, states[episode])
-
+                    else:
+                        state = smcycles[episode].step(envs[episode], agent, states[episode])
+                    
                     # End the episode if object moves too far away
                     if self.is_object_out_of_taskspace(state):
                         states[episode] = None
@@ -194,19 +192,6 @@ class Main:
                         batch_v[episode, t, :] = state["VISUAL_SENSORS"].ravel()
                         batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
                         batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
-
-            # Set a random policy to use after the warmup
-            if t == params.drop_first_n_steps + 1:
-                rpoints = np.random.randint(0, np.sqrt(params.internal_size),
-                                            (batch_size, 2))
-                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
-                #self.controller.updateParams(params.representation_sigma, self.controller.curr_lr)
-                #self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
-                batch_a[:, t:, :] = self.controller.getPoliciesFromPoints(rpoints)[0][:, None, :]
-                # TEST: Large policy
-                #batch_a[:, t:, :] = 20.0
-                # TEST: Zero policy
-                #batch_a[:, t:, :] = 0.0
 
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
@@ -239,7 +224,7 @@ class Main:
                 g_p[sa].flat = Rp[4].flat
 
                 # Do not update match during the initial empty steps
-                if t < max(params.drop_first_n_steps + params.policy_selection_steps, params.action_steps):
+                if t <= params.drop_first_n_steps:
                     continue
 
                 # calculate match value
@@ -264,37 +249,35 @@ class Main:
                     cum_match[:, i] = cum_match[:, i-1] + mmask
                 success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
 
-                if t < params.stime and t >= params.drop_first_n_steps + params.policy_selection_steps:
+                if t < params.stime and t >= 2*params.drop_first_n_steps:
 
                     # Set initial policy after warmup steps + action selection steps 
-                    if t == params.drop_first_n_steps + params.policy_selection_steps:
+                    if t == 2*params.drop_first_n_steps:
                         success_mask[:] = 1
 
                     policy_changed[success_mask, t-2] = 1
                     
-                    # Use a weighted mean over visual, touch, and proprioception
-                    # over last X timesteps to choose the next goal.
-                    v_rt = v_r[success_mask, t-params.policy_selection_steps:t, :]
-                    ss_rt = ss_r[success_mask, t-params.policy_selection_steps:t, :]
-                    p_rt = p_r[success_mask, t-params.policy_selection_steps:t, :]
+                    # For now, we use X = params.drop_first_n_steps.
+                    v_rt = v_r[success_mask, t-2*params.drop_first_n_steps:t, :]
+                    ss_rt = ss_r[success_mask, t-2*params.drop_first_n_steps:t, :]
+                    p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
 
-                    v_comp = self.controller.predict.spread(v_rt)
-                    ss_comp = self.controller.predict.spread(ss_rt)
-                    p_comp = self.controller.predict.spread(p_rt)
+                    # TODO: ugly hack to avoid division by 0
+                    v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
+                    ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
+                    p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
 
-                    # Mean competence for the whole time step
-                    #comp = np.mean((v_comp, ss_comp, p_comp), axis=0)
-                    comp = np.mean((v_comp, p_comp), axis=0)
-                    #TEST: Inverse competence weighting
-                    #comp = 1.1 - np.mean((v_comp, ss_comp, p_comp), axis=0)
-                    comp_sum = comp.sum(axis=1)
-                    v_rw = (v_rt * comp).sum(axis=1) / comp_sum
-                    #ss_rw = (ss_rt * comp).sum(axis=1) / comp_sum
-                    p_rw = (p_rt * comp).sum(axis=1) / comp_sum
+                    v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
+                    ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
+                    p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
 
-                    #goals_out = (v_rw + p_rw + ss_rw) / 3
-                    goals_out = (v_rw + p_rw) / 2
-
+                    #goals = np.average([v_rt, ss_rt, p_rt],
+                    #                   axis=0,
+                    #                   weights=[params.modalities_weights[0],
+                    #                            params.modalities_weights[1],
+                    #                            params.modalities_weights[2]])
+                    #goals = (v_rt + ss_rt + p_rt) / 3 # TEST
+                    goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
                     goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
 
                     # update policies in succesful episodes
