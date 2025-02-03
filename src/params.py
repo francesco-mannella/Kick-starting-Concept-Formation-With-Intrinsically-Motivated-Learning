@@ -39,12 +39,12 @@ base_internal_sigma = 0.5*np.sqrt(2)
 internal_sigma = 30.0
 base_lr = 0.005
 max_lr = 1.0
-stm_lr = 0.3
+stm_lr = 0.25
 policy_base = np.pi*0.25
 policy_noise_sigma = 0.1
 policy_weights_sigma = 2
 motor_noise = 1.0
-representation_sigma = 5.0
+representation_sigma = 0.5*np.sqrt(2)
 
 # Modalities order: visual, touch, proprioception, action
 modalities_weights = [1., 2., 1., 1.]
