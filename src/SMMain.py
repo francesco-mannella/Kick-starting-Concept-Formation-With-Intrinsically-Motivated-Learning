@@ -251,6 +251,7 @@ class Main:
 
                 if t < params.stime and t >= 2*params.drop_first_n_steps:
 
+                    # Register subsequent changes of policy after the initial one
                     policy_changed[success_mask, t-2] = 1
                     
                     # Set initial policy after warmup steps + action selection steps 
