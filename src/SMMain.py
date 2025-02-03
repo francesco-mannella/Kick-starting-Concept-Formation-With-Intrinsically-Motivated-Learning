@@ -251,11 +251,11 @@ class Main:
 
                 if t < params.stime and t >= 2*params.drop_first_n_steps:
 
+                    policy_changed[success_mask, t-2] = 1
+                    
                     # Set initial policy after warmup steps + action selection steps 
                     if t == 2*params.drop_first_n_steps:
                         success_mask[:] = 1
-
-                    policy_changed[success_mask, t-2] = 1
                     
                     # For now, we use X = params.drop_first_n_steps.
                     v_rt = v_r[success_mask, t-2*params.drop_first_n_steps:t, :]
