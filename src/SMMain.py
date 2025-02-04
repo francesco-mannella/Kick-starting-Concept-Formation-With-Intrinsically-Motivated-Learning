@@ -443,7 +443,7 @@ class Main:
                     local_sigma
                 )
 
-            episode_success_rate = policy_changed.sum(axis=1) / batch_size
+            episode_success_rate = policy_changed.sum(axis=1) / params.batch_size
 
             # ---- print
             c = np.outer(contexts, np.ones(params.stime)).ravel()
