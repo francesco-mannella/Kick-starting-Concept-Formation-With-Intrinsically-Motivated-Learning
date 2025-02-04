@@ -44,7 +44,7 @@ policy_base = np.pi*0.25
 policy_noise_sigma = 0.1
 policy_weights_sigma = 2
 motor_noise = 1.0
-representation_sigma = 0.5*np.sqrt(2)
+representation_sigma = 5
 
 # Modalities order: visual, touch, proprioception, action
 modalities_weights = [1., 2., 1., 1.]
