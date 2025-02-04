@@ -73,8 +73,6 @@ class SMController:
         self.curr_sigma = self.sigma
         self.comp_sigma = params.base_internal_sigma
         self.curr_lr = None
-        self.comp_grid = None
-        self.policy_noise_sigma = params.policy_noise_sigma
 
         self.internal_side = int(np.sqrt(params.internal_size))
         x = np.arange(self.internal_side)
@@ -90,7 +88,7 @@ class SMController:
             ** 2
         )
         self.goal_grid /= self.goal_grid.sum(axis=1)
-        self.getCompetenceGrid()
+        self.comp_grid = self.getCompetenceGrid()
 
         # This effectively ensures that first 10% of simulation steps
         # of each episode is not taken into account when updating
@@ -156,10 +154,17 @@ class SMController:
         rcomp = self.predict.spread(representations)
         #comp = SMController.comp_fun(rcomp)
         comp = rcomp
+       
+        # Modulating policy exploration noise according to local competence
+        global_comp = self.comp_grid.mean()
+        global_incompetence = 1 - np.tanh(params.decay * global_comp)
+        local_incompetence = global_incompetence * (1 - np.tanh(params.local_decay * comp))
+        noise_sigma = (params.base_policy_noise + (params.max_policy_noise
+            - params.base_policy_noise) * local_incompetence)
 
         noise = self.rng.randn(*policies.shape)
         #policies = policies + params.policy_noise_sigma*(1-comp)*noise
-        policies = policies + self.policy_noise_sigma*noise
+        policies = policies + noise_sigma*noise
         #policies = self.add_noise_to_vector_maintaining_norm(policies,
         #                    noise_level=params.policy_noise_sigma*comp)
         
