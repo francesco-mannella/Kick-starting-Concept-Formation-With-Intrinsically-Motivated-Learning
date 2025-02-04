@@ -419,7 +419,6 @@ class Main:
                 local_incompetences,
             )
 
-            
             controller.updateParams(
                 controller.curr_sigma, controller.curr_lr
             )
@@ -443,6 +442,8 @@ class Main:
                     local_lr,
                     local_sigma
                 )
+
+            episode_success_rate = policy_changed.sum(axis=1) / batch_size
 
             # ---- print
             c = np.outer(contexts, np.ones(params.stime)).ravel()
@@ -485,8 +486,10 @@ class Main:
                            'stm_p_loss': curr_loss[2],
                            'stm_a_loss': curr_loss[3],
                            'mean_sigma': local_sigma.mean(),
+                           'mean_lr': local_lr.mean(),
                            'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
+                           'episode_success_rate': episode_success_rate,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
                            'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
                            }, step=epoch)
