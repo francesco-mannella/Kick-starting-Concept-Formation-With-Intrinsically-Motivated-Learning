@@ -74,6 +74,9 @@ class SMController:
         self.comp_sigma = params.base_internal_sigma
         self.curr_lr = None
 
+        self.base_policy_noise = params.base_policy_noise
+        self.max_policy_noise = params.max_policy_noise
+
         self.internal_side = int(np.sqrt(params.internal_size))
         x = np.arange(self.internal_side)
         self.radial_grid = np.stack(np.meshgrid(x, x)).reshape(2, -1).T
@@ -159,8 +162,8 @@ class SMController:
         global_comp = self.comp_grid.mean()
         global_incompetence = 1 - np.tanh(params.decay * global_comp)
         local_incompetence = global_incompetence * (1 - np.tanh(params.local_decay * comp))
-        noise_sigma = (params.base_policy_noise + (params.max_policy_noise
-            - params.base_policy_noise) * local_incompetence)
+        noise_sigma = (self.base_policy_noise + (self.max_policy_noise
+            - self.base_policy_noise) * local_incompetence)
 
         noise = self.rng.randn(*policies.shape)
         #policies = policies + params.policy_noise_sigma*(1-comp)*noise
