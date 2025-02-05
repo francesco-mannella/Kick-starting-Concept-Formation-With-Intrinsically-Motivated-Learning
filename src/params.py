@@ -30,7 +30,7 @@ a_eradial_prop = 0.1
 
 explore_sigma = 8.0
 
-decay = 5.0
+decay = 3.0
 local_decay = 1.0
 
 base_match_sigma = 1
@@ -38,11 +38,11 @@ match_sigma = 3
 base_internal_sigma = 0.5*np.sqrt(2)
 internal_sigma = 30.0
 base_lr = 0.005
-max_lr = 1.5
-stm_lr = 0.2
+max_lr = 2.0
+stm_lr = 0.1
 policy_base = np.pi*0.25
 base_policy_noise = 0.01
-max_policy_noise = 0.2
+max_policy_noise = 0.4
 policy_weights_sigma = 2
 motor_noise = 1.0
 representation_sigma = 5
