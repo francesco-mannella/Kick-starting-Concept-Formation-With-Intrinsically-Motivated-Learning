@@ -171,7 +171,7 @@ class SMController:
         #policies = self.add_noise_to_vector_maintaining_norm(policies,
         #                    noise_level=params.policy_noise_sigma*comp)
         
-        return policies, comp, rcomp
+        return policies, comp, rcomp, noise_sigma.mean()
 
     def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
         mods = np.stack([v_p, ss_p, p_p, a_p])
