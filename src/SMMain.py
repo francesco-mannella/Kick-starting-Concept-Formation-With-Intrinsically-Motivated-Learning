@@ -94,6 +94,8 @@ class Main:
         self.logs = np.zeros([params.epochs, 3])
         self.epoch = 0
 
+        self.mean_policy_noise = 0.0
+
     def __getstate__(self):
         return {
             "controller": self.controller.__getstate__(),
@@ -283,7 +285,9 @@ class Main:
                     # update policies in succesful episodes
                     (policies,
                      competences,
-                     rcompetences) = self.controller.getPoliciesFromRepresentationsWithNoise(goals)
+                     rcompetences,
+                     mean_policy_noise) = self.controller.getPoliciesFromRepresentationsWithNoise(goals)
+                    self.mean_policy_noise = mean_policy_noise
 
                     # fill successful batches with policies, goals, and competences
                     # (from the current timestep onward)
@@ -499,6 +503,7 @@ class Main:
                            'episode_success_rate': episode_success_rate,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
                            'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
+                           'mean_policy_noise': self.mean_policy_noise
                            }, step=epoch)
 
             self.match_value = match_value
