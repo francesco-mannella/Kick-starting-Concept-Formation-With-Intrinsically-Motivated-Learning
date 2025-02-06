@@ -349,10 +349,10 @@ class Main:
 
         while epoch < params.epochs:
 
-            # TEST: no noise after 0.75 episodes
-            if epoch > 75:
-                controller.base_policy_noise = 0.0
-                controller.max_policy_noise = 0.0
+            # TEST: no noise after 75 episodes
+            #if epoch > 75:
+            #    controller.base_policy_noise = 0.0
+            #    controller.max_policy_noise = 0.0
 
             total_time_elapsed = time.perf_counter() - self.start
             if total_time_elapsed >= time_limits:
