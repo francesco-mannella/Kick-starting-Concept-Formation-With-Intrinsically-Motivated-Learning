@@ -282,11 +282,11 @@ class Main:
                     goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
                     goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
 
-                    # update policies in succesful episodes
+                    # update policies in successful episodes
                     (policies,
                      competences,
                      rcompetences,
-                     mean_policy_noise) = self.controller.getPoliciesFromRepresentationsWithNoise(goals)
+                     mean_policy_noise) = self.controller.getPoliciesFromPointsWithNoise(goals_p)
                     self.mean_policy_noise = mean_policy_noise
 
                     # fill successful batches with policies, goals, and competences
@@ -350,7 +350,7 @@ class Main:
         while epoch < params.epochs:
 
             # TEST: no noise after 0.75 episodes
-            if epoch > 0.75*params.epochs:
+            if epoch > 75:
                 controller.base_policy_noise = 0.0
                 controller.max_policy_noise = 0.0
 

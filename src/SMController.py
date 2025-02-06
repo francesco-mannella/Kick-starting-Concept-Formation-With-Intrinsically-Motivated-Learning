@@ -133,7 +133,9 @@ class SMController:
         return self.stm_p.backward(representations)
 
     def getPoliciesFromPoints(self, points):
-        representations = self.stm_a.getRepresentation(points)
+        # Setting minimal sigma guarantees that exact prototypes are returned,
+        # not interpolated policies over larger portion of the grid. 
+        representations = self.stm_a.getRepresentation(points, sigma=params.base_internal_sigma)
         policies = self.getPoliciesFromRepresentations(representations)
         return policies, representations
 
@@ -151,6 +153,28 @@ class SMController:
         noisy_vector = np.linalg.norm(vector) * noisy_vector / np.linalg.norm(noisy_vector)
 
         return noisy_vector
+
+    def getPoliciesFromPointsWithNoise(self, points):
+        policies, representations = self.getPoliciesFromPoints(points)
+        rcomp = self.predict.spread(representations)
+        #comp = SMController.comp_fun(rcomp)
+        comp = rcomp
+       
+        # Modulating policy exploration noise according to local competence
+        global_comp = self.comp_grid.mean()
+        global_incompetence = 1 - np.tanh(params.decay * global_comp)
+        local_incompetence = global_incompetence * (1 - np.tanh(params.local_decay * comp))
+        noise_sigma = (self.base_policy_noise + (self.max_policy_noise
+            - self.base_policy_noise) * local_incompetence)
+
+        noise = self.rng.randn(*policies.shape)
+        #policies = policies + params.policy_noise_sigma*(1-comp)*noise
+        policies = policies + noise_sigma*noise
+        #policies = self.add_noise_to_vector_maintaining_norm(policies,
+        #                    noise_level=params.policy_noise_sigma*comp)
+        
+        return policies, comp, rcomp, noise_sigma.mean()
+
 
     def getPoliciesFromRepresentationsWithNoise(self, representations):
         policies = self.getPoliciesFromRepresentations(representations)
