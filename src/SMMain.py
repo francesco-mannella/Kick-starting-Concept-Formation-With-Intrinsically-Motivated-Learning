@@ -400,12 +400,12 @@ class Main:
             
             def modulate_param(base, limit, prop):
                 return base + (limit - base) * prop
-            # TODO: This match_sigma is not used in the supervised version
-            #controller.match_sigma = modulate_param(
-            #params.base_match_sigma,
-            #params.match_sigma,
-            #global_incompetence,
-            #)
+            
+            controller.match_sigma = modulate_param(
+                params.base_match_sigma,
+                params.match_sigma,
+                global_incompetence,
+            )
             
             # No global modulation of LR and sigma
             #controller.curr_lr = modulate_param(
