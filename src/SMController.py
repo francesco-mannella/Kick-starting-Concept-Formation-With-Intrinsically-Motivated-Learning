@@ -200,7 +200,7 @@ class SMController:
     def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
         mods = np.stack([v_p, ss_p, p_p, a_p])
         diffs = np.moveaxis(np.linalg.norm(mods - g_p, axis=-1), 0, -1)
-        match_per_mod = np.exp(-0.5 * (self.match_sigma**-2) * (diffs**2))
+        match_per_mod = np.exp(-(self.match_sigma**-2) * (diffs**2))
         match = np.average(match_per_mod, axis=-1, weights=params.modalities_weights)
         return match, match_per_mod
 
@@ -331,7 +331,11 @@ class SMController:
 
         # update predictor: predictor predicts cumulated matches for a particular goal
         goals = goals.reshape((params.batch_size, params.stime, -1))
-        self.predict.update(goals[policy_changed], cum_match[policy_changed, None])
+        match_distance = np.sqrt(np.log(match_value)/-params.match_sigma**-2)
+        match_distance = match_distance.reshape((params.batch_size, params.stime, -1))
+
+        #self.predict.update(goals[policy_changed], cum_match[policy_changed, None])
+        self.predict.update(goals[policy_changed], match_distance[policy_changed, None])
 
         return n_items, match_ind, curr_loss, mean_modulation
 

@@ -35,10 +35,14 @@ class SMPredict:
 
     def spread(self, inp):
         #assert len(inp.shape) == 2
-        comp = self.model(torch.tensor(inp, dtype=torch.float)).detach().cpu().numpy()
+        match = self.model(torch.tensor(inp, dtype=torch.float))
+        comp = torch.exp(-(params.match_sigma**-2) * match**2).detach().cpu().numpy()
+
+        # OLD: Competence based on successful timesteps
+        #comp = self.model(torch.tensor(inp, dtype=torch.float)).detach().cpu().numpy()
         # Rescale: competence is the fraction of max n_success
-        comp = comp / params.cum_match_stop_th
-        comp[comp > 1] = 1.0 # Maximum possible value is 1
+        #comp = comp / params.cum_match_stop_th
+        #comp[comp > 1] = 1.0 # Maximum possible value is 1
         return comp
 
 

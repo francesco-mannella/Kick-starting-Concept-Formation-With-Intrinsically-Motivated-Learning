@@ -244,7 +244,7 @@ class Main:
 
                     # Select time steps when the gripper touches object
                     mmask = batch_ss[:, i].any(axis=-1)
-                    match_value[:, i] = mmask
+                    #match_value[:, i] = mmask
 
                     matches[:, i] = mmask
                     cum_match[:, i] = cum_match[:, i-1] + mmask
