@@ -20,7 +20,7 @@ class SMPredict:
 
     def update(self, patterns, labels):
         self.optimizer.zero_grad()
-        output = self.model(torch.tensor(patterns).float())
+        output = torch.sigmoid(self.model(torch.tensor(patterns).float()))
         loss = self.loss(output, torch.tensor(labels).float())
         loss.backward()
         self.optimizer.step()
@@ -39,10 +39,10 @@ class SMPredict:
         #comp = torch.exp(-(params.match_sigma**-2) * match**2).detach().cpu().numpy()
 
         # OLD: Competence based on successful timesteps
-        comp = self.model(torch.tensor(inp, dtype=torch.float)).detach().cpu().numpy()
+        comp = torch.sigmoid(self.model(torch.tensor(inp, dtype=torch.float))).detach().cpu().numpy()
         # Rescale: competence is the fraction of max n_success
         #comp = comp / params.cum_match_stop_th
-        comp[comp > 1] = 1.0 # Maximum possible value is 1
+        #comp[comp > 1] = 1.0 # Maximum possible value is 1
         return comp
 
 
