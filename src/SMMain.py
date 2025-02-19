@@ -265,9 +265,12 @@ class Main:
                     p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
 
                     # TODO: ugly hack to avoid division by 0
-                    v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
-                    ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
-                    p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
+                    #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
+                    #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
+                    #p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
+                    v_rt_w = self.controller.predict.spread(v_rt)
+                    ss_rt_w = self.controller.predict.spread(ss_rt)
+                    p_rt_w = self.controller.predict.spread(p_rt)
 
                     v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
                     ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
