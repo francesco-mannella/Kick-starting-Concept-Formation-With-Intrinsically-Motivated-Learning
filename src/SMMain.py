@@ -282,7 +282,9 @@ class Main:
                     #                            params.modalities_weights[1],
                     #                            params.modalities_weights[2]])
                     #goals = (v_rt + ss_rt + p_rt) / 3 # TEST
-                    goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
+                    #goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
+                    goals_out = v_rt # TEST: Visual modality only
+
                     goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
 
                     # update policies in successful episodes
@@ -490,6 +492,10 @@ class Main:
             print(f"  {np.mean(curr_loss):#8.7f}")
             print(logs[epoch][1])
 
+            #print(matches.sum(axis=1))
+            #print(match_value_per_mod[6, matches[6, :], 0])
+            #exit(1)
+
             if use_wandb:
                 wandb.log({'min_comp': logs[epoch][0],
                            'mean_comp': logs[epoch][1],
@@ -506,7 +512,11 @@ class Main:
                            'episode_success_rate': episode_success_rate,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
                            'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
-                           'mean_policy_noise': self.mean_policy_noise
+                           'mean_policy_noise': self.mean_policy_noise,
+                           'match_value_v': match_value_per_mod[matches, 0].mean(),
+                           'match_value_ss': match_value_per_mod[matches, 1].mean(),
+                           'match_value_p': match_value_per_mod[matches, 2].mean(),
+                           'match_value_a': match_value_per_mod[matches, 3].mean()
                            }, step=epoch)
 
             self.match_value = match_value

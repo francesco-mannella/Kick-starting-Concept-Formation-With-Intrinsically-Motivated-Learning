@@ -33,8 +33,8 @@ explore_sigma = 8.0
 decay = 3.0
 local_decay = 1.0
 
-base_match_sigma = 6
-match_sigma = 6
+base_match_sigma = 5
+match_sigma = 5
 base_internal_sigma = 0.5*np.sqrt(2)
 internal_sigma = 30.0
 base_lr = 0.005
@@ -48,7 +48,7 @@ motor_noise = 1.0
 representation_sigma = 5
 
 # Modalities order: visual, touch, proprioception, action
-modalities_weights = [1., 2., 1., 1.]
+modalities_weights = [1., 1., 1., 1.]
 #modalities_weights = [0., 1., 0., 0.]  # select touch only
 match_incr_th = 0.02
 cum_match_stop_th = 10.0
