@@ -8,6 +8,7 @@ import torch
 matplotlib.use("Agg")
 
 import numpy as np
+import pandas as pd
 import time
 
 import params
@@ -352,12 +353,10 @@ class Main:
         envs = [None] * params.batch_size
         states = [None] * params.batch_size
 
+        # Store internal trajectories
+        internal_trajectory_data = []
+        
         while epoch < params.epochs:
-
-            # TEST: no noise after 75 episodes
-            #if epoch > 75:
-            #    controller.base_policy_noise = 0.0
-            #    controller.max_policy_noise = 0.0
 
             total_time_elapsed = time.perf_counter() - self.start
             if total_time_elapsed >= time_limits:
@@ -440,8 +439,6 @@ class Main:
                 controller.curr_sigma, controller.curr_lr
             )
 
-            #print(f"{controller.curr_sigma.mean()}, {controller.curr_lr}")
-
             print(f"sigma: {local_sigma.mean()}")
             
             # ---- end of an epoch: controller update
@@ -460,6 +457,24 @@ class Main:
                     local_sigma
                 )
 
+            # Store trajectory data
+            mvpm = match_value_per_mod.reshape(-1, 4)
+            internal_trajectory_data.append({
+                "epoch": [epoch]*params.batch_size*params.stime,
+                "episode": [i for i in range(params.batch_size) for _ in range(params.stime)],
+                "context": [c for c in contexts for _ in range(params.stime)],
+                "timestep": list(range(params.stime))*params.batch_size,
+                "v_p": v_p.reshape((-1, 2))[:, 0]*10 + v_p.reshape((-1, 2))[:, 1],
+                "ss_p": ss_p.reshape((-1, 2))[:, 0]*10 + ss_p.reshape((-1, 2))[:, 1],
+                "p_p": p_p.reshape((-1, 2))[:, 0]*10 + p_p.reshape((-1, 2))[:, 1],
+                "a_p": a_p.reshape((-1, 2))[:, 0]*10 + a_p.reshape((-1, 2))[:, 1],
+                "g_p": g_p.reshape((-1, 2))[:, 0]*10 + g_p.reshape((-1, 2))[:, 1],
+                "match_value_v": mvpm[:, 0].copy(),
+                "match_value_ss": mvpm[:, 1].copy(),
+                "match_value_p": mvpm[:, 2].copy(),
+                "match_value_a": mvpm[:, 3].copy(),
+                "sensory_change": matches.reshape(-1).copy(),
+            })
 
             # ---- print
             c = np.outer(contexts, np.ones(params.stime)).ravel()
@@ -491,10 +506,6 @@ class Main:
             )
             print(f"  {np.mean(curr_loss):#8.7f}")
             print(logs[epoch][1])
-
-            #print(matches.sum(axis=1))
-            #print(match_value_per_mod[6, matches[6, :], 0])
-            #exit(1)
 
             if use_wandb:
                 wandb.log({'min_comp': logs[epoch][0],
@@ -566,6 +577,10 @@ class Main:
             epoch += 1
             self.epoch = epoch
             sys.stdout.flush()
+
+        df_final = pd.concat([pd.DataFrame.from_dict(d) for d in internal_trajectory_data],
+                             axis=0, ignore_index=True)
+        df_final.to_csv("internal_trajectory_data.csv")
 
     def diagnose(self):
 
