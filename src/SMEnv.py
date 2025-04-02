@@ -5,7 +5,7 @@ import box2dsim
 
 
 class SMEnv:
-    def __init__(self, seed, action_steps=5):
+    def __init__(self, seed, action_steps=5, store_observations=False):
         self.b2d_env = gym.make("Box2DSimOneArmOneEye-v0")
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)
@@ -14,6 +14,9 @@ class SMEnv:
         self.b2d_env.set_taskspace(**params.task_space)
         self.render = None
         self.world = 0
+        self.stored_observations = None
+        if store_observations:
+            self.stored_observations = []
 
     def __getstate__(self):
         return {"rng": self.b2d_env.rng}
@@ -26,6 +29,8 @@ class SMEnv:
         observation, *_ = self.b2d_env.step(action)
         if self.render is not None:
             self.b2d_env.render(self.render)
+        if self.stored_observations is not None:
+            self.stored_observations.append(observation)
         return observation
 
     def reset(
@@ -46,6 +51,8 @@ class SMEnv:
         )
         if self.render is not None:
             self.b2d_env.render_init(self.render)
+        if self.stored_observations is not None:
+            self.stored_observations = [observation]
 
         return observation
 
@@ -59,3 +66,21 @@ class SMEnv:
     def close(self):
         if self.plot is not None:
             self.b2d_env.renderer.close(self.plot)
+
+
+class SMEnvParasite(SMEnv):
+
+    def __init__(self, seed, observations):
+        super(SMEnvParasite, self).__init__(seed)
+        self.stored_observations = observations
+        self.i = 0
+
+    def step(self, action):
+        self.i += 1
+        return self.stored_observations[self.i % len(self.stored_observations)]
+
+    def reset(self):
+        self.i = 0
+        return self.stored_observations[self.i]
+
+
