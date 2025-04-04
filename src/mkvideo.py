@@ -49,7 +49,7 @@ class vidManager:
         
         frame = Image.frombytes('RGB', 
          self.fig.canvas.get_width_height(), 
-         self.fig.canvas.tostring_rgb())
+         self.fig.canvas.buffer_rgba())
 
         self.frames.append(frame)
 
