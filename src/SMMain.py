@@ -13,7 +13,7 @@ import time
 
 import params
 from SMController import SMController
-from SMEnv import SMEnv
+from SMEnv import SMEnv, SMEnvParasite
 from SMAgent import SMAgent
 from box2dsim.envs.Simulator import TestPlotterVisualSalience
 
@@ -202,8 +202,8 @@ class Main:
                 sa = np.s_[:, t0:t, :]
                 
                 # Use minimal sigma for building within-episode representations
-                self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
-                
+                controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+              
                 # Use current sigma modulated by competence
                 #self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
                 Rs, Rp = controller.spread(
@@ -269,9 +269,9 @@ class Main:
                     #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
                     #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
                     #p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
-                    v_rt_w = self.controller.predict.spread(v_rt)
-                    ss_rt_w = self.controller.predict.spread(ss_rt)
-                    p_rt_w = self.controller.predict.spread(p_rt)
+                    v_rt_w = controller.predict.spread(v_rt)
+                    ss_rt_w = controller.predict.spread(ss_rt)
+                    p_rt_w = controller.predict.spread(p_rt)
 
                     v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
                     ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
@@ -286,13 +286,13 @@ class Main:
                     #goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
                     goals_out = v_rt # TEST: Visual modality only
 
-                    goals_p, goals = self.controller.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
+                    goals_p, goals = controller.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
 
                     # update policies in successful episodes
                     (policies,
                      competences,
                      rcompetences,
-                     mean_policy_noise) = self.controller.getPoliciesFromPointsWithNoise(goals_p)
+                     mean_policy_noise) = controller.getPoliciesFromPointsWithNoise(goals_p)
                     self.mean_policy_noise = mean_policy_noise
 
                     # fill successful batches with policies, goals, and competences
@@ -582,6 +582,444 @@ class Main:
                              axis=0, ignore_index=True)
         df_final.to_csv("internal_trajectory_data.csv")
 
+    def train_parasite(self, time_limits):
+
+        if self.epoch == 0:
+            print("Training", flush=True)
+        else:
+            if self.epoch >= params.epochs - 1:
+                raise TimeLimitsException
+
+        env = self.env
+        agent = self.agent
+        controller = self.controller
+        logs = self.logs
+        epoch = self.epoch
+        epoch_start = time.perf_counter()
+        contexts = (np.arange(params.batch_size) % 3) + 1
+
+        controller_par = SMController(
+            self.rng,
+            load=params.load_weights,
+            shuffle=params.shuffle_weights,
+        )
+        logs_par = np.zeros([params.epochs, 3])
+
+        batch_v = np.zeros([params.batch_size, params.stime, params.visual_size])
+        batch_ss = np.zeros([params.batch_size, params.stime, params.somatosensory_size])
+        batch_p = np.zeros([params.batch_size, params.stime, params.proprioception_size])
+        
+        batch_a = np.zeros([params.batch_size, params.stime, params.policy_size])
+        batch_c = np.zeros([params.batch_size, params.stime, 1])
+        batch_log = np.zeros([params.batch_size, params.stime, 1])
+        batch_g = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        ss_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        p_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        a_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_p = np.zeros([params.batch_size, params.stime, 2])
+        ss_p = np.zeros([params.batch_size, params.stime, 2])
+        p_p = np.zeros([params.batch_size, params.stime, 2])
+        a_p = np.zeros([params.batch_size, params.stime, 2])
+        g_p = np.zeros([params.batch_size, params.stime, 2])
+
+        batch_a_par = np.zeros([params.batch_size, params.stime, params.policy_size])
+        batch_c_par = np.zeros([params.batch_size, params.stime, 1])
+        batch_log_par = np.zeros([params.batch_size, params.stime, 1])
+        batch_g_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_r_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        ss_r_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        p_r_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        a_r_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_p_par = np.zeros([params.batch_size, params.stime, 2])
+        ss_p_par = np.zeros([params.batch_size, params.stime, 2])
+        p_p_par = np.zeros([params.batch_size, params.stime, 2])
+        a_p_par = np.zeros([params.batch_size, params.stime, 2])
+        g_p_par = np.zeros([params.batch_size, params.stime, 2])
+
+        match_value = np.zeros([params.batch_size, params.stime])
+        match_value_per_mod = np.zeros([params.batch_size, params.stime, 4])
+        match_increment = np.zeros([params.batch_size, params.stime])
+        match_increment_per_mod = np.zeros([params.batch_size, params.stime, 4])
+
+        match_value_par = np.zeros([params.batch_size, params.stime])
+        match_value_per_mod_par = np.zeros([params.batch_size, params.stime, 4])
+        match_increment_par = np.zeros([params.batch_size, params.stime])
+        match_increment_per_mod_par = np.zeros([params.batch_size, params.stime, 4])
+
+        cum_match = None
+        envs = [None] * params.batch_size
+        states = [None] * params.batch_size
+
+        cum_match_par = None
+        envs_par = [None] * params.batch_size
+        states_par = [None] * params.batch_size
+
+        # Store internal trajectories
+        internal_trajectory_data = []
+        internal_trajectory_data_par = []
+        
+        while epoch < params.epochs:
+
+            total_time_elapsed = time.perf_counter() - self.start
+            if total_time_elapsed >= time_limits:
+                if self.epoch > 0:
+                    raise TimeLimitsException
+
+            print(f"{epoch:6d}", end=" ", flush=True)
+
+            # ----- prepare episodes
+            for episode in range(params.batch_size): 
+                # Each environment in each epoch should have a different seed
+                env = SMEnv(self.seed + episode + epoch, params.action_steps, store_observations=True)
+                env.b2d_env.prepare_world(contexts[episode])
+                states[episode] = env.reset(contexts[episode])
+                envs[episode] = env
+                state = states[episode]
+                batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
+                batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
+                batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
+
+            matches, max_match, cum_match, _, policy_changed = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+                v_r, ss_r, p_r, a_r,
+                v_p, ss_p, p_p, a_p, g_p,
+                match_value_per_mod,
+                match_value,
+                match_increment_per_mod,
+                match_increment,
+                agent, controller, contexts,
+                envs, states)
+            mean_policy_noise = self.mean_policy_noise
+
+            # ----- prepare episodes
+            for episode in range(params.batch_size): 
+                # Each environment in each epoch should have a different seed
+                env = SMEnvParasite(self.seed + episode + epoch, envs[episode].stored_observations)
+                states_par[episode] = env.reset()
+                envs_par[episode] = env
+                state_par = states_par[episode]
+
+            matches_par, max_match_par, cum_match_par, _, policy_changed_par = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a_par, batch_g_par, batch_c_par, batch_log_par,
+                v_r_par, ss_r_par, p_r_par, a_r_par,
+                v_p_par, ss_p_par, p_p_par, a_p_par, g_p_par,
+                match_value_per_mod_par,
+                match_value_par,
+                match_increment_per_mod_par,
+                match_increment_par,
+                agent, controller_par, contexts,
+                envs_par, states_par)
+            mean_policy_noise_par = self.mean_policy_noise
+           
+            # Episode success rate: in how many episodes policy ever changes?
+            episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
+            episode_success_rate_par = (policy_changed_par.sum(axis=1) >= 2).mean()
+            
+            # Grid competence as global competence
+            controller.comp_grid = controller.getCompetenceGrid()
+            comp = controller.comp_grid.mean()
+            
+            controller_par.comp_grid = controller_par.getCompetenceGrid()
+            comp_par = controller_par.comp_grid.mean()
+            
+            # Local competences based on predictor
+            global_incompetence = 1 - np.tanh(params.decay * comp)
+            local_incompetences = global_incompetence * (1 - np.tanh(params.local_decay * batch_c))
+            
+            global_incompetence_par = 1 - np.tanh(params.decay * comp_par)
+            local_incompetences_par = global_incompetence_par * (1 - np.tanh(params.local_decay * batch_c_par))
+
+            bsize = params.batch_size * params.stime
+            local_incompetences = local_incompetences.reshape((bsize, -1))
+            local_incompetences_par = local_incompetences_par.reshape((bsize, -1))
+            
+            def modulate_param(base, limit, prop):
+                return base + (limit - base) * prop
+            
+            controller.match_sigma = modulate_param(
+                params.base_match_sigma,
+                params.match_sigma,
+                global_incompetence,
+            )
+
+            controller_par.match_sigma = modulate_param(
+                params.base_match_sigma,
+                params.match_sigma,
+                global_incompetence_par,
+            )
+
+            
+            # No global modulation of LR and sigma
+            #controller.curr_lr = modulate_param(
+            #    params.base_lr,
+            #    params.stm_lr,
+            #    global_incompetence,
+            #)
+            controller.curr_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                global_incompetence,
+            )
+            controller_par.curr_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                global_incompetence_par,
+            )
+
+
+            # Local sigma is a vector of length batch_size * timesteps
+            local_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                local_incompetences,
+            )
+            local_lr = modulate_param(
+                params.base_lr,
+                params.max_lr,
+                local_incompetences,
+            )
+            controller.updateParams(
+                controller.curr_sigma, controller.curr_lr
+            )
+
+            local_sigma_par = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                local_incompetences_par,
+            )
+            local_lr_par = modulate_param(
+                params.base_lr,
+                params.max_lr,
+                local_incompetences_par,
+            )
+            controller_par.updateParams(
+                controller_par.curr_sigma, controller_par.curr_lr
+            )
+
+            print(f"sigma: {local_sigma.mean()}")
+            
+            # ---- end of an epoch: controller update
+            (update_items, update_episodes, curr_loss, mean_modulation) =\
+                controller.update(
+                    batch_v.reshape((bsize, -1)),
+                    batch_ss.reshape((bsize, -1)),
+                    batch_p.reshape((bsize, -1)),
+                    batch_a.reshape((bsize, -1)),
+                    batch_g.reshape((bsize, -1)),
+                    match_value.reshape(-1),
+                    matches.reshape(-1),
+                    cum_match,
+                    policy_changed,
+                    local_lr,
+                    local_sigma
+                )
+
+            (update_items_par, update_episodes_par, curr_loss_par, mean_modulation_par) =\
+                controller_par.update(
+                    batch_v.reshape((bsize, -1)),
+                    batch_ss.reshape((bsize, -1)),
+                    batch_p.reshape((bsize, -1)),
+                    batch_a_par.reshape((bsize, -1)),
+                    batch_g_par.reshape((bsize, -1)),
+                    match_value_par.reshape(-1),
+                    matches_par.reshape(-1),
+                    cum_match_par,
+                    policy_changed_par,
+                    local_lr_par,
+                    local_sigma_par
+                )
+
+            # Store trajectory data
+            mvpm = match_value_per_mod.reshape(-1, 4)
+            internal_trajectory_data.append({
+                "epoch": [epoch]*params.batch_size*params.stime,
+                "episode": [i for i in range(params.batch_size) for _ in range(params.stime)],
+                "context": [c for c in contexts for _ in range(params.stime)],
+                "timestep": list(range(params.stime))*params.batch_size,
+                "v_p": v_p.reshape((-1, 2))[:, 0]*10 + v_p.reshape((-1, 2))[:, 1],
+                "ss_p": ss_p.reshape((-1, 2))[:, 0]*10 + ss_p.reshape((-1, 2))[:, 1],
+                "p_p": p_p.reshape((-1, 2))[:, 0]*10 + p_p.reshape((-1, 2))[:, 1],
+                "a_p": a_p.reshape((-1, 2))[:, 0]*10 + a_p.reshape((-1, 2))[:, 1],
+                "g_p": g_p.reshape((-1, 2))[:, 0]*10 + g_p.reshape((-1, 2))[:, 1],
+                "match_value_v": mvpm[:, 0].copy(),
+                "match_value_ss": mvpm[:, 1].copy(),
+                "match_value_p": mvpm[:, 2].copy(),
+                "match_value_a": mvpm[:, 3].copy(),
+                "sensory_change": matches.reshape(-1).copy(),
+            })
+
+            # Store trajectory data
+            mvpm_par = match_value_per_mod_par.reshape(-1, 4)
+            internal_trajectory_data_par.append({
+                "epoch": [epoch]*params.batch_size*params.stime,
+                "episode": [i for i in range(params.batch_size) for _ in range(params.stime)],
+                "context": [c for c in contexts for _ in range(params.stime)],
+                "timestep": list(range(params.stime))*params.batch_size,
+                "v_p": v_p_par.reshape((-1, 2))[:, 0]*10 + v_p.reshape((-1, 2))[:, 1],
+                "ss_p": ss_p_par.reshape((-1, 2))[:, 0]*10 + ss_p.reshape((-1, 2))[:, 1],
+                "p_p": p_p_par.reshape((-1, 2))[:, 0]*10 + p_p.reshape((-1, 2))[:, 1],
+                "a_p": a_p_par.reshape((-1, 2))[:, 0]*10 + a_p.reshape((-1, 2))[:, 1],
+                "g_p": g_p_par.reshape((-1, 2))[:, 0]*10 + g_p.reshape((-1, 2))[:, 1],
+                "match_value_v": mvpm_par[:, 0].copy(),
+                "match_value_ss": mvpm_par[:, 1].copy(),
+                "match_value_p": mvpm_par[:, 2].copy(),
+                "match_value_a": mvpm_par[:, 3].copy(),
+                "sensory_change": matches_par.reshape(-1).copy(),
+            })
+
+
+            # ---- print
+            c = np.outer(contexts, np.ones(params.stime)).ravel()
+            items = [np.sum(update_episodes[c == k]) for k in range(1, 4)]
+            items = "".join(
+                list(
+                    map(
+                        lambda x: "{: 6d} {}".format(*x),
+                        zip(items, ["f", "m", "c"]),
+                    )
+                )
+            )
+
+            print(f"{update_items:#7d} {items}", end=" ", flush=True)
+            print(f"{batch_ss.sum():#10.2f}", end=" ", flush=True)
+            logs[epoch] = [
+                batch_log[policy_changed].min(),
+                batch_log[policy_changed].mean(),
+                batch_log[policy_changed].max(),
+            ]
+            logs_par[epoch] = [
+                batch_log_par[policy_changed_par].min(),
+                batch_log_par[policy_changed_par].mean(),
+                batch_log_par[policy_changed_par].max(),
+            ]
+
+            print(
+                ("%8.7f " * 3)
+                % (
+                    batch_log[policy_changed].min(),
+                    batch_log[policy_changed].mean(),
+                    batch_log[policy_changed].max(),
+                ),
+                end="",
+            )
+            print(f"  {np.mean(curr_loss):#8.7f}")
+            print(logs[epoch][1])
+
+            if use_wandb:
+                wandb.log({
+                           'min_comp': logs[epoch][0],
+                           'mean_comp': logs[epoch][1],
+                           'max_comp': logs[epoch][2],
+                           'stm_loss': np.mean(curr_loss),
+                           'stm_v_loss': curr_loss[0],
+                           'stm_ss_loss': curr_loss[1],
+                           'stm_p_loss': curr_loss[2],
+                           'stm_a_loss': curr_loss[3],
+                           'mean_sigma': local_sigma.mean(),
+                           'mean_lr': local_lr.mean(),
+                           'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
+                           'grid_comp_mean': comp,
+                           'episode_success_rate': episode_success_rate,
+                           'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
+                           'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
+                           'mean_policy_noise': mean_policy_noise,
+                           'match_value_v': match_value_per_mod[matches, 0].mean(),
+                           'match_value_ss': match_value_per_mod[matches, 1].mean(),
+                           'match_value_p': match_value_per_mod[matches, 2].mean(),
+                           'match_value_a': match_value_per_mod[matches, 3].mean(),
+                           'min_comp_par': logs_par[epoch][0],
+                           'mean_comp_par': logs_par[epoch][1],
+                           'max_comp_par': logs_par[epoch][2],
+                           'stm_loss_par': np.mean(curr_loss_par),
+                           'stm_v_loss_par': curr_loss_par[0],
+                           'stm_ss_loss_par': curr_loss_par[1],
+                           'stm_p_loss_par': curr_loss_par[2],
+                           'stm_a_loss_par': curr_loss_par[3],
+                           'mean_sigma_par': local_sigma_par.mean(),
+                           'mean_lr_par': local_lr_ar.mean(),
+                           'mean_cum_match_par': cum_match_par[policy_changed_par].mean() / params.cum_match_stop_th,
+                           'grid_comp_mean_par': comp_par,
+                           'episode_success_rate_par': episode_success_rate_par,
+                           'policy_weights_norm_par': np.linalg.norm(controller_par.stm_a.get_weights(), axis=-1).mean(),
+                           'mean_policy_noise_par': mean_policy_noise_par,
+                           'match_value_v_par': match_value_per_mod_par[matches_par, 0].mean(),
+                           'match_value_ss_par': match_value_per_mod_par[matches_par, 1].mean(),
+                           'match_value_p_par': match_value_per_mod_par[matches_par, 2].mean(),
+                           'match_value_a_par': match_value_per_mod_par[matches_par, 3].mean()
+                           }, step=epoch)
+
+            self.match_value = match_value
+            self.match_increment = match_increment
+            self.match_value_per_mod = match_value_per_mod
+            self.match_increment_per_mod = match_increment_per_mod
+            self.v_r = v_r
+            self.ss_r = ss_r
+            self.p_r = p_r
+            self.a_r = a_r
+            self.batch_v = batch_v
+            self.batch_ss = batch_ss
+            self.batch_p = batch_p
+            self.batch_a = batch_a
+
+            # diagnose
+            if (epoch > 0 and epoch % params.epochs_to_test == 0) or epoch == (
+                params.epochs - 1
+            ):
+
+                epoch_dir = f"{storage_dir}/{epoch:06d}"
+                os.makedirs(epoch_dir, exist_ok=True)
+                np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
+                self.diagnose()
+
+                time_elapsed = time.perf_counter() - epoch_start
+                print("---- TIME: %10.4f" % time_elapsed, flush=True)
+                epoch_start = time.perf_counter()
+
+            match_value[::] = 0
+            match_increment[::] = 0
+            match_value_per_mod[::] = 0
+            match_increment_per_mod[::] = 0
+            batch_v[::] = 0
+            batch_ss[::] = 0
+            batch_p[::] = 0
+            batch_a[::] = 0
+            v_r[::] = 0
+            ss_r[::] = 0
+            p_r[::] = 0
+            a_r[::] = 0
+            v_p[::] = 0
+            ss_p[::] = 0
+            p_p[::] = 0
+            a_p[::] = 0
+
+            match_value_par[::] = 0
+            match_increment_par[::] = 0
+            match_value_per_mod_par[::] = 0
+            match_increment_per_mod_par[::] = 0
+            v_r_par[::] = 0
+            ss_r_par[::] = 0
+            p_r_par[::] = 0
+            a_r_par[::] = 0
+            v_p_par[::] = 0
+            ss_p_par[::] = 0
+            p_p_par[::] = 0
+            a_p_par[::] = 0
+
+
+            epoch += 1
+            self.epoch = epoch
+            sys.stdout.flush()
+
+        df_final = pd.concat([pd.DataFrame.from_dict(d) for d in internal_trajectory_data],
+                             axis=0, ignore_index=True)
+        df_final.to_csv("internal_trajectory_data.csv")
+
+        df_final_par = pd.concat([pd.DataFrame.from_dict(d) for d in internal_trajectory_data_par],
+                             axis=0, ignore_index=True)
+        df_final_par.to_csv("internal_trajectory_data_parasite.csv")
+
+
     def diagnose(self):
 
         np.save("main.dump", [self], allow_pickle=True)
@@ -854,6 +1292,11 @@ if __name__ == "__main__":
         default=None
     )
     parser.add_argument(
+        "--parasite",
+        help="Train a parasite model alongside normal one",
+        action="store_true",
+    )
+    parser.add_argument(
         "-o",
         "--opt",
         nargs=1,
@@ -867,6 +1310,7 @@ if __name__ == "__main__":
     seed = int(args.seed)
     plots = bool(args.plots)
     use_wandb = bool(args.wandb)
+    train_parasite = bool(args.parasite)
     simulation_name = args.name
 
     if gpu:
@@ -904,7 +1348,10 @@ if __name__ == "__main__":
     print(main.epoch)
 
     try:
-        main.train(timing)
+        if train_parasite:
+            main.train_parasite(timing)
+        else:
+            main.train(timing)
         print("Done!!", flush=True)
     except TimeLimitsException:
         print(f"Epoch {main.epoch}. end", flush=True)
