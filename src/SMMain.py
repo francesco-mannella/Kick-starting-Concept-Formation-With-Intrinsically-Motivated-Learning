@@ -937,7 +937,7 @@ class Main:
                            'stm_p_loss_par': curr_loss_par[2],
                            'stm_a_loss_par': curr_loss_par[3],
                            'mean_sigma_par': local_sigma_par.mean(),
-                           'mean_lr_par': local_lr_ar.mean(),
+                           'mean_lr_par': local_lr_par.mean(),
                            'mean_cum_match_par': cum_match_par[policy_changed_par].mean() / params.cum_match_stop_th,
                            'grid_comp_mean_par': comp_par,
                            'episode_success_rate_par': episode_success_rate_par,
