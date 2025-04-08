@@ -212,7 +212,7 @@ def merge_frames(frame1, frame2, alphacolor=(255,255,255,255)):
     return Image.alpha_composite(frame1, frame2)
 
 def concat_frames_h(im1, im2):
-    dst = Image.new('RGB', (im1.width + im2.width, im1.height))
+    dst = Image.new('RGBA', (im1.width + im2.width, im1.height))
     dst.paste(im1, (0, 0))
     dst.paste(im2, (im1.width, 0))
     return dst
@@ -276,6 +276,7 @@ class TestPlotter:
 
         self.ax.set_xlim(self.xlim)
         self.ax.set_ylim(self.ylim)
+        self.ax.axis("off")
         if not self.offline:
             self.fig.show()
         else:
@@ -322,30 +323,34 @@ class TestPlotter:
             self.ax = self.fig.add_subplot(111, aspect="equal")
             self.ax.set_xlim(self.xlim)
             self.ax.set_ylim(self.ylim)
-            self.ax.set_axis_off()
+            self.ax.axis("off")
 
-            self.ax.text(self.xlim[0], self.ylim[1], i)
+            self.ax.text(self.xlim[0], 0.9*self.ylim[1], i, fontsize="large")
 
             # Current match value
             self.ax.bar(
-                    self.xlim[0] + 0.7*(self.xlim[1] - self.xlim[0]),
+                    self.xlim[0]+0.1,
                     match_value[i]*self.ylim[1],
+                    label="match"
                     )
             # Current max match
-            self.ax.bar(
-                    self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
-                    max_match[i]*self.ylim[1],
-                    )
+            #self.ax.bar(
+            #        self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
+            #        max_match[i]*self.ylim[1],
+            #        )
             # Current cummulative success
             self.ax.bar(
                     self.xlim[0] + 0.9*(self.xlim[1] - self.xlim[0]),
                     cum_match[i]*self.ylim[1],
+                    label="cumulated touch"
                     )
+            self.ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize="small")
+            self.fig.subplots_adjust(left=0.15, bottom=0.25, right=0.85, top=0.9) 
             self.fig.canvas.draw()
 
-            frame2 = Image.frombytes('RGB', 
+            frame2 = Image.frombytes('RGBA', 
                     self.fig.canvas.get_width_height(), 
-                    self.fig.canvas.tostring_rgb())
+                    self.fig.canvas.buffer_rgba())
             
             merged_frame = merge_frames(self.vm.frames[i], frame2)
 
@@ -355,22 +360,34 @@ class TestPlotter:
             self.ax = self.fig.add_subplot(111, aspect="equal")
             self.ax.set_xlim(self.int_xlim)
             self.ax.set_ylim(self.int_ylim)
+            self.ax.axis("off")
 
             if visual_map_path is not None:
                 im = plt.imread(visual_map_path)
                 im = np.rot90(im)
                 self.ax.imshow(im, alpha=0.3, aspect="auto", interpolation='nearest', extent=(0, 10, 0, 10))
 
-            self.ax.scatter(f_vp[i, 0], f_vp[i, 1], marker="$v$")
-            self.ax.scatter(f_ssp[i, 0], f_ssp[i, 1], marker="$ss$")
-            self.ax.scatter(f_pp[i, 0], f_pp[i, 1], marker="$p$")
-            self.ax.scatter(f_gp[i, 0], f_gp[i, 1], marker="$g$")
-            self.ax.scatter(f_ap[i, 0], f_ap[i, 1], marker="$a$")
+            self.ax.scatter(f_vp[i, 0], f_vp[i, 1], marker="s", label="visual", color="b")
+            self.ax.scatter(f_ssp[i, 0], f_ssp[i, 1], marker="s", label="somatosensory", color="g")
+            self.ax.scatter(f_pp[i, 0], f_pp[i, 1], marker="s", label="proprioception", color="r")
+            self.ax.scatter(f_gp[i, 0], f_gp[i, 1], marker="s", label="goal", color="c")
+            self.ax.scatter(f_ap[i, 0], f_ap[i, 1], marker="s", label="action", color="m")
+
+            max_trace = 25
+            for t in range(max_trace):
+                self.ax.plot(f_vp[(i-t):i+1, 0], f_vp[(i-t):i+1, 1], color="b", alpha=1.0-(t/max_trace))
+                self.ax.plot(f_ssp[(i-t):i+1, 0], f_ssp[(i-t):i+1, 1], color="g", alpha=1.0-(t/max_trace))
+                self.ax.plot(f_pp[(i-t):i+1, 0], f_pp[(i-t):i+1, 1], color="r", alpha=1.0-(t/max_trace))
+                self.ax.plot(f_gp[(i-t):i+1, 0], f_gp[(i-t):i+1, 1], color="c", alpha=1.0-(t/max_trace))
+                self.ax.plot(f_ap[(i-t):i+1, 0], f_ap[(i-t):i+1, 1], color="m", alpha=1.0-(t/max_trace))
+
+            self.ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize="small")
+            self.fig.subplots_adjust(left=0.15, bottom=0.25, right=0.85, top=0.9) 
             self.fig.canvas.draw()
 
-            frame2 = Image.frombytes('RGB', 
+            frame2 = Image.frombytes('RGBA', 
                     self.fig.canvas.get_width_height(), 
-                    self.fig.canvas.tostring_rgb())
+                    self.fig.canvas.buffer_rgba())
 
             merged_frame = concat_frames_h(merged_frame, frame2)
             self.vm.frames[i] = merged_frame

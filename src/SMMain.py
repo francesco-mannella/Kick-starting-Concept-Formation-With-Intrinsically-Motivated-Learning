@@ -1148,7 +1148,6 @@ class Main:
         v_p_set = set()
         i = 0
 
-        env = self.env
         while len(v_p_set) < n_episodes:
             context = (i % 3) + 1
             env.b2d_env.prepare_world(context)

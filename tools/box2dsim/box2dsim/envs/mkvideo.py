@@ -47,7 +47,7 @@ class vidManager:
 
         self.fig.canvas.draw()
         
-        frame = Image.frombytes('RGB', 
+        frame = Image.frombytes('RGBA', 
          self.fig.canvas.get_width_height(), 
          self.fig.canvas.buffer_rgba())
 
