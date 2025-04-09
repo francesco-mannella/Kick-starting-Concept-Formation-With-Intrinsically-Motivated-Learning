@@ -325,14 +325,8 @@ class TestPlotter:
             self.ax.set_ylim(self.ylim)
             self.ax.axis("off")
 
-            self.ax.text(self.xlim[0], 0.9*self.ylim[1], i, fontsize="large")
+            self.ax.text(self.xlim[0], 0.9*self.ylim[1], f"t={i}", fontsize="large")
 
-            # Current match value
-            self.ax.bar(
-                    self.xlim[0]+0.1,
-                    match_value[i]*self.ylim[1],
-                    label="match"
-                    )
             # Current max match
             #self.ax.bar(
             #        self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
@@ -340,11 +334,14 @@ class TestPlotter:
             #        )
             # Current cummulative success
             self.ax.bar(
-                    self.xlim[0] + 0.9*(self.xlim[1] - self.xlim[0]),
-                    cum_match[i]*self.ylim[1],
-                    label="cumulated touch"
+                    self.xlim[0],
+                    self.ylim[0] + cum_match[i] * (self.ylim[1] - self.ylim[0]),
+                    bottom=self.ylim[0],
+                    width=2
                     )
-            self.ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize="small")
+            self.ax.text(self.xlim[0] - 0.3, self.ylim[0] + (self.ylim[1] - self.ylim[0])*0.5, "cumulated touch", rotation=90,
+                         fontsize="small", horizontalalignment="right",
+                         verticalalignment="center")
             self.fig.subplots_adjust(left=0.15, bottom=0.25, right=0.85, top=0.9) 
             self.fig.canvas.draw()
 
@@ -366,6 +363,17 @@ class TestPlotter:
                 im = plt.imread(visual_map_path)
                 im = np.rot90(im)
                 self.ax.imshow(im, alpha=0.3, aspect="auto", interpolation='nearest', extent=(0, 10, 0, 10))
+
+            # Current match value
+            self.ax.bar(
+                    self.int_xlim[0] + 0.1,
+                    self.int_ylim[0] + match_value[i] * (self.int_ylim[1] - self.int_ylim[0]),
+                    bottom=self.int_ylim[0],
+                    width=0.2
+                    )
+            self.ax.text(self.int_xlim[0] - 0.3, self.int_ylim[0] + (self.int_ylim[1] - self.int_ylim[0])*0.5, "match", rotation=90,
+                         fontsize="small", horizontalalignment="right",
+                         verticalalignment="center")
 
             self.ax.scatter(f_vp[i, 0], f_vp[i, 1], marker="s", label="visual", color="b")
             self.ax.scatter(f_ssp[i, 0], f_ssp[i, 1], marker="s", label="somatosensory", color="g")
