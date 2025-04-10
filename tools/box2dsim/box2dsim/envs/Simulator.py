@@ -247,7 +247,7 @@ class TestPlotter:
             self.fig = plt.figure(figsize=figsize)
         
         if self.offline:
-            self.vm = vidManager(self.fig, name="frame", duration=60)
+            self.vm = vidManager(self.fig, name="frame", duration=200)
 
         self.ax = None
 
@@ -316,7 +316,11 @@ class TestPlotter:
         n_steps = max(len(self.vm.frames), len(match_value))
 
         ax_r = None
+        last_goal_reset = 0
         for i in range(n_steps):
+            if i > 0 and cum_match[i] == 0 and cum_match[i-1] > 0:
+                last_goal_reset = i
+
             # Plot match values
             if self.ax is not None:
                 plt.delaxes(self.ax)
@@ -375,19 +379,21 @@ class TestPlotter:
                          fontsize="small", horizontalalignment="right",
                          verticalalignment="center")
 
+            self.ax.scatter(f_gp[i, 0], f_gp[i, 1], marker="s", label="goal", color="r", s=80)
             self.ax.scatter(f_vp[i, 0], f_vp[i, 1], marker="s", label="visual", color="b")
             self.ax.scatter(f_ssp[i, 0], f_ssp[i, 1], marker="s", label="somatosensory", color="g")
-            self.ax.scatter(f_pp[i, 0], f_pp[i, 1], marker="s", label="proprioception", color="r")
-            self.ax.scatter(f_gp[i, 0], f_gp[i, 1], marker="s", label="goal", color="c")
+            self.ax.scatter(f_pp[i, 0], f_pp[i, 1], marker="s", label="proprioception", color="c")
             self.ax.scatter(f_ap[i, 0], f_ap[i, 1], marker="s", label="action", color="m")
 
             max_trace = 25
-            for t in range(max_trace):
-                self.ax.plot(f_vp[(i-t):i+1, 0], f_vp[(i-t):i+1, 1], color="b", alpha=1.0-(t/max_trace))
-                self.ax.plot(f_ssp[(i-t):i+1, 0], f_ssp[(i-t):i+1, 1], color="g", alpha=1.0-(t/max_trace))
-                self.ax.plot(f_pp[(i-t):i+1, 0], f_pp[(i-t):i+1, 1], color="r", alpha=1.0-(t/max_trace))
-                self.ax.plot(f_gp[(i-t):i+1, 0], f_gp[(i-t):i+1, 1], color="c", alpha=1.0-(t/max_trace))
-                self.ax.plot(f_ap[(i-t):i+1, 0], f_ap[(i-t):i+1, 1], color="m", alpha=1.0-(t/max_trace))
+            if i-max_trace < last_goal_reset:
+                max_trace = i - last_goal_reset
+            for t in range(1, max_trace):
+                self.ax.plot(f_vp[(i-t):(i-t+2), 0], f_vp[(i-t):(i-t+2), 1], color="b", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_ssp[(i-t):(i-t+2), 0], f_ssp[(i-t):(i-t+2), 1], color="g", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_pp[(i-t):(i-t+2), 0], f_pp[(i-t):(i-t+2), 1], color="r", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_gp[(i-t):(i-t+2), 0], f_gp[(i-t):(i-t+2), 1], color="c", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_ap[(i-t):(i-t+2), 0], f_ap[(i-t):(i-t+2), 1], color="m", alpha=(1.0-(t/max_trace))*0.5)
 
             self.ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize="small")
             self.fig.subplots_adjust(left=0.15, bottom=0.25, right=0.85, top=0.9) 

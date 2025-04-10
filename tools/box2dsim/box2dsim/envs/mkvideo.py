@@ -10,7 +10,7 @@ class vidManager:
     Collects images and make a gif video
     """
 
-    def __init__(self, fig, name="vid", dirname="frames", duration=300):
+    def __init__(self, fig, name="vid", dirname="frames", duration=500):
         """
         Args:
             fig: matplotlib.pyplot.figure, figure object where to draw images
