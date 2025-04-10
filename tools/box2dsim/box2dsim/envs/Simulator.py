@@ -391,8 +391,8 @@ class TestPlotter:
             for t in range(1, max_trace):
                 self.ax.plot(f_vp[(i-t):(i-t+2), 0], f_vp[(i-t):(i-t+2), 1], color="b", alpha=(1.0-(t/max_trace))*0.5)
                 self.ax.plot(f_ssp[(i-t):(i-t+2), 0], f_ssp[(i-t):(i-t+2), 1], color="g", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_pp[(i-t):(i-t+2), 0], f_pp[(i-t):(i-t+2), 1], color="r", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_gp[(i-t):(i-t+2), 0], f_gp[(i-t):(i-t+2), 1], color="c", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_pp[(i-t):(i-t+2), 0], f_pp[(i-t):(i-t+2), 1], color="c", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_gp[(i-t):(i-t+2), 0], f_gp[(i-t):(i-t+2), 1], color="r", alpha=(1.0-(t/max_trace))*0.5)
                 self.ax.plot(f_ap[(i-t):(i-t+2), 0], f_ap[(i-t):(i-t+2), 1], color="m", alpha=(1.0-(t/max_trace))*0.5)
 
             self.ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize="small")
