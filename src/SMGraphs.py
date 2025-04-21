@@ -1,16 +1,17 @@
 import glob
 import os
-import params
-from shutil import copyfile,rmtree
 import pathlib
-import numpy as np
+from shutil import copyfile, rmtree
+
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.collections import LineCollection
+from matplotlib.colors import LinearSegmentedColormap
+
+import params
 from mkvideo import vidManager
 
-
-from matplotlib.colors import LinearSegmentedColormap
 
 c = [0, 0.5, 1]
 colors = np.vstack([x.ravel() for x in np.meshgrid(c, c, c)]).T
@@ -29,8 +30,7 @@ visual_side = int(np.sqrt(params.visual_size / 3))
 
 storage_dir = "storage"
 site_dir = "www"
-os.makedirs(storage_dir, exist_ok=True)
-os.makedirs(site_dir, exist_ok=True)
+
 
 def remove_figs(epoch=0):
     if epoch > 0:
@@ -39,10 +39,14 @@ def remove_figs(epoch=0):
         os.makedirs(epoch_dir, exist_ok=True)
 
         try:
-            copyfile(f"{site_dir}/visual_map.png", f"{epoch_dir}/visual_map.png")
+            copyfile(
+                f"{site_dir}/visual_map.png", f"{epoch_dir}/visual_map.png"
+            )
             copyfile(f"{site_dir}/comp_map.png", f"{epoch_dir}/comp_map.png")
             copyfile(f"{site_dir}/log.png", f"{epoch_dir}/log.png")
-            copyfile(f"{site_dir}/trajectories.png", f"{epoch_dir}/trajectories.png")
+            copyfile(
+                f"{site_dir}/trajectories.png", f"{epoch_dir}/trajectories.png"
+            )
         except OSError:
             pass
     else:
@@ -56,9 +60,14 @@ def remove_figs(epoch=0):
             else:
                 os.remove(f)
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/tv.gif")
-        copyfile(f"{pathlib.Path(__file__).parent.resolve()}/arms.html", f"{site_dir}/arms.html")
+        copyfile(
+            f"{pathlib.Path(__file__).parent.resolve()}/arms.html",
+            f"{site_dir}/arms.html",
+        )
 
-        figs = glob.glob(f"{site_dir}/episode*.gif") + glob.glob(f"{site_dir}/*.png")
+        figs = glob.glob(f"{site_dir}/episode*.gif") + glob.glob(
+            f"{site_dir}/*.png"
+        )
         for f in figs:
             if os.path.isdir(f):
                 rmtree(f)
@@ -74,7 +83,7 @@ def remove_figs(epoch=0):
 
 
 def trajectories_map(wfile=None):
-    if wfile is None: 
+    if wfile is None:
         wfile = f"{site_dir}/trajectories.npy"
     data = np.load(wfile)
     cells, stime, _ = data.shape
@@ -95,7 +104,9 @@ def trajectories_map(wfile=None):
                 colors=colors,
             )
         )
-        ax.scatter(*data[cell].T, c=palette(np.linspace(0, 1, stime)), alpha=0.1)
+        ax.scatter(
+            *data[cell].T, c=palette(np.linspace(0, 1, stime)), alpha=0.1
+        )
 
         ax.set_xlim([-0.1, np.pi / 2 + 0.1])
         ax.set_ylim([-0.1, np.pi / 2 + 0.1])
@@ -107,12 +118,17 @@ def trajectories_map(wfile=None):
 
 
 def visual_map(wfile=None):
-    if wfile is None: wfile = f"{site_dir}/visual_weights.npy"
+    if wfile is None:
+        wfile = f"{site_dir}/visual_weights.npy"
     # visual map
     data_v = np.load(wfile)
-    data_v = data_v.reshape(visual_side, visual_side, 3, internal_side, internal_side)
+    data_v = data_v.reshape(
+        visual_side, visual_side, 3, internal_side, internal_side
+    )
     data_v = data_v.transpose(3, 0, 4, 1, 2)
-    data_v = data_v.reshape(visual_side * internal_side, visual_side * internal_side, 3)
+    data_v = data_v.reshape(
+        visual_side * internal_side, visual_side * internal_side, 3
+    )
 
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, aspect="equal")
@@ -124,7 +140,8 @@ def visual_map(wfile=None):
 
 
 def somatosensory_map(wfile=None):
-    if wfile is None: wfile = f"{site_dir}/ssensory_weights.npy"
+    if wfile is None:
+        wfile = f"{site_dir}/ssensory_weights.npy"
     # visual map
     data_v = np.load(wfile)
     data_v = data_v.reshape(4, internal_side, internal_side)
@@ -141,7 +158,8 @@ def somatosensory_map(wfile=None):
 
 
 def comp_map(wfile=None):
-    if wfile is None: wfile = f"{site_dir}/comp_grid.npy"
+    if wfile is None:
+        wfile = f"{site_dir}/comp_grid.npy"
     # comp map
     data_c = np.load(wfile)
     data_c = data_c.reshape(internal_side, internal_side)
@@ -200,12 +218,15 @@ def blank_video():
 
 
 def log(wfile=None):
-    if wfile is None: wfile = f"{site_dir}/log.npy"
+    if wfile is None:
+        wfile = f"{site_dir}/log.npy"
     log = np.load(wfile)
     fig = plt.figure(figsize=(4, 2))
     ax = fig.add_subplot(111)
     stime = len(log)
-    ax.fill_between(np.arange(stime), log[:, 0], log[:, 2], fc="red", alpha=0.3)
+    ax.fill_between(
+        np.arange(stime), log[:, 0], log[:, 2], fc="red", alpha=0.3
+    )
     ax.plot(np.arange(stime), log[:, 1], c=[0.5, 0, 0])
     ax.set_xlim([-stime * 0.1, stime * 1.1])
     m = log.max()
