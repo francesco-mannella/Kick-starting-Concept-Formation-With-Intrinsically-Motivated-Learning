@@ -1150,6 +1150,7 @@ class Main:
         controller.choose_policy = types.MethodType(choose_unique_policy, controller)
 
         while len(v_p_set) < n_episodes:
+            print(f"Simulating demo episode {i}")
             context = (i % 3) + 1
             env.b2d_env.prepare_world(context)
             state = env.reset(context,
@@ -1208,6 +1209,7 @@ class Main:
                             f_vp, f_ssp, f_pp, f_ap, f_gp)
             env.close()
             shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
+            i += 1
 
         controller.choose_policy = controller.choose_policy_
         print("demo episodes: Done!!!")      
