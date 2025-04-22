@@ -254,6 +254,38 @@ class SMController:
 
         return matches, matches_increments.ravel(), matches_per_mod, matches_increments_per_mod
 
+    def choose_policy(self, v_rt, ss_rt, p_rt):
+        # TODO: ugly hack to avoid division by 0
+        #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
+        #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
+        #p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
+        v_rt_w = self.predict.spread(v_rt)
+        ss_rt_w = self.predict.spread(ss_rt)
+        p_rt_w = self.predict.spread(p_rt)
+
+        v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
+        ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
+        p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
+
+        #goals = np.average([v_rt, ss_rt, p_rt],
+        #                   axis=0,
+        #                   weights=[params.modalities_weights[0],
+        #                            params.modalities_weights[1],
+        #                            params.modalities_weights[2]])
+        #goals = (v_rt + ss_rt + p_rt) / 3 # TEST
+        #goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
+        goals_out = v_rt # TEST: Visual modality only
+
+        goals_p, goals = self.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
+
+        # update policies in successful episodes
+        (policies,
+         competences,
+         rcompetences,
+         mean_policy_noise) = self.getPoliciesFromPointsWithNoise(goals_p)
+
+        return goals, policies, competences, rcompetences, mean_policy_noise
+
     def getCompetenceGrid(self):
         comp = self.predict.spread(self.goal_grid)
         return comp

@@ -265,34 +265,12 @@ class Main:
                     ss_rt = ss_r[success_mask, t-2*params.drop_first_n_steps:t, :]
                     p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
 
-                    # TODO: ugly hack to avoid division by 0
-                    #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
-                    #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
-                    #p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
-                    v_rt_w = controller.predict.spread(v_rt)
-                    ss_rt_w = controller.predict.spread(ss_rt)
-                    p_rt_w = controller.predict.spread(p_rt)
-
-                    v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
-                    ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
-                    p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
-
-                    #goals = np.average([v_rt, ss_rt, p_rt],
-                    #                   axis=0,
-                    #                   weights=[params.modalities_weights[0],
-                    #                            params.modalities_weights[1],
-                    #                            params.modalities_weights[2]])
-                    #goals = (v_rt + ss_rt + p_rt) / 3 # TEST
-                    #goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
-                    goals_out = v_rt # TEST: Visual modality only
-
-                    goals_p, goals = controller.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
-
-                    # update policies in successful episodes
-                    (policies,
+                    (goals,
+                     policies,
                      competences,
                      rcompetences,
-                     mean_policy_noise) = controller.getPoliciesFromPointsWithNoise(goals_p)
+                     mean_policy_noise) = controller.choose_policy(v_rt, ss_rt, p_rt)
+                    
                     self.mean_policy_noise = mean_policy_noise
 
                     # fill successful batches with policies, goals, and competences
