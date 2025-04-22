@@ -318,7 +318,7 @@ class TestPlotter:
         ax_r = None
         last_goal_reset = 0
         for i in range(n_steps):
-            if i > 0 and cum_match[i] == 0 and cum_match[i-1] > 0:
+            if i > 0 and cum_match[i] - cum_match[i-1] < 0:
                 last_goal_reset = i
 
             # Plot match values
@@ -386,14 +386,15 @@ class TestPlotter:
             self.ax.scatter(f_ap[i, 0], f_ap[i, 1], marker="s", label="action", color="m")
 
             max_trace = 25
-            if i-max_trace < last_goal_reset:
-                max_trace = i - last_goal_reset
-            for t in range(1, max_trace):
-                self.ax.plot(f_vp[(i-t):(i-t+2), 0], f_vp[(i-t):(i-t+2), 1], color="b", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_ssp[(i-t):(i-t+2), 0], f_ssp[(i-t):(i-t+2), 1], color="g", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_pp[(i-t):(i-t+2), 0], f_pp[(i-t):(i-t+2), 1], color="c", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_gp[(i-t):(i-t+2), 0], f_gp[(i-t):(i-t+2), 1], color="r", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_ap[(i-t):(i-t+2), 0], f_ap[(i-t):(i-t+2), 1], color="m", alpha=(1.0-(t/max_trace))*0.5)
+            t0 = i - max_trace
+            if t0 < last_goal_reset:
+                t0 = last_goal_reset
+            for t in range(t0, i):
+                self.ax.plot(f_vp[t:t+2, 0], f_vp[t:t+2, 1], color="b", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_ssp[t:t+2, 0], f_ssp[t:t+2, 1], color="g", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_pp[t:t+2, 0], f_pp[t:t+2, 1], color="c", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_gp[t:t+2, 0], f_gp[t:t+2, 1], color="r", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_ap[t:t+2, 0], f_ap[t:t+2, 1], color="m", alpha=(1.0-(t/max_trace))*0.5)
 
             self.ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize="small")
             self.fig.subplots_adjust(left=0.15, bottom=0.25, right=0.85, top=0.9) 
