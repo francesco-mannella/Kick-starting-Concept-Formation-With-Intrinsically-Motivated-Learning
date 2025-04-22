@@ -1,6 +1,7 @@
 import glob
 import os, sys
 import shutil
+import types
 from pathlib import Path
 import matplotlib
 import torch
@@ -37,6 +38,9 @@ simulations_dir = "simulations"
 os.makedirs(storage_dir, exist_ok=True)
 os.makedirs(site_dir, exist_ok=True)
 os.makedirs(simulations_dir, exist_ok=True)
+
+class RepeatedGoalPrototypeException(Exception):
+    pass
 
 class TimeLimitsException(Exception):
     pass
@@ -265,11 +269,12 @@ class Main:
                     ss_rt = ss_r[success_mask, t-2*params.drop_first_n_steps:t, :]
                     p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
 
-                    (goals,
+                    (goals_p,
+                     goals,
                      policies,
                      competences,
                      rcompetences,
-                     mean_policy_noise) = controller.choose_policy(v_rt, ss_rt, p_rt)
+                     mean_policy_noise) = controller.choose_policy(v_rt, ss_rt, p_rt, t)
                     
                     self.mean_policy_noise = mean_policy_noise
 
@@ -1092,12 +1097,10 @@ class Main:
         if n_episodes > params.internal_size:
             n_episodes = params.internal_size
 
-        side = int(np.sqrt(params.visual_size // 3))
-        self.controller.curr_sigma = 0.1
-
         env = self.env
         agent = self.agent
         controller = self.controller
+        controller.curr_sigma = 0.1
 
         batch_v = np.zeros([1, params.stime, params.visual_size])
         batch_ss = np.zeros([1, params.stime, params.somatosensory_size])
@@ -1126,6 +1129,21 @@ class Main:
         v_p_set = set()
         i = 0
 
+        def choose_unique_policy(self, v_rt, ss_rt, p_rt, t):
+            ret_val  = self.choose_policy_(v_rt, ss_rt, p_rt, t)
+                
+            # Check uniqueness only for the initial policy
+            if t == 2*params.drop_first_n_steps:
+                goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
+                if goal_p in v_p_set:
+                    raise RepeatedGoalPrototypeException(f"Repeated prototype {goal_p}")
+                v_p_set.add(goal_p)
+            
+            return ret_val
+
+        controller.choose_policy_ = controller.choose_policy
+        controller.choose_policy = types.MethodType(choose_unique_policy, controller)
+
         while len(v_p_set) < n_episodes:
             context = (i % 3) + 1
             env.b2d_env.prepare_world(context)
@@ -1142,7 +1160,7 @@ class Main:
             batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
               
             # Use minimal sigma for building internal representations
-            self.controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+            controller.updateParams(params.base_internal_sigma, controller.curr_lr)
             # get Representations for initial states
             Rs, Rp = controller.spread(
                 [
@@ -1155,27 +1173,20 @@ class Main:
             v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
             v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
 
-            visual_goal = tuple(v_p[0, 0, :])
-            if visual_goal in v_p_set:
-                print(f"Skipping repeated prototype: {int(visual_goal[0])}{int(visual_goal[1])}")
+            try:
+                matches, max_match, cum_match, episodes_len, visual_goal_changed = self.run_episodes(
+                    batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+                    v_r, ss_r, p_r, a_r,
+                    v_p, ss_p, p_p, a_p, g_p,
+                    match_value_per_mod,
+                    match_value,
+                    match_increment_per_mod,
+                    match_increment,
+                    agent, controller, contexts,
+                    envs, states)
+            except RepeatedGoalPrototypeException as e:
+                print(e)
                 continue
-
-            i += 1
-            print(f"{site_dir}/{plot_prefix}_00{int(visual_goal[0])}{int(visual_goal[1])}")
-            print(visual_goal)
-            print(context)
-            v_p_set.add(visual_goal)
-
-            matches, max_match, cum_match, episodes_len, visual_goal_changed = self.run_episodes(
-                batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
-                v_r, ss_r, p_r, a_r,
-                v_p, ss_p, p_p, a_p, g_p,
-                match_value_per_mod,
-                match_value,
-                match_increment_per_mod,
-                match_increment,
-                agent, controller, contexts,
-                envs, states)
 
             l = episodes_len[0]
             full_match_value = match_value[0, :l]
@@ -1196,6 +1207,7 @@ class Main:
             else:
                 shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
 
+        controller.choose_policy = controller.choose_policy_
         print("demo episodes: Done!!!")      
 
     def get_context_from_visual(self):

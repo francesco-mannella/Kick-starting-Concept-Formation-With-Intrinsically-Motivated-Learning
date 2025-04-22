@@ -254,7 +254,7 @@ class SMController:
 
         return matches, matches_increments.ravel(), matches_per_mod, matches_increments_per_mod
 
-    def choose_policy(self, v_rt, ss_rt, p_rt):
+    def choose_policy(self, v_rt, ss_rt, p_rt, t):
         # TODO: ugly hack to avoid division by 0
         #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
         #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
@@ -284,7 +284,7 @@ class SMController:
          rcompetences,
          mean_policy_noise) = self.getPoliciesFromPointsWithNoise(goals_p)
 
-        return goals, policies, competences, rcompetences, mean_policy_noise
+        return goals_p, goals, policies, competences, rcompetences, mean_policy_noise
 
     def getCompetenceGrid(self):
         comp = self.predict.spread(self.goal_grid)

@@ -390,11 +390,11 @@ class TestPlotter:
             if t0 < last_goal_reset:
                 t0 = last_goal_reset
             for t in range(t0, i):
-                self.ax.plot(f_vp[t:t+2, 0], f_vp[t:t+2, 1], color="b", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_ssp[t:t+2, 0], f_ssp[t:t+2, 1], color="g", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_pp[t:t+2, 0], f_pp[t:t+2, 1], color="c", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_gp[t:t+2, 0], f_gp[t:t+2, 1], color="r", alpha=(1.0-(t/max_trace))*0.5)
-                self.ax.plot(f_ap[t:t+2, 0], f_ap[t:t+2, 1], color="m", alpha=(1.0-(t/max_trace))*0.5)
+                self.ax.plot(f_vp[t:t+2, 0], f_vp[t:t+2, 1], color="b", alpha=(1.0-((i-t)/max_trace))*0.5)
+                self.ax.plot(f_ssp[t:t+2, 0], f_ssp[t:t+2, 1], color="g", alpha=(1.0-((i-t)/max_trace))*0.5)
+                self.ax.plot(f_pp[t:t+2, 0], f_pp[t:t+2, 1], color="c", alpha=(1.0-((i-t)/max_trace))*0.5)
+                self.ax.plot(f_gp[t:t+2, 0], f_gp[t:t+2, 1], color="r", alpha=(1.0-((i-t)/max_trace))*0.5)
+                self.ax.plot(f_ap[t:t+2, 0], f_ap[t:t+2, 1], color="m", alpha=(1.0-((i-t)/max_trace))*0.5)
 
             self.ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize="small")
             self.fig.subplots_adjust(left=0.15, bottom=0.25, right=0.85, top=0.9) 
