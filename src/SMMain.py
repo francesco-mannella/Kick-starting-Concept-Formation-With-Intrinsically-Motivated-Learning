@@ -89,7 +89,7 @@ class Main:
         }
 
         # self.env = SMEnv(seed, params.action_steps, random_obj_params)
-        self.env = SMEnv(seed, params.action_steps)
+        self.env = SMEnv(seed, params.action_steps, random_obj_params)
         self.agent = SMAgent(self.env)
         self.controller = SMController(
             self.rng,
@@ -981,8 +981,8 @@ if __name__ == "__main__":
             "np"
         ]  # This is an ugly way to remove numpy import from params
         run = wandb.init(
-            project="kickstarting_concept",
-            entity="hill_uw",
+            project="grasp-simulation",
+            entity="francesco-mannella",
             name=args.name,
             config=config,
         )

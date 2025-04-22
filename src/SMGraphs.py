@@ -36,6 +36,7 @@ def remove_figs(epoch=0):
     if epoch > 0:
         epoch_dir = f"{storage_dir}/{epoch:06d}"
         os.makedirs(storage_dir, exist_ok=True)
+        os.makedirs(site_dir, exist_ok=True)
         os.makedirs(epoch_dir, exist_ok=True)
 
         try:
@@ -50,6 +51,8 @@ def remove_figs(epoch=0):
         except OSError:
             pass
     else:
+        os.makedirs(storage_dir, exist_ok=True)
+        os.makedirs(site_dir, exist_ok=True)
         print("Starting simulation ...")
         if not os.path.exists(f"{site_dir}/blank.gif"):
             blank_video()
