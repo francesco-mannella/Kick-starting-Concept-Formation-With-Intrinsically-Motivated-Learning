@@ -959,6 +959,10 @@ class Main:
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
                 epoch_start = time.perf_counter()
 
+                if os.path.isfile("PLOT_SIMS"):
+                    print("----> Test Sims ...", end=" ", flush=True)
+                    self.demo_episodes(n_episodes=params.tests, plot_prefix="parasite_episode", controller=controller_par)
+
             match_value[::] = 0
             match_increment[::] = 0
             match_value_per_mod[::] = 0
@@ -1092,14 +1096,15 @@ class Main:
     def demo_episode(self, idx):
         pass
 
-    def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo"):
+    def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo", controller=None):
        
         if n_episodes > params.internal_size:
             n_episodes = params.internal_size
 
         env = self.env
         agent = self.agent
-        controller = self.controller
+        if controller == None:
+            controller = self.controller
         controller.curr_sigma = 0.1
 
         batch_v = np.zeros([1, params.stime, params.visual_size])
@@ -1202,10 +1207,7 @@ class Main:
             env.render_info(full_match_value, full_max_match, full_cum_match,
                             f_vp, f_ssp, f_pp, f_ap, f_gp)
             env.close()
-            if plot_prefix == "demo":
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(visual_goal[0])}{int(visual_goal[1])}.gif")
-            else:
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
+            shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
 
         controller.choose_policy = controller.choose_policy_
         print("demo episodes: Done!!!")      
@@ -1282,7 +1284,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--parasite",
-        help="Train a parasite model alongside normal one",
+        help="Train a parasite model alongside the normal one",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--demo",
+        help="Only plot demo episodes",
         action="store_true",
     )
     parser.add_argument(
@@ -1300,6 +1307,7 @@ if __name__ == "__main__":
     plots = bool(args.plots)
     use_wandb = bool(args.wandb)
     train_parasite = bool(args.parasite)
+    demo = bool(args.demo)
     simulation_name = args.name
 
     if gpu:
@@ -1337,7 +1345,9 @@ if __name__ == "__main__":
     print(main.epoch)
 
     try:
-        if train_parasite:
+        if demo:
+            main.demo_episodes()
+        elif train_parasite:
             main.train_parasite(timing)
         else:
             main.train(timing)
