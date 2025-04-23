@@ -1,5 +1,5 @@
-gymnasium
 box2d_py
-numpy
+gymnasium
 matplotlib
+numpy
 scikit-image

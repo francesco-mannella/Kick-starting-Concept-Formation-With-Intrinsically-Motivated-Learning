@@ -1,5 +1,10 @@
+import os
+import re
 import subprocess
 from itertools import product
+
+import slugify
+
 
 def get_combinations(data):
     """
@@ -15,27 +20,54 @@ def get_combinations(data):
     for combination in combinations:
         yield dict(zip(data.keys(), combination))
 
+
+def optimize_option_key(options_str):
+    """
+    Generates an optimized option key from a string of options.
+
+    Args:
+        - options_str: A string containing options
+
+    Returns:
+        A slugified string representing the option key.
+    """
+    cleaned_str = options_str.replace("-o", "").replace(" ", "")
+    cleaned_str = re.sub(r"epochs=\d+", "", cleaned_str)
+    return slugify.slugify(cleaned_str)
+
+
 params = {
-    "cum_match_stop_th": [10, 20, 30, 40],
+    "obj_fix_prob": [0.2, 0.4, 0.6, 0.8],
+    "obj_var_prob": [1.2, 1.6],
+    "epochs": [1000],
 }
 
-base_name = "gs_cum_match_stop_th"
+base_name = "obj_params"
 
 processes = []
 MAX_PROCESSES = 4
 
-for i, p in enumerate(get_combinations(params)):
+orig_path = os.path.dirname(os.path.realpath(__file__))
 
+for i, p in enumerate(get_combinations(params)):
+    #
     # If MAX_PROCESSES reached, wait until all of them finish.
     if len(processes) == MAX_PROCESSES:
         for process in processes:
             process.wait()
         processes = []
-
-    base_cmd_str = f"nohup python SMMain.py -n {base_name}_{i} -s 1000 -t 55000 -x -g -w"
+    #
     options_str = ""
     for k, v in p.items():
         options_str += f" -o {k}={v}"
+    option_key = optimize_option_key(options_str)
+
+    base_cmd_str = (
+        f"nohup python {orig_path}/SMMain.py "
+        f"-n {base_name}_{option_key} -s 1000 -t 55000 -x -g -w"
+    )
     cmd_str = base_cmd_str + options_str
+    print(cmd_str)
+
     print(f"Running: {cmd_str}")
     processes.append(subprocess.Popen(cmd_str, shell=True))

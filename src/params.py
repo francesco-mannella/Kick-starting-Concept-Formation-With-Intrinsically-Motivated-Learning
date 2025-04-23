@@ -1,4 +1,6 @@
 import numpy as np
+
+
 task_space = {"xlim": [-10, 50], "ylim": [-10, 50]}
 stime = 200
 drop_first_n_steps = 25
@@ -62,7 +64,11 @@ predict_ampl_prop = 0.95
 epochs = 400 
 batch_size = 24 
 tests = 12
-epochs_to_test = 100
+epochs_to_test = 10
 load_weights = False
 shuffle_weights = False
 action_steps = 5
+
+obj_fix_prob = 0.2
+obj_var_prob = 1.6
+obj_rot_var = 3.1415922653

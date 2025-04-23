@@ -1,12 +1,11 @@
-import numpy as np
-import params
 import gymnasium as gym
-import box2dsim
+
+import params
 
 
 class SMEnv:
-    def __init__(self, seed, action_steps=5, store_observations=False):
-        self.b2d_env = gym.make("Box2DSimOneArmOneEye-v0")
+    def __init__(self, seed, action_steps=5, store_observations=False, rand_obj_params=None):
+        self.b2d_env = gym.make("Box2DSimOneArmOneEye-v0", rand_obj_params=rand_obj_params)
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)
         self.b2d_env.action_steps = action_steps
@@ -46,9 +45,7 @@ class SMEnv:
         if world is not None:
             self.world = world
 
-        observation = self.b2d_env.reset(
-            self.world, world_dict=world_dict
-        )
+        observation = self.b2d_env.reset(self.world, world_dict=world_dict)
         if self.render is not None:
             self.b2d_env.render_init(self.render)
         if self.stored_observations is not None:
@@ -56,11 +53,20 @@ class SMEnv:
 
         return observation
 
-    def render_info(self, match_value, max_match, cum_match, f_vp, f_ssp, f_pp, f_ap, f_gp):
+    def render_info(
+        self, match_value, max_match, cum_match, f_vp, f_ssp, f_pp, f_ap, f_gp
+    ):
         assert self.render is not None
         self.b2d_env.renderer.add_info_to_frames(
-            match_value, max_match, cum_match, f_vp, f_ssp, f_pp, f_ap, f_gp,
-            visual_map_path="./www/visual_map.png"
+            match_value,
+            max_match,
+            cum_match,
+            f_vp,
+            f_ssp,
+            f_pp,
+            f_ap,
+            f_gp,
+            visual_map_path="./www/visual_map.png",
         )
 
     def close(self):

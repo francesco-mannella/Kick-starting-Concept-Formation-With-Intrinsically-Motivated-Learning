@@ -1,22 +1,26 @@
-import numpy as np
-import gym
 import box2dsim
-import matplotlib.pyplot as plt
+import gymnasium as gym
+import numpy as np
+
+
+_ = box2dsim
 
 rng = np.random.RandomState(62)
-env = gym.make('Box2DSimOneArmOneEye-v0')
+env = gym.make("Box2DSimOneArmOneEye-v0").unwrapped
 env.set_world(3)
 stime = 1000
-action = [0, 0, 0, np.pi*0.3, np.pi*0.3]
+init_action = np.pi * np.array([0.0, 0.0, 0.0, 0.5, 0])
+action = np.pi * np.array([0.0, 0.0, 0.0, 0, 0])
 
 env.reset()
 for t in range(stime):
-    if t < stime/2:
-        
-        action += 0.1*rng.randn(5)
-        action[:3] = np.maximum(-np.pi*0.5, np.minimum(0, action[:3]))
-        action[3:] = np.maximum(0, np.minimum(np.pi*0.5, action[3:]))
+    if t > stime * 0.6:
+
+        action += 0.0 * rng.randn(5)
+        action[:3] = np.pi * np.array([0.2, -0.4, -0.4])
+        action[3:] = np.pi * np.array([0.2, 0.2])
+
         print(action)
-        
+
         env.step(action)
         env.render()

@@ -1,42 +1,34 @@
-import glob
-import os, sys
+import argparse
+import os
 import shutil
 import types
 from pathlib import Path
-import matplotlib
-import torch
 
-matplotlib.use("Agg")
-
-import numpy as np
 import pandas as pd
+import sys
 import time
+from pathlib import Path
+
+import matplotlib
+import numpy as np
+import torch
+import wandb
 
 import params
+from SMAgent import SMAgent
 from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
 from SMAgent import SMAgent
 from box2dsim.envs.Simulator import TestPlotterVisualSalience
+from SMGraphs import comp_map, log, remove_figs, trajectories_map, visual_map
 
-from SMGraphs import (
-    remove_figs,
-    blank_video,
-    visual_map,
-    comp_map,
-    trajectories_map,
-    representations_movements,
-    log,
-)
 
-import matplotlib.pyplot as plt
-
+matplotlib.use("Agg")
 np.set_printoptions(formatter={"float": "{:6.4f}".format})
 
 storage_dir = "storage"
 site_dir = "www"
 simulations_dir = "simulations"
-os.makedirs(storage_dir, exist_ok=True)
-os.makedirs(site_dir, exist_ok=True)
 os.makedirs(simulations_dir, exist_ok=True)
 
 class RepeatedGoalPrototypeException(Exception):
@@ -44,6 +36,7 @@ class RepeatedGoalPrototypeException(Exception):
 
 class TimeLimitsException(Exception):
     pass
+
 
 class SensoryMotorCircle:
     def __init__(self, action_steps=5):
@@ -61,12 +54,15 @@ class SensoryMotorCircle:
     def noisy_step(self, env, agent, state):
         if self.t % self.action_steps == 0:
             self.action = agent.step(state)
-        state = env.step(self.action + np.random.normal(scale=params.motor_noise,
-                                                        size=self.action.shape))
+        state = env.step(
+            self.action
+            + np.random.normal(
+                scale=params.motor_noise, size=self.action.shape
+            )
+        )
 
         self.t += 1
         return state
-
 
 def softmax(x, t=0.01):
     e = np.exp(x / t)
@@ -89,7 +85,14 @@ class Main:
         if self.plots is True:
             remove_figs()
 
-        self.env = SMEnv(seed, params.action_steps)
+        random_obj_params = {
+            "fix_prop": params.obj_fix_prob,
+            "var_prop": params.obj_var_prob,
+            "rot_var": params.obj_rot_var,
+        }
+
+        # self.env = SMEnv(seed, params.action_steps, random_obj_params)
+        self.env = SMEnv(seed, params.action_steps, random_obj_params)
         self.agent = SMAgent(self.env)
         self.controller = SMController(
             self.rng,
@@ -125,7 +128,7 @@ class Main:
         nlogs = len(self.logs)
         if params.epochs > nlogs:
             tmp = np.zeros([params.epochs, 3])
-            tmp[:nlogs, : ] = self.logs.copy()
+            tmp[:nlogs, :] = self.logs.copy()
             self.logs = tmp
             tmp = np.zeros([params.epochs, 2])
 
@@ -147,34 +150,56 @@ class Main:
     def is_object_out_of_taskspace(self, state):
         obj_xy = state["OBJ_POSITION"][0, 0]
         xlim, ylim = params.task_space["xlim"], params.task_space["ylim"]
-        return (obj_xy[0] < xlim[0] or obj_xy[0] > xlim[1]
-                or obj_xy[1] < ylim[0] or obj_xy[1] > ylim[1])
+        return (
+            obj_xy[0] < xlim[0]
+            or obj_xy[0] > xlim[1]
+            or obj_xy[1] < ylim[0]
+            or obj_xy[1] > ylim[1]
+        )
 
-    def run_episodes(self, batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
-                     v_r, ss_r, p_r, a_r,
-                     v_p, ss_p, p_p, a_p, g_p,
-                     match_value_per_mod,
-                     match_value,
-                     match_increment_per_mod,
-                     match_increment,
-                     agent, controller,
-                     contexts, envs, states,
-                     ):
+    def run_episodes(
+        self,
+        batch_v,
+        batch_ss,
+        batch_p,
+        batch_a,
+        batch_g,
+        batch_c,
+        batch_log,
+        v_r,
+        ss_r,
+        p_r,
+        a_r,
+        v_p,
+        ss_p,
+        p_p,
+        a_p,
+        g_p,
+        match_value_per_mod,
+        match_value,
+        match_increment_per_mod,
+        match_increment,
+        agent,
+        controller,
+        contexts,
+        envs,
+        states,
+    ):
         batch_size = len(contexts)
 
         # fill all batches with zero policy with is used for first N steps
         batch_a[::] = 0
-                
+
         cum_match = np.zeros((batch_size, params.stime), dtype=int)
         episode_len = np.zeros(batch_size, dtype=int)
         max_match = np.zeros((batch_size, params.stime))
         matches = np.zeros((batch_size, params.stime), dtype=bool)
         policy_changed = np.zeros((batch_size, params.stime), dtype=bool)
         bsize = batch_size * params.action_steps
-        
+
         # Main loop through time steps and episodes
         smcycles = [SensoryMotorCircle(params.action_steps)] * batch_size
-        for t in range(1, params.stime+1):
+        for t in range(1, params.stime + 1):
             if t < params.stime:
                 for episode in range(batch_size):
                     # Do not update the episode if it has ended
@@ -185,18 +210,26 @@ class Main:
                     # set correct policy
                     agent.updatePolicy(batch_a[episode, t, :])
 
-                    # Noisy policy for the exploration period
-                    if t >= params.drop_first_n_steps and t < params.drop_first_n_steps + params.action_steps:
-                        state = smcycles[episode].noisy_step(envs[episode], agent, states[episode])
+                    if (
+                        t >= params.drop_first_n_steps
+                        and t < params.drop_first_n_steps + params.action_steps
+                    ):
+                        state = smcycles[episode].noisy_step(
+                            envs[episode], agent, states[episode]
+                        )
                     else:
-                        state = smcycles[episode].step(envs[episode], agent, states[episode])
-                    
+                        state = smcycles[episode].step(
+                            envs[episode], agent, states[episode]
+                        )
+
                     # End the episode if object moves too far away
                     if self.is_object_out_of_taskspace(state):
                         states[episode] = None
                     else:
                         states[episode] = state
-                        batch_v[episode, t, :] = state["VISUAL_SENSORS"].ravel()
+                        batch_v[episode, t, :] = state[
+                            "VISUAL_SENSORS"
+                        ].ravel()
                         batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
                         batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
 
@@ -217,7 +250,8 @@ class Main:
                         batch_p[sa].reshape((bsize, -1)),
                         batch_a[sa].reshape((bsize, -1)),
                         batch_g[sa].reshape((bsize, -1)),
-                    ])
+                    ]
+                )
                 v_r[sa].flat = Rs[0].flat
                 ss_r[sa].flat = Rs[1].flat
                 p_r[sa].flat = Rs[2].flat
@@ -234,15 +268,26 @@ class Main:
                     continue
 
                 # calculate match value
-                match_value[:, t0:t], match_value_per_mod[sa] =\
-                    controller.computeMatchSimple(v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa])
-                match_increment_per_mod[sa] = np.maximum(0, match_value_per_mod[sa] - match_value_per_mod[:, (t0-1):(t-1), :])
-                match_increment[:, t0:t] = np.mean(match_increment_per_mod[sa], axis=-1)
+                match_value[:, t0:t], match_value_per_mod[sa] = (
+                    controller.computeMatchSimple(
+                        v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa]
+                    )
+                )
+                match_increment_per_mod[sa] = np.maximum(
+                    0,
+                    match_value_per_mod[sa]
+                    - match_value_per_mod[:, (t0 - 1) : (t - 1), :],
+                )
+                match_increment[:, t0:t] = np.mean(
+                    match_increment_per_mod[sa], axis=-1
+                )
                 # update cumulative match
                 for i in range(t0, t):
-                    mmask = (match_value[:, i] - max_match[:, i-1]) > params.match_incr_th
+                    mmask = (
+                        match_value[:, i] - max_match[:, i - 1]
+                    ) > params.match_incr_th
                     # Update max match
-                    max_match[:, i] = max_match[:, i-1]
+                    max_match[:, i] = max_match[:, i - 1]
                     max_match[mmask, i] = match_value[mmask, i]
                     # Update match and cumulative match 
                     mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
@@ -252,8 +297,8 @@ class Main:
                     #match_value[:, i] = mmask
 
                     matches[:, i] = mmask
-                    cum_match[:, i] = cum_match[:, i-1] + mmask
-                success_mask = cum_match[:, t-1] >= params.cum_match_stop_th
+                    cum_match[:, i] = cum_match[:, i - 1] + mmask
+                success_mask = cum_match[:, t - 1] >= params.cum_match_stop_th
 
                 if t < params.stime and t >= 2*params.drop_first_n_steps:
 
@@ -265,9 +310,15 @@ class Main:
                         success_mask[:] = 1
                     
                     # For now, we use X = params.drop_first_n_steps.
-                    v_rt = v_r[success_mask, t-2*params.drop_first_n_steps:t, :]
-                    ss_rt = ss_r[success_mask, t-2*params.drop_first_n_steps:t, :]
-                    p_rt = p_r[success_mask, t-2*params.drop_first_n_steps:t, :]
+                    v_rt = v_r[
+                        success_mask, t - 2 * params.drop_first_n_steps : t, :
+                    ]
+                    ss_rt = ss_r[
+                        success_mask, t - 2 * params.drop_first_n_steps : t, :
+                    ]
+                    p_rt = p_r[
+                        success_mask, t - 2 * params.drop_first_n_steps : t, :
+                    ]
 
                     (goals_p,
                      goals,
@@ -285,8 +336,8 @@ class Main:
                     batch_c[success_mask, t:, :] = competences[:, None, :]
                     batch_log[success_mask, t:, :] = rcompetences[:, None, :]
 
-                    cum_match[success_mask, t-1] = 0
-                    max_match[success_mask, t-1] = 0
+                    cum_match[success_mask, t - 1] = 0
+                    max_match[success_mask, t - 1] = 0
 
         # At the end of the episode we mark all policies as finished to
         # count cumulative match properly.
@@ -310,15 +361,27 @@ class Main:
         epoch_start = time.perf_counter()
         contexts = (np.arange(params.batch_size) % 3) + 1
 
-        batch_v = np.zeros([params.batch_size, params.stime, params.visual_size])
-        batch_ss = np.zeros([params.batch_size, params.stime, params.somatosensory_size])
-        batch_p = np.zeros([params.batch_size, params.stime, params.proprioception_size])
-        batch_a = np.zeros([params.batch_size, params.stime, params.policy_size])
+        batch_v = np.zeros(
+            [params.batch_size, params.stime, params.visual_size]
+        )
+        batch_ss = np.zeros(
+            [params.batch_size, params.stime, params.somatosensory_size]
+        )
+        batch_p = np.zeros(
+            [params.batch_size, params.stime, params.proprioception_size]
+        )
+        batch_a = np.zeros(
+            [params.batch_size, params.stime, params.policy_size]
+        )
         batch_c = np.zeros([params.batch_size, params.stime, 1])
         batch_log = np.zeros([params.batch_size, params.stime, 1])
-        batch_g = np.zeros([params.batch_size, params.stime, params.internal_size])
+        batch_g = np.zeros(
+            [params.batch_size, params.stime, params.internal_size]
+        )
         v_r = np.zeros([params.batch_size, params.stime, params.internal_size])
-        ss_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        ss_r = np.zeros(
+            [params.batch_size, params.stime, params.internal_size]
+        )
         p_r = np.zeros([params.batch_size, params.stime, params.internal_size])
         a_r = np.zeros([params.batch_size, params.stime, params.internal_size])
         v_p = np.zeros([params.batch_size, params.stime, 2])
@@ -330,7 +393,9 @@ class Main:
         match_value = np.zeros([params.batch_size, params.stime])
         match_value_per_mod = np.zeros([params.batch_size, params.stime, 4])
         match_increment = np.zeros([params.batch_size, params.stime])
-        match_increment_per_mod = np.zeros([params.batch_size, params.stime, 4])
+        match_increment_per_mod = np.zeros(
+            [params.batch_size, params.stime, 4]
+        )
 
         cum_match = None
         envs = [None] * params.batch_size
@@ -349,7 +414,7 @@ class Main:
             print(f"{epoch:6d}", end=" ", flush=True)
 
             # ----- prepare episodes
-            for episode in range(params.batch_size): 
+            for episode in range(params.batch_size):
                 # Each environment in each epoch should have a different seed
                 env = SMEnv(self.seed + episode + epoch, params.action_steps)
                 env.b2d_env.prepare_world(contexts[episode])
@@ -1033,6 +1098,7 @@ class Main:
 
         epoch_dir = f"{storage_dir}/{epoch:06d}"
         os.makedirs(epoch_dir, exist_ok=True)
+        os.makedirs(site_dir, exist_ok=True)
 
         controller.save(epoch)
         np.save(f"{epoch_dir}/data", [data])
@@ -1064,7 +1130,9 @@ class Main:
             state = env.reset(context)
             agent.reset()
             for i, goal_r in enumerate(controller.goal_grid):
-                policy = controller.getPoliciesFromRepresentations(np.array([goal_r]))
+                policy = controller.getPoliciesFromRepresentations(
+                    np.array([goal_r])
+                )
                 agent.updatePolicy(policy)
                 smcycle = SensoryMotorCircle()
                 for t in range(params.stime):
@@ -1083,8 +1151,8 @@ class Main:
 
         if use_wandb:
             log_data = {
-                'visual_map': wandb.Image("www/visual_map.png"),
-                'comp_map': wandb.Image("www/comp_map.png"),
+                "visual_map": wandb.Image("www/visual_map.png"),
+                "comp_map": wandb.Image("www/comp_map.png"),
             }
             for i in range(params.tests):
                 log_data[f"episode{i}"] = wandb.Image(f"www/episode{i}.gif")
@@ -1126,7 +1194,7 @@ class Main:
         p_p = np.zeros([1, params.stime, 2])
         a_p = np.zeros([1, params.stime, 2])
         g_p = np.zeros([1, params.stime, 2])
-        
+
         match_value = np.zeros([1, params.stime])
         match_value_per_mod = np.zeros([1, params.stime, 4])
         match_increment = np.zeros([1, params.stime])
@@ -1155,20 +1223,21 @@ class Main:
             print(f"Simulating demo episode {i}")
             context = (i % 3) + 1
             env.b2d_env.prepare_world(context)
-            state = env.reset(context,
-                              plot=f"{site_dir}/{plot_prefix}",
-                              render="offline")
+            state = env.reset(
+                context, plot=f"{site_dir}/{plot_prefix}", render="offline"
+            )
 
             envs = [env]
             states = [state]
             contexts = [context]
-            
+
             batch_v[0, 0, :] = state["VISUAL_SENSORS"].ravel()
             batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
             batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
-              
+        
             # Use minimal sigma for building internal representations
             controller.updateParams(params.base_internal_sigma, controller.curr_lr)
+
             # get Representations for initial states
             Rs, Rp = controller.spread(
                 [
@@ -1177,9 +1246,16 @@ class Main:
                     batch_p[:, 0, :],
                     batch_a[:, 0, :],
                     batch_g[:, 0, :],
-                ])
+                ]
+            )
             v_r[:, 0, :], ss_r[:, 0, :], p_r[:, 0, :], a_r[:, 0, :], _ = Rs
-            v_p[:, 0, :], ss_p[:, 0, :], p_p[:, 0, :], a_p[:, 0, :], g_p[:, 0, :] = Rp
+            (
+                v_p[:, 0, :],
+                ss_p[:, 0, :],
+                p_p[:, 0, :],
+                a_p[:, 0, :],
+                g_p[:, 0, :],
+            ) = Rp
 
             try:
                 matches, max_match, cum_match, episodes_len, visual_goal_changed = self.run_episodes(
@@ -1207,28 +1283,34 @@ class Main:
             f_ap = a_p[0, :l]
             f_gp = g_p[0, :l]
 
-            env.render_info(full_match_value, full_max_match, full_cum_match,
-                            f_vp, f_ssp, f_pp, f_ap, f_gp)
+            env.render_info(
+                full_match_value,
+                full_max_match,
+                full_cum_match,
+                f_vp,
+                f_ssp,
+                f_pp,
+                f_ap,
+                f_gp,
+            )
             env.close()
             if plot_prefix == "demo":
                 goal_p = g_p[0, 2*params.drop_first_n_steps]
                 shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal_p[0])}{int(goal_p[1])}.gif")
             else:
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{i}.gif")
             i += 1
 
         if unique_prototypes:
             controller.choose_policy = controller.choose_policy_
 
-        print("demo episodes: Done!!!")      
+        print("demo episodes: Done!!!")
 
     def get_context_from_visual(self):
         pass
 
 
 if __name__ == "__main__":
-
-    import argparse
 
     override_params = {}
 
@@ -1237,12 +1319,16 @@ if __name__ == "__main__":
         argparse action to split an argument into KEY=VALUE form
         on the first = and append to a dictionary.
         """
+
         def __call__(self, parser, args, values, option_string=None):
-            assert(len(values) == 1)
+            assert len(values) == 1
             try:
                 (k, v) = values[0].split("=", 2)
             except ValueError as ex:
-                raise argparse.ArgumentError(self, f"could not parse argument \"{values[0]}\" as k=v format")
+                raise argparse.ArgumentError(
+                    self,
+                    f'could not parse argument "{values[0]}" as k=v format',
+                )
 
             if v == "False" or v == "True":
                 v = bool(v)
@@ -1290,7 +1376,7 @@ if __name__ == "__main__":
         "--name",
         help="Simulation name (to store results in named folders)",
         action="store",
-        default=None
+        default=None,
     )
     parser.add_argument(
         "--parasite",
@@ -1308,7 +1394,7 @@ if __name__ == "__main__":
         nargs=1,
         help="Additional simulation option in KEY=VALUE format (overrides params.py)",
         action=kvdictAppendAction,
-        metavar="KEY=VALUE"
+        metavar="KEY=VALUE",
     )
     args = parser.parse_args()
     timing = float(args.time)
@@ -1321,10 +1407,10 @@ if __name__ == "__main__":
     simulation_name = args.name
 
     if gpu:
-        torch.set_default_device('cuda')
+        torch.set_default_device("cuda")
 
     if args.name is not None:
-        named_dir = (Path(simulations_dir) / args.name).resolve() 
+        named_dir = (Path(simulations_dir) / args.name).resolve()
         os.makedirs(named_dir, exist_ok=True)
         os.chdir(named_dir)
         Path("PLOT_SIMS").touch()
@@ -1335,13 +1421,17 @@ if __name__ == "__main__":
         vars(params)[k] = v
 
     if use_wandb:
-        import wandb
+
         # Here only public fields of params module are selected
-        config = {k: v for k, v in vars(params).items() if not k.startswith("_")}
-        del config["np"] # This is an ugly way to remove numpy import from params
+        config = {
+            k: v for k, v in vars(params).items() if not k.startswith("_")
+        }
+        del config[
+            "np"
+        ]  # This is an ugly way to remove numpy import from params
         run = wandb.init(
-            project="kickstarting_concept",
-            entity="hill_uw",
+            project="grasp-simulation",
+            entity="francesco-mannella",
             name=args.name,
             config=config,
         )
