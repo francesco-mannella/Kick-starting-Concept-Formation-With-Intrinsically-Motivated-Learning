@@ -1430,8 +1430,8 @@ if __name__ == "__main__":
             "np"
         ]  # This is an ugly way to remove numpy import from params
         run = wandb.init(
-            project="grasp-simulation",
-            entity="francesco-mannella",
+            project="kickstarting_concept",
+            entity="hill_uw",
             name=args.name,
             config=config,
         )
