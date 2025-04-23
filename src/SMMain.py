@@ -1096,7 +1096,8 @@ class Main:
     def demo_episode(self, idx):
         pass
 
-    def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo", controller=None):
+    def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo",
+                      controller=None, unique_prototypes=False):
        
         if n_episodes > params.internal_size:
             n_episodes = params.internal_size
@@ -1146,10 +1147,11 @@ class Main:
             
             return ret_val
 
-        controller.choose_policy_ = controller.choose_policy
-        controller.choose_policy = types.MethodType(choose_unique_policy, controller)
+        if unique_prototypes:
+            controller.choose_policy_ = controller.choose_policy
+            controller.choose_policy = types.MethodType(choose_unique_policy, controller)
 
-        while len(v_p_set) < n_episodes:
+        while i < n_episodes:
             print(f"Simulating demo episode {i}")
             context = (i % 3) + 1
             env.b2d_env.prepare_world(context)
@@ -1208,10 +1210,16 @@ class Main:
             env.render_info(full_match_value, full_max_match, full_cum_match,
                             f_vp, f_ssp, f_pp, f_ap, f_gp)
             env.close()
-            shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
+            if plot_prefix == "demo":
+                goal_p = g_p[0, 2*params.drop_first_n_steps]
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal_p[0])}{int(goal_p[1])}.gif")
+            else:
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
             i += 1
 
-        controller.choose_policy = controller.choose_policy_
+        if unique_prototypes:
+            controller.choose_policy = controller.choose_policy_
+
         print("demo episodes: Done!!!")      
 
     def get_context_from_visual(self):
@@ -1348,7 +1356,7 @@ if __name__ == "__main__":
 
     try:
         if demo:
-            main.demo_episodes()
+            main.demo_episodes(unique_prototypes=True)
         elif train_parasite:
             main.train_parasite(timing)
         else:
