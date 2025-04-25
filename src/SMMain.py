@@ -89,9 +89,10 @@ class Main:
             "fix_prop": params.obj_fix_prob,
             "var_prop": params.obj_var_prob,
             "rot_var": params.obj_rot_var,
+            "pos":[params.obj_y, params.obj_x],
+        
         }
 
-        # self.env = SMEnv(seed, params.action_steps, random_obj_params)
         self.env = SMEnv(seed, params.action_steps, random_obj_params)
         self.agent = SMAgent(self.env)
         self.controller = SMController(
