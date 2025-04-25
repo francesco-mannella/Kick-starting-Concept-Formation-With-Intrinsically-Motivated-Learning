@@ -5,7 +5,13 @@ import params
 
 class SMEnv:
     def __init__(self, seed, action_steps=5, rand_obj_params=None):
-        self.b2d_env = gym.make("Box2DSimOneArmOneEye-v0", rand_obj_params=rand_obj_params)
+
+        self.action_steps = action_steps
+        self.rand_obj_params = rand_obj_params
+
+        self.b2d_env = gym.make(
+            "Box2DSimOneArmOneEye-v0", rand_obj_params=rand_obj_params
+        )
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)
         self.b2d_env.action_steps = action_steps
@@ -15,10 +21,18 @@ class SMEnv:
         self.world = 0
 
     def __getstate__(self):
-        return {"rng": self.b2d_env.rng}
+        return {
+            "rng": self.b2d_env.rng,
+            "action_steps": self.action_steps,
+            "rand_objs_params": self.rand_obj_params,
+        }
 
     def __setstate__(self, state):
-        self.__init__(0)
+        self.__init__(
+            seed=0,
+            action_steps=state["action_steps"],
+            rand_obj_params=state["rand_obj_params"],
+        )
         self.b2d_env.rng = state["rng"]
 
     def step(self, action):
