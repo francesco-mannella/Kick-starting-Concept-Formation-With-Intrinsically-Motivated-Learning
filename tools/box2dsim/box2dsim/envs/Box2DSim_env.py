@@ -108,6 +108,7 @@ class Box2DSimOneArmEnv(gym.Env):
                 "fix_prop": 0.2,
                 "var_prop": 1.6,
                 "rot_var": np.pi,
+                "pos": [4, 2],
             }
         else:
             self.rand_obj_params = rand_obj_params
@@ -261,10 +262,8 @@ class Box2DSimOneArmEnv(gym.Env):
                         "y"
                     ] = verts[1].tolist()
 
-                    pos = [
-                        self.rng.uniform(0.25, 0.25),
-                        self.rng.uniform(2, 2),
-                    ]
+                    pos = self.rand_obj_params["pos"]
+
                     world_dict["body"][i]["position"]["x"] += pos[1]
                     world_dict["body"][i]["position"]["y"] += pos[0]
 
@@ -710,6 +709,6 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
 
             _ = self.handPos()
 
-        if sal.sum()>1e-10:
+        if sal.sum() > 1e-10:
             sal = sal / sal.sum()
         return sal

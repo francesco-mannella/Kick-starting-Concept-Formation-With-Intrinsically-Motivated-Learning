@@ -1,6 +1,10 @@
 import argparse
 import os
 import shutil
+import types
+from pathlib import Path
+
+import pandas as pd
 import sys
 import time
 from pathlib import Path
@@ -13,7 +17,9 @@ import wandb
 import params
 from SMAgent import SMAgent
 from SMController import SMController
-from SMEnv import SMEnv
+from SMEnv import SMEnv, SMEnvParasite
+from SMAgent import SMAgent
+from box2dsim.envs.Simulator import TestPlotterVisualSalience
 from SMGraphs import comp_map, log, remove_figs, trajectories_map, visual_map
 
 
@@ -25,6 +31,8 @@ site_dir = "www"
 simulations_dir = "simulations"
 os.makedirs(simulations_dir, exist_ok=True)
 
+class RepeatedGoalPrototypeException(Exception):
+    pass
 
 class TimeLimitsException(Exception):
     pass
@@ -56,11 +64,6 @@ class SensoryMotorCircle:
         self.t += 1
         return state
 
-
-def modulate_param(base, limit, prop):
-    return base + (limit - base) * prop
-
-
 def softmax(x, t=0.01):
     e = np.exp(x / t)
     return e / (e.sum() + 1e-100)
@@ -86,9 +89,10 @@ class Main:
             "fix_prop": params.obj_fix_prob,
             "var_prop": params.obj_var_prob,
             "rot_var": params.obj_rot_var,
+            "pos":[params.obj_y, params.obj_x],
+        
         }
 
-        # self.env = SMEnv(seed, params.action_steps, random_obj_params)
         self.env = SMEnv(seed, params.action_steps, random_obj_params)
         self.agent = SMAgent(self.env)
         self.controller = SMController(
@@ -98,6 +102,8 @@ class Main:
         )
         self.logs = np.zeros([params.epochs, 3])
         self.epoch = 0
+
+        self.mean_policy_noise = 0.0
 
     def __getstate__(self):
         return {
@@ -182,7 +188,7 @@ class Main:
     ):
         batch_size = len(contexts)
 
-        # fill all batches with zero policy
+        # fill all batches with zero policy with is used for first N steps
         batch_a[::] = 0
 
         cum_match = np.zeros((batch_size, params.stime), dtype=int)
@@ -204,6 +210,7 @@ class Main:
 
                     # set correct policy
                     agent.updatePolicy(batch_a[episode, t, :])
+
                     if (
                         t >= params.drop_first_n_steps
                         and t < params.drop_first_n_steps + params.action_steps
@@ -231,6 +238,12 @@ class Main:
                 # get Representations for the last N = params.action_steps steps
                 t0 = t - params.action_steps
                 sa = np.s_[:, t0:t, :]
+                
+                # Use minimal sigma for building within-episode representations
+                controller.updateParams(params.base_internal_sigma, self.controller.curr_lr)
+              
+                # Use current sigma modulated by competence
+                #self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
                 Rs, Rp = controller.spread(
                     [
                         batch_v[sa].reshape((bsize, -1)),
@@ -251,20 +264,9 @@ class Main:
                 a_p[sa].flat = Rp[3].flat
                 g_p[sa].flat = Rp[4].flat
 
-                # Do not update match during warmup
+                # Do not update match during the initial empty steps
                 if t <= params.drop_first_n_steps:
                     continue
-
-                if t > 2 * params.drop_first_n_steps:
-                    # print(batch_a[0, t-1, :])
-                    # print(batch_g[0, t-1, :])
-                    # gp, gr = self.controller.stm_a.get_point_and_representation(g_p[:1, t-1, :], sigma=params.base_internal_sigma)
-                    # policy = self.controller.getPoliciesFromRepresentations(gr)
-
-                    # print(a_p[0, t-1, :])
-                    # print(g_p[0, t-1, :])
-                    # exit(1)
-                    pass
 
                 # calculate match value
                 match_value[:, t0:t], match_value_per_mod[sa] = (
@@ -288,24 +290,26 @@ class Main:
                     # Update max match
                     max_match[:, i] = max_match[:, i - 1]
                     max_match[mmask, i] = match_value[mmask, i]
-                    # Update match and cumulative match
-                    mmask[max_match[:, i - 1] == 0] = (
-                        0  # Ignore first match increase from 0
-                    )
+                    # Update match and cumulative match 
+                    mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
+
+                    # Select time steps when the gripper touches object
+                    mmask = batch_ss[:, i].any(axis=-1)
+                    #match_value[:, i] = mmask
 
                     matches[:, i] = mmask
                     cum_match[:, i] = cum_match[:, i - 1] + mmask
                 success_mask = cum_match[:, t - 1] >= params.cum_match_stop_th
 
-                if t < params.stime and t >= 2 * params.drop_first_n_steps:
-                    policy_changed[success_mask, t - 2] = 1
+                if t < params.stime and t >= 2*params.drop_first_n_steps:
 
-                    # Set initial policy after warmup steps + action selection steps
-                    if t == 2 * params.drop_first_n_steps:
+                    # Register subsequent changes of policy after the initial one
+                    policy_changed[success_mask, t-2] = 1
+                    
+                    # Set initial policy after warmup steps + action selection steps 
+                    if t == 2*params.drop_first_n_steps:
                         success_mask[:] = 1
-
-                    # Use double weighted average of visual, touch, and proprioception
-                    # over last X timesteps to choose the next goal.
+                    
                     # For now, we use X = params.drop_first_n_steps.
                     v_rt = v_r[
                         success_mask, t - 2 * params.drop_first_n_steps : t, :
@@ -317,34 +321,14 @@ class Main:
                         success_mask, t - 2 * params.drop_first_n_steps : t, :
                     ]
 
-                    # TODO: ugly hack to avoid division by 0
-                    v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
-                    ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
-                    p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
-
-                    v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
-                    ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
-                    p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
-
-                    # goals = np.average([v_rt, ss_rt, p_rt],
-                    #                   axis=0,
-                    #                   weights=[params.modalities_weights[0],
-                    #                            params.modalities_weights[1],
-                    #                            params.modalities_weights[2]])
-                    # goals = (v_rt + ss_rt + p_rt) / 3 # TEST
-                    goals_out = (v_rt + p_rt) / 2  # TEST: no touch modality
-                    goals_p, goals = (
-                        self.controller.stm_a.get_point_and_representation(
-                            goals_out, sigma=params.base_internal_sigma
-                        )
-                    )
-
-                    # update policies in succesful episodes
-                    (policies, competences, rcompetences) = (
-                        self.controller.getPoliciesFromRepresentationsWithNoise(
-                            goals
-                        )
-                    )
+                    (goals_p,
+                     goals,
+                     policies,
+                     competences,
+                     rcompetences,
+                     mean_policy_noise) = controller.choose_policy(v_rt, ss_rt, p_rt, t)
+                    
+                    self.mean_policy_noise = mean_policy_noise
 
                     # fill successful batches with policies, goals, and competences
                     # (from the current timestep onward)
@@ -418,6 +402,9 @@ class Main:
         envs = [None] * params.batch_size
         states = [None] * params.batch_size
 
+        # Store internal trajectories
+        internal_trajectory_data = []
+        
         while epoch < params.epochs:
 
             total_time_elapsed = time.perf_counter() - self.start
@@ -426,31 +413,6 @@ class Main:
                     raise TimeLimitsException
 
             print(f"{epoch:6d}", end=" ", flush=True)
-
-            controller.comp_grid = controller.getCompetenceGrid()
-            comp = controller.comp_grid.mean()
-
-            controller.match_sigma = modulate_param(
-                params.base_match_sigma,
-                params.match_sigma,
-                1 - comp,
-            )
-            controller.curr_sigma = modulate_param(
-                params.base_internal_sigma,
-                params.internal_sigma,
-                1 - comp,
-            )
-            controller.curr_lr = modulate_param(
-                params.base_lr,
-                params.stm_lr,
-                1 - comp,
-            )
-
-            controller.explore_sigma = params.explore_sigma
-
-            controller.updateParams(controller.curr_sigma, controller.curr_lr)
-
-            print(f"{controller.curr_sigma}, {controller.curr_lr}")
 
             # ----- prepare episodes
             for episode in range(params.batch_size):
@@ -464,39 +426,72 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed = (
-                self.run_episodes(
-                    batch_v,
-                    batch_ss,
-                    batch_p,
-                    batch_a,
-                    batch_g,
-                    batch_c,
-                    batch_log,
-                    v_r,
-                    ss_r,
-                    p_r,
-                    a_r,
-                    v_p,
-                    ss_p,
-                    p_p,
-                    a_p,
-                    g_p,
-                    match_value_per_mod,
-                    match_value,
-                    match_increment_per_mod,
-                    match_increment,
-                    agent,
-                    controller,
-                    contexts,
-                    envs,
-                    states,
-                )
+            matches, max_match, cum_match, _, policy_changed = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+                v_r, ss_r, p_r, a_r,
+                v_p, ss_p, p_p, a_p, g_p,
+                match_value_per_mod,
+                match_value,
+                match_increment_per_mod,
+                match_increment,
+                agent, controller, contexts,
+                envs, states)
+           
+            # Episode success rate: in how many episodes policy ever changes?
+            episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
+            
+            # Grid competence as global competence
+            controller.comp_grid = controller.getCompetenceGrid()
+            comp = controller.comp_grid.mean()
+            
+            # Local competences based on predictor
+            global_incompetence = 1 - np.tanh(params.decay * comp)
+            local_incompetences = global_incompetence * (1 - np.tanh(params.local_decay * batch_c))
+
+            bsize = params.batch_size * params.stime
+            local_incompetences = local_incompetences.reshape((bsize, -1))
+            
+            def modulate_param(base, limit, prop):
+                return base + (limit - base) * prop
+            
+            controller.match_sigma = modulate_param(
+                params.base_match_sigma,
+                params.match_sigma,
+                global_incompetence,
+            )
+            
+            # No global modulation of LR and sigma
+            #controller.curr_lr = modulate_param(
+            #    params.base_lr,
+            #    params.stm_lr,
+            #    global_incompetence,
+            #)
+            controller.curr_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                global_incompetence,
             )
 
+            # Local sigma is a vector of length batch_size * timesteps
+            local_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                local_incompetences,
+            )
+            local_lr = modulate_param(
+                params.base_lr,
+                params.max_lr,
+                local_incompetences,
+            )
+
+            controller.updateParams(
+                controller.curr_sigma, controller.curr_lr
+            )
+
+            print(f"sigma: {local_sigma.mean()}")
+            
             # ---- end of an epoch: controller update
-            bsize = params.batch_size * params.stime
-            (update_items, update_episodes, curr_loss, mean_modulation) = (
+            (update_items, update_episodes, curr_loss, mean_modulation) =\
                 controller.update(
                     batch_v.reshape((bsize, -1)),
                     batch_ss.reshape((bsize, -1)),
@@ -507,9 +502,28 @@ class Main:
                     matches.reshape(-1),
                     cum_match,
                     policy_changed,
-                    competences=batch_c.reshape((bsize, -1)),
+                    local_lr,
+                    local_sigma
                 )
-            )
+
+            # Store trajectory data
+            mvpm = match_value_per_mod.reshape(-1, 4)
+            internal_trajectory_data.append({
+                "epoch": [epoch]*params.batch_size*params.stime,
+                "episode": [i for i in range(params.batch_size) for _ in range(params.stime)],
+                "context": [c for c in contexts for _ in range(params.stime)],
+                "timestep": list(range(params.stime))*params.batch_size,
+                "v_p": v_p.reshape((-1, 2))[:, 0]*10 + v_p.reshape((-1, 2))[:, 1],
+                "ss_p": ss_p.reshape((-1, 2))[:, 0]*10 + ss_p.reshape((-1, 2))[:, 1],
+                "p_p": p_p.reshape((-1, 2))[:, 0]*10 + p_p.reshape((-1, 2))[:, 1],
+                "a_p": a_p.reshape((-1, 2))[:, 0]*10 + a_p.reshape((-1, 2))[:, 1],
+                "g_p": g_p.reshape((-1, 2))[:, 0]*10 + g_p.reshape((-1, 2))[:, 1],
+                "match_value_v": mvpm[:, 0].copy(),
+                "match_value_ss": mvpm[:, 1].copy(),
+                "match_value_p": mvpm[:, 2].copy(),
+                "match_value_a": mvpm[:, 3].copy(),
+                "sensory_change": matches.reshape(-1).copy(),
+            })
 
             # ---- print
             c = np.outer(contexts, np.ones(params.stime)).ravel()
@@ -525,7 +539,6 @@ class Main:
 
             print(f"{update_items:#7d} {items}", end=" ", flush=True)
             print(f"{batch_ss.sum():#10.2f}", end=" ", flush=True)
-            warmup = params.drop_first_n_steps + params.action_steps
             logs[epoch] = [
                 batch_log[policy_changed].min(),
                 batch_log[policy_changed].mean(),
@@ -544,30 +557,27 @@ class Main:
             print(logs[epoch][1])
 
             if use_wandb:
-                wandb.log(
-                    {
-                        "min_comp": logs[epoch][0],
-                        "mean_comp": logs[epoch][1],
-                        "max_comp": logs[epoch][2],
-                        "stm_loss": np.mean(curr_loss),
-                        "stm_v_loss": curr_loss[0],
-                        "stm_ss_loss": curr_loss[1],
-                        "stm_p_loss": curr_loss[2],
-                        "stm_a_loss": curr_loss[3],
-                        "stm_sigma": controller.curr_sigma,
-                        "stm_lr": controller.curr_lr,
-                        "mean_cum_match": cum_match[policy_changed].mean()
-                        / params.cum_match_stop_th,
-                        "grid_comp_mean": comp,
-                        "policy_weights_avg": np.abs(
-                            controller.stm_a.get_weights()
-                        ).mean(),
-                        "policy_weights_norm": np.linalg.norm(
-                            controller.stm_a.get_weights(), axis=-1
-                        ).mean(),
-                    },
-                    step=epoch,
-                )
+                wandb.log({'min_comp': logs[epoch][0],
+                           'mean_comp': logs[epoch][1],
+                           'max_comp': logs[epoch][2],
+                           'stm_loss': np.mean(curr_loss),
+                           'stm_v_loss': curr_loss[0],
+                           'stm_ss_loss': curr_loss[1],
+                           'stm_p_loss': curr_loss[2],
+                           'stm_a_loss': curr_loss[3],
+                           'mean_sigma': local_sigma.mean(),
+                           'mean_lr': local_lr.mean(),
+                           'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
+                           'grid_comp_mean': comp,
+                           'episode_success_rate': episode_success_rate,
+                           'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
+                           'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
+                           'mean_policy_noise': self.mean_policy_noise,
+                           'match_value_v': match_value_per_mod[matches, 0].mean(),
+                           'match_value_ss': match_value_per_mod[matches, 1].mean(),
+                           'match_value_p': match_value_per_mod[matches, 2].mean(),
+                           'match_value_a': match_value_per_mod[matches, 3].mean()
+                           }, step=epoch)
 
             self.match_value = match_value
             self.match_increment = match_increment
@@ -616,6 +626,452 @@ class Main:
             epoch += 1
             self.epoch = epoch
             sys.stdout.flush()
+
+        df_final = pd.concat([pd.DataFrame.from_dict(d) for d in internal_trajectory_data],
+                             axis=0, ignore_index=True)
+        df_final.to_csv("internal_trajectory_data.csv")
+
+    def train_parasite(self, time_limits):
+
+        if self.epoch == 0:
+            print("Training", flush=True)
+        else:
+            if self.epoch >= params.epochs - 1:
+                raise TimeLimitsException
+
+        env = self.env
+        agent = self.agent
+        controller = self.controller
+        logs = self.logs
+        epoch = self.epoch
+        epoch_start = time.perf_counter()
+        contexts = (np.arange(params.batch_size) % 3) + 1
+
+        controller_par = SMController(
+            self.rng,
+            load=params.load_weights,
+            shuffle=params.shuffle_weights,
+        )
+        logs_par = np.zeros([params.epochs, 3])
+
+        batch_v = np.zeros([params.batch_size, params.stime, params.visual_size])
+        batch_ss = np.zeros([params.batch_size, params.stime, params.somatosensory_size])
+        batch_p = np.zeros([params.batch_size, params.stime, params.proprioception_size])
+        
+        batch_a = np.zeros([params.batch_size, params.stime, params.policy_size])
+        batch_c = np.zeros([params.batch_size, params.stime, 1])
+        batch_log = np.zeros([params.batch_size, params.stime, 1])
+        batch_g = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        ss_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        p_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        a_r = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_p = np.zeros([params.batch_size, params.stime, 2])
+        ss_p = np.zeros([params.batch_size, params.stime, 2])
+        p_p = np.zeros([params.batch_size, params.stime, 2])
+        a_p = np.zeros([params.batch_size, params.stime, 2])
+        g_p = np.zeros([params.batch_size, params.stime, 2])
+
+        batch_a_par = np.zeros([params.batch_size, params.stime, params.policy_size])
+        batch_c_par = np.zeros([params.batch_size, params.stime, 1])
+        batch_log_par = np.zeros([params.batch_size, params.stime, 1])
+        batch_g_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_r_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        ss_r_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        p_r_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        a_r_par = np.zeros([params.batch_size, params.stime, params.internal_size])
+        v_p_par = np.zeros([params.batch_size, params.stime, 2])
+        ss_p_par = np.zeros([params.batch_size, params.stime, 2])
+        p_p_par = np.zeros([params.batch_size, params.stime, 2])
+        a_p_par = np.zeros([params.batch_size, params.stime, 2])
+        g_p_par = np.zeros([params.batch_size, params.stime, 2])
+
+        match_value = np.zeros([params.batch_size, params.stime])
+        match_value_per_mod = np.zeros([params.batch_size, params.stime, 4])
+        match_increment = np.zeros([params.batch_size, params.stime])
+        match_increment_per_mod = np.zeros([params.batch_size, params.stime, 4])
+
+        match_value_par = np.zeros([params.batch_size, params.stime])
+        match_value_per_mod_par = np.zeros([params.batch_size, params.stime, 4])
+        match_increment_par = np.zeros([params.batch_size, params.stime])
+        match_increment_per_mod_par = np.zeros([params.batch_size, params.stime, 4])
+
+        cum_match = None
+        envs = [None] * params.batch_size
+        states = [None] * params.batch_size
+
+        cum_match_par = None
+        envs_par = [None] * params.batch_size
+        states_par = [None] * params.batch_size
+
+        # Store internal trajectories
+        internal_trajectory_data = []
+        internal_trajectory_data_par = []
+        
+        while epoch < params.epochs:
+
+            total_time_elapsed = time.perf_counter() - self.start
+            if total_time_elapsed >= time_limits:
+                if self.epoch > 0:
+                    raise TimeLimitsException
+
+            print(f"{epoch:6d}", end=" ", flush=True)
+
+            # ----- prepare episodes
+            for episode in range(params.batch_size): 
+                # Each environment in each epoch should have a different seed
+                env = SMEnv(self.seed + episode + epoch, params.action_steps, store_observations=True)
+                env.b2d_env.prepare_world(contexts[episode])
+                states[episode] = env.reset(contexts[episode])
+                envs[episode] = env
+                state = states[episode]
+                batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
+                batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
+                batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
+
+            matches, max_match, cum_match, _, policy_changed = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+                v_r, ss_r, p_r, a_r,
+                v_p, ss_p, p_p, a_p, g_p,
+                match_value_per_mod,
+                match_value,
+                match_increment_per_mod,
+                match_increment,
+                agent, controller, contexts,
+                envs, states)
+            mean_policy_noise = self.mean_policy_noise
+
+            # ----- prepare episodes
+            for episode in range(params.batch_size): 
+                # Each environment in each epoch should have a different seed
+                env = SMEnvParasite(self.seed + episode + epoch, envs[episode].stored_observations)
+                states_par[episode] = env.reset()
+                envs_par[episode] = env
+                state_par = states_par[episode]
+
+            matches_par, max_match_par, cum_match_par, _, policy_changed_par = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a_par, batch_g_par, batch_c_par, batch_log_par,
+                v_r_par, ss_r_par, p_r_par, a_r_par,
+                v_p_par, ss_p_par, p_p_par, a_p_par, g_p_par,
+                match_value_per_mod_par,
+                match_value_par,
+                match_increment_per_mod_par,
+                match_increment_par,
+                agent, controller_par, contexts,
+                envs_par, states_par)
+            mean_policy_noise_par = self.mean_policy_noise
+           
+            # Episode success rate: in how many episodes policy ever changes?
+            episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
+            episode_success_rate_par = (policy_changed_par.sum(axis=1) >= 2).mean()
+            
+            # Grid competence as global competence
+            controller.comp_grid = controller.getCompetenceGrid()
+            comp = controller.comp_grid.mean()
+            
+            controller_par.comp_grid = controller_par.getCompetenceGrid()
+            comp_par = controller_par.comp_grid.mean()
+            
+            # Local competences based on predictor
+            global_incompetence = 1 - np.tanh(params.decay * comp)
+            local_incompetences = global_incompetence * (1 - np.tanh(params.local_decay * batch_c))
+            
+            global_incompetence_par = 1 - np.tanh(params.decay * comp_par)
+            local_incompetences_par = global_incompetence_par * (1 - np.tanh(params.local_decay * batch_c_par))
+
+            bsize = params.batch_size * params.stime
+            local_incompetences = local_incompetences.reshape((bsize, -1))
+            local_incompetences_par = local_incompetences_par.reshape((bsize, -1))
+            
+            def modulate_param(base, limit, prop):
+                return base + (limit - base) * prop
+            
+            controller.match_sigma = modulate_param(
+                params.base_match_sigma,
+                params.match_sigma,
+                global_incompetence,
+            )
+
+            controller_par.match_sigma = modulate_param(
+                params.base_match_sigma,
+                params.match_sigma,
+                global_incompetence_par,
+            )
+
+            
+            # No global modulation of LR and sigma
+            #controller.curr_lr = modulate_param(
+            #    params.base_lr,
+            #    params.stm_lr,
+            #    global_incompetence,
+            #)
+            controller.curr_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                global_incompetence,
+            )
+            controller_par.curr_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                global_incompetence_par,
+            )
+
+
+            # Local sigma is a vector of length batch_size * timesteps
+            local_sigma = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                local_incompetences,
+            )
+            local_lr = modulate_param(
+                params.base_lr,
+                params.max_lr,
+                local_incompetences,
+            )
+            controller.updateParams(
+                controller.curr_sigma, controller.curr_lr
+            )
+
+            local_sigma_par = modulate_param(
+                params.base_internal_sigma,
+                params.internal_sigma,
+                local_incompetences_par,
+            )
+            local_lr_par = modulate_param(
+                params.base_lr,
+                params.max_lr,
+                local_incompetences_par,
+            )
+            controller_par.updateParams(
+                controller_par.curr_sigma, controller_par.curr_lr
+            )
+
+            print(f"sigma: {local_sigma.mean()}")
+            
+            # ---- end of an epoch: controller update
+            (update_items, update_episodes, curr_loss, mean_modulation) =\
+                controller.update(
+                    batch_v.reshape((bsize, -1)),
+                    batch_ss.reshape((bsize, -1)),
+                    batch_p.reshape((bsize, -1)),
+                    batch_a.reshape((bsize, -1)),
+                    batch_g.reshape((bsize, -1)),
+                    match_value.reshape(-1),
+                    matches.reshape(-1),
+                    cum_match,
+                    policy_changed,
+                    local_lr,
+                    local_sigma
+                )
+
+            (update_items_par, update_episodes_par, curr_loss_par, mean_modulation_par) =\
+                controller_par.update(
+                    batch_v.reshape((bsize, -1)),
+                    batch_ss.reshape((bsize, -1)),
+                    batch_p.reshape((bsize, -1)),
+                    batch_a_par.reshape((bsize, -1)),
+                    batch_g_par.reshape((bsize, -1)),
+                    match_value_par.reshape(-1),
+                    matches_par.reshape(-1),
+                    cum_match_par,
+                    policy_changed_par,
+                    local_lr_par,
+                    local_sigma_par
+                )
+
+            # Store trajectory data
+            mvpm = match_value_per_mod.reshape(-1, 4)
+            internal_trajectory_data.append({
+                "epoch": [epoch]*params.batch_size*params.stime,
+                "episode": [i for i in range(params.batch_size) for _ in range(params.stime)],
+                "context": [c for c in contexts for _ in range(params.stime)],
+                "timestep": list(range(params.stime))*params.batch_size,
+                "v_p": v_p.reshape((-1, 2))[:, 0]*10 + v_p.reshape((-1, 2))[:, 1],
+                "ss_p": ss_p.reshape((-1, 2))[:, 0]*10 + ss_p.reshape((-1, 2))[:, 1],
+                "p_p": p_p.reshape((-1, 2))[:, 0]*10 + p_p.reshape((-1, 2))[:, 1],
+                "a_p": a_p.reshape((-1, 2))[:, 0]*10 + a_p.reshape((-1, 2))[:, 1],
+                "g_p": g_p.reshape((-1, 2))[:, 0]*10 + g_p.reshape((-1, 2))[:, 1],
+                "match_value_v": mvpm[:, 0].copy(),
+                "match_value_ss": mvpm[:, 1].copy(),
+                "match_value_p": mvpm[:, 2].copy(),
+                "match_value_a": mvpm[:, 3].copy(),
+                "sensory_change": matches.reshape(-1).copy(),
+            })
+
+            # Store trajectory data
+            mvpm_par = match_value_per_mod_par.reshape(-1, 4)
+            internal_trajectory_data_par.append({
+                "epoch": [epoch]*params.batch_size*params.stime,
+                "episode": [i for i in range(params.batch_size) for _ in range(params.stime)],
+                "context": [c for c in contexts for _ in range(params.stime)],
+                "timestep": list(range(params.stime))*params.batch_size,
+                "v_p": v_p_par.reshape((-1, 2))[:, 0]*10 + v_p.reshape((-1, 2))[:, 1],
+                "ss_p": ss_p_par.reshape((-1, 2))[:, 0]*10 + ss_p.reshape((-1, 2))[:, 1],
+                "p_p": p_p_par.reshape((-1, 2))[:, 0]*10 + p_p.reshape((-1, 2))[:, 1],
+                "a_p": a_p_par.reshape((-1, 2))[:, 0]*10 + a_p.reshape((-1, 2))[:, 1],
+                "g_p": g_p_par.reshape((-1, 2))[:, 0]*10 + g_p.reshape((-1, 2))[:, 1],
+                "match_value_v": mvpm_par[:, 0].copy(),
+                "match_value_ss": mvpm_par[:, 1].copy(),
+                "match_value_p": mvpm_par[:, 2].copy(),
+                "match_value_a": mvpm_par[:, 3].copy(),
+                "sensory_change": matches_par.reshape(-1).copy(),
+            })
+
+
+            # ---- print
+            c = np.outer(contexts, np.ones(params.stime)).ravel()
+            items = [np.sum(update_episodes[c == k]) for k in range(1, 4)]
+            items = "".join(
+                list(
+                    map(
+                        lambda x: "{: 6d} {}".format(*x),
+                        zip(items, ["f", "m", "c"]),
+                    )
+                )
+            )
+
+            print(f"{update_items:#7d} {items}", end=" ", flush=True)
+            print(f"{batch_ss.sum():#10.2f}", end=" ", flush=True)
+            logs[epoch] = [
+                batch_log[policy_changed].min(),
+                batch_log[policy_changed].mean(),
+                batch_log[policy_changed].max(),
+            ]
+            logs_par[epoch] = [
+                batch_log_par[policy_changed_par].min(),
+                batch_log_par[policy_changed_par].mean(),
+                batch_log_par[policy_changed_par].max(),
+            ]
+
+            print(
+                ("%8.7f " * 3)
+                % (
+                    batch_log[policy_changed].min(),
+                    batch_log[policy_changed].mean(),
+                    batch_log[policy_changed].max(),
+                ),
+                end="",
+            )
+            print(f"  {np.mean(curr_loss):#8.7f}")
+            print(logs[epoch][1])
+
+            if use_wandb:
+                wandb.log({
+                           'min_comp': logs[epoch][0],
+                           'mean_comp': logs[epoch][1],
+                           'max_comp': logs[epoch][2],
+                           'stm_loss': np.mean(curr_loss),
+                           'stm_v_loss': curr_loss[0],
+                           'stm_ss_loss': curr_loss[1],
+                           'stm_p_loss': curr_loss[2],
+                           'stm_a_loss': curr_loss[3],
+                           'mean_sigma': local_sigma.mean(),
+                           'mean_lr': local_lr.mean(),
+                           'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
+                           'grid_comp_mean': comp,
+                           'episode_success_rate': episode_success_rate,
+                           'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
+                           'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
+                           'mean_policy_noise': mean_policy_noise,
+                           'match_value_v': match_value_per_mod[matches, 0].mean(),
+                           'match_value_ss': match_value_per_mod[matches, 1].mean(),
+                           'match_value_p': match_value_per_mod[matches, 2].mean(),
+                           'match_value_a': match_value_per_mod[matches, 3].mean(),
+                           'min_comp_par': logs_par[epoch][0],
+                           'mean_comp_par': logs_par[epoch][1],
+                           'max_comp_par': logs_par[epoch][2],
+                           'stm_loss_par': np.mean(curr_loss_par),
+                           'stm_v_loss_par': curr_loss_par[0],
+                           'stm_ss_loss_par': curr_loss_par[1],
+                           'stm_p_loss_par': curr_loss_par[2],
+                           'stm_a_loss_par': curr_loss_par[3],
+                           'mean_sigma_par': local_sigma_par.mean(),
+                           'mean_lr_par': local_lr_par.mean(),
+                           'mean_cum_match_par': cum_match_par[policy_changed_par].mean() / params.cum_match_stop_th,
+                           'grid_comp_mean_par': comp_par,
+                           'episode_success_rate_par': episode_success_rate_par,
+                           'policy_weights_norm_par': np.linalg.norm(controller_par.stm_a.get_weights(), axis=-1).mean(),
+                           'mean_policy_noise_par': mean_policy_noise_par,
+                           'match_value_v_par': match_value_per_mod_par[matches_par, 0].mean(),
+                           'match_value_ss_par': match_value_per_mod_par[matches_par, 1].mean(),
+                           'match_value_p_par': match_value_per_mod_par[matches_par, 2].mean(),
+                           'match_value_a_par': match_value_per_mod_par[matches_par, 3].mean()
+                           }, step=epoch)
+
+            self.match_value = match_value
+            self.match_increment = match_increment
+            self.match_value_per_mod = match_value_per_mod
+            self.match_increment_per_mod = match_increment_per_mod
+            self.v_r = v_r
+            self.ss_r = ss_r
+            self.p_r = p_r
+            self.a_r = a_r
+            self.batch_v = batch_v
+            self.batch_ss = batch_ss
+            self.batch_p = batch_p
+            self.batch_a = batch_a
+
+            # diagnose
+            if (epoch > 0 and epoch % params.epochs_to_test == 0) or epoch == (
+                params.epochs - 1
+            ):
+
+                epoch_dir = f"{storage_dir}/{epoch:06d}"
+                os.makedirs(epoch_dir, exist_ok=True)
+                np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
+                self.diagnose()
+
+                time_elapsed = time.perf_counter() - epoch_start
+                print("---- TIME: %10.4f" % time_elapsed, flush=True)
+                epoch_start = time.perf_counter()
+
+                if os.path.isfile("PLOT_SIMS"):
+                    print("----> Test Sims ...", end=" ", flush=True)
+                    self.demo_episodes(n_episodes=params.tests, plot_prefix="parasite_episode", controller=controller_par)
+
+            match_value[::] = 0
+            match_increment[::] = 0
+            match_value_per_mod[::] = 0
+            match_increment_per_mod[::] = 0
+            batch_v[::] = 0
+            batch_ss[::] = 0
+            batch_p[::] = 0
+            batch_a[::] = 0
+            v_r[::] = 0
+            ss_r[::] = 0
+            p_r[::] = 0
+            a_r[::] = 0
+            v_p[::] = 0
+            ss_p[::] = 0
+            p_p[::] = 0
+            a_p[::] = 0
+
+            match_value_par[::] = 0
+            match_increment_par[::] = 0
+            match_value_per_mod_par[::] = 0
+            match_increment_per_mod_par[::] = 0
+            v_r_par[::] = 0
+            ss_r_par[::] = 0
+            p_r_par[::] = 0
+            a_r_par[::] = 0
+            v_p_par[::] = 0
+            ss_p_par[::] = 0
+            p_p_par[::] = 0
+            a_p_par[::] = 0
+
+
+            epoch += 1
+            self.epoch = epoch
+            sys.stdout.flush()
+
+        df_final = pd.concat([pd.DataFrame.from_dict(d) for d in internal_trajectory_data],
+                             axis=0, ignore_index=True)
+        df_final.to_csv("internal_trajectory_data.csv")
+
+        df_final_par = pd.concat([pd.DataFrame.from_dict(d) for d in internal_trajectory_data_par],
+                             axis=0, ignore_index=True)
+        df_final_par.to_csv("internal_trajectory_data_parasite.csv")
+
 
     def diagnose(self):
 
@@ -709,19 +1165,17 @@ class Main:
     def demo_episode(self, idx):
         pass
 
-    def demo_episodes(
-        self, n_episodes=params.internal_size, plot_prefix="demo"
-    ):
-
+    def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo",
+                      controller=None, unique_prototypes=False):
+       
         if n_episodes > params.internal_size:
             n_episodes = params.internal_size
 
-        side = int(np.sqrt(params.visual_size // 3))
-        self.controller.curr_sigma = 0.1
-
         env = self.env
         agent = self.agent
-        controller = self.controller
+        if controller == None:
+            controller = self.controller
+        controller.curr_sigma = 0.1
 
         batch_v = np.zeros([1, params.stime, params.visual_size])
         batch_ss = np.zeros([1, params.stime, params.somatosensory_size])
@@ -750,8 +1204,24 @@ class Main:
         v_p_set = set()
         i = 0
 
-        env = self.env
-        while len(v_p_set) < n_episodes:
+        def choose_unique_policy(self, v_rt, ss_rt, p_rt, t):
+            ret_val  = self.choose_policy_(v_rt, ss_rt, p_rt, t)
+                
+            # Check uniqueness only for the initial policy
+            if t == 2*params.drop_first_n_steps:
+                goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
+                if goal_p in v_p_set:
+                    raise RepeatedGoalPrototypeException(f"Repeated prototype {goal_p}")
+                v_p_set.add(goal_p)
+            
+            return ret_val
+
+        if unique_prototypes:
+            controller.choose_policy_ = controller.choose_policy
+            controller.choose_policy = types.MethodType(choose_unique_policy, controller)
+
+        while i < n_episodes:
+            print(f"Simulating demo episode {i}")
             context = (i % 3) + 1
             env.b2d_env.prepare_world(context)
             state = env.reset(
@@ -765,6 +1235,9 @@ class Main:
             batch_v[0, 0, :] = state["VISUAL_SENSORS"].ravel()
             batch_ss[0, 0, :] = state["TOUCH_SENSORS"]
             batch_p[0, 0, :] = state["JOINT_POSITIONS"][:5]
+        
+            # Use minimal sigma for building internal representations
+            controller.updateParams(params.base_internal_sigma, controller.curr_lr)
 
             # get Representations for initial states
             Rs, Rp = controller.spread(
@@ -785,54 +1258,20 @@ class Main:
                 g_p[:, 0, :],
             ) = Rp
 
-            visual_goal = tuple(v_p[0, 0, :])
-            if visual_goal in v_p_set:
-                print(
-                    f"Skipping repeated prototype: {int(visual_goal[0])}{int(visual_goal[1])}"
-                )
+            try:
+                matches, max_match, cum_match, episodes_len, visual_goal_changed = self.run_episodes(
+                    batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+                    v_r, ss_r, p_r, a_r,
+                    v_p, ss_p, p_p, a_p, g_p,
+                    match_value_per_mod,
+                    match_value,
+                    match_increment_per_mod,
+                    match_increment,
+                    agent, controller, contexts,
+                    envs, states)
+            except RepeatedGoalPrototypeException as e:
+                print(e)
                 continue
-
-            i += 1
-            print(
-                f"{site_dir}/{plot_prefix}_00{int(visual_goal[0])}{int(visual_goal[1])}"
-            )
-            print(visual_goal)
-            print(context)
-            v_p_set.add(visual_goal)
-
-            (
-                matches,
-                max_match,
-                cum_match,
-                episodes_len,
-                visual_goal_changed,
-            ) = self.run_episodes(
-                batch_v,
-                batch_ss,
-                batch_p,
-                batch_a,
-                batch_g,
-                batch_c,
-                batch_log,
-                v_r,
-                ss_r,
-                p_r,
-                a_r,
-                v_p,
-                ss_p,
-                p_p,
-                a_p,
-                g_p,
-                match_value_per_mod,
-                match_value,
-                match_increment_per_mod,
-                match_increment,
-                agent,
-                controller,
-                contexts,
-                envs,
-                states,
-            )
 
             l = episodes_len[0]
             full_match_value = match_value[0, :l]
@@ -857,15 +1296,14 @@ class Main:
             )
             env.close()
             if plot_prefix == "demo":
-                shutil.copyfile(
-                    f"{site_dir}/{plot_prefix}.gif",
-                    f"{site_dir}/{plot_prefix}_00{int(visual_goal[0])}{int(visual_goal[1])}.gif",
-                )
+                goal_p = g_p[0, 2*params.drop_first_n_steps]
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal_p[0])}{int(goal_p[1])}.gif")
             else:
-                shutil.copyfile(
-                    f"{site_dir}/{plot_prefix}.gif",
-                    f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif",
-                )
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{i}.gif")
+            i += 1
+
+        if unique_prototypes:
+            controller.choose_policy = controller.choose_policy_
 
         print("demo episodes: Done!!!")
 
@@ -942,6 +1380,16 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--parasite",
+        help="Train a parasite model alongside the normal one",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--demo",
+        help="Only plot demo episodes",
+        action="store_true",
+    )
+    parser.add_argument(
         "-o",
         "--opt",
         nargs=1,
@@ -955,6 +1403,8 @@ if __name__ == "__main__":
     seed = int(args.seed)
     plots = bool(args.plots)
     use_wandb = bool(args.wandb)
+    train_parasite = bool(args.parasite)
+    demo = bool(args.demo)
     simulation_name = args.name
 
     if gpu:
@@ -981,8 +1431,8 @@ if __name__ == "__main__":
             "np"
         ]  # This is an ugly way to remove numpy import from params
         run = wandb.init(
-            project="grasp-simulation",
-            entity="francesco-mannella",
+            project="kickstarting_concept",
+            entity="hill_uw",
             name=args.name,
             config=config,
         )
@@ -996,7 +1446,12 @@ if __name__ == "__main__":
     print(main.epoch)
 
     try:
-        main.train(timing)
+        if demo:
+            main.demo_episodes(unique_prototypes=True)
+        elif train_parasite:
+            main.train_parasite(timing)
+        else:
+            main.train(timing)
         print("Done!!", flush=True)
     except TimeLimitsException:
         print(f"Epoch {main.epoch}. end", flush=True)
