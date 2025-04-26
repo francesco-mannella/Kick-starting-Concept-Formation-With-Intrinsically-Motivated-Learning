@@ -50,14 +50,14 @@ def optimize_option_key(options_str):
 params = {
     "cum_match_stop_th": [3.0],
     "predict_rl": [0.02],
-    "obj_fix_prob": [0.6, 1.0],
-    "obj_var_prob": [1.0],
+    "obj_fix_prob": [0.6],
+    "obj_var_prob": [1.5, 2.0],
     "obj_x": [2],
     "obj_y": [2],
     "epochs": [400],
 }
 
-base_name = "cum_match_stop"
+base_name = "success"
 
 
 processes = []
