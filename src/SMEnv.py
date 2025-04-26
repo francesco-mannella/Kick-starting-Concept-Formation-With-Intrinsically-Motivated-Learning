@@ -18,10 +18,18 @@ class SMEnv:
             self.stored_observations = []
 
     def __getstate__(self):
-        return {"rng": self.b2d_env.rng}
+        return {
+            "rng": self.b2d_env.rng,
+            "action_steps": self.action_steps,
+            "rand_objs_params": self.rand_obj_params,
+        }
 
     def __setstate__(self, state):
-        self.__init__(0)
+        self.__init__(
+            seed=0,
+            action_steps=state["action_steps"],
+            rand_obj_params=state["rand_obj_params"],
+        )
         self.b2d_env.rng = state["rng"]
 
     def step(self, action):
