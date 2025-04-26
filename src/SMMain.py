@@ -284,18 +284,41 @@ class Main:
                 )
                 # update cumulative match
                 for i in range(t0, t):
-                    mmask = (
-                        match_value[:, i] - max_match[:, i - 1]
-                    ) > params.match_incr_th
-                    # Update max match
-                    max_match[:, i] = max_match[:, i - 1]
-                    max_match[mmask, i] = match_value[mmask, i]
-                    # Update match and cumulative match 
-                    mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
 
-                    # Select time steps when the gripper touches object
+                    # ####### Dataset Filter - Option 1:
+                    # # Compute selectable time steps based on match value change
+                    # mmask = (
+                    #     match_value[:, i] - max_match[:, i - 1]
+                    # ) > params.match_incr_th
+                    # # Update max match
+                    # max_match[:, i] = max_match[:, i - 1]
+                    # max_match[mmask, i] = match_value[mmask, i]
+                    # # Update match and cumulative match 
+                    # mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
+                    
+                    # ####### Dataset Filter - Option 1:
+                    # # Compute selectable time steps based on match value increment change
+                    # mmask = (
+                    #     match_increment[:, i] - max_match[:, i - 1]
+                    # ) > params.match_incr_th
+                    # # Update max match
+                    # max_match[:, i] = max_match[:, i - 1]
+                    # max_match[mmask, i] = match_value[mmask, i]
+                    # # Update match and cumulative match 
+                    # mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
+
+                    # ####### Dataset Filter - Option 3: 
+                    # # Select time steps when the gripper touches object
+                    
                     mmask = batch_ss[:, i].any(axis=-1)
-                    #match_value[:, i] = mmask
+
+                    # ####### Competence - Option 1
+                    # # use match_value as it is
+
+                    # ####### Competence - Option 2
+                    # # use change event mask 
+                    #
+                    # match_value[:, i] = mmask
 
                     matches[:, i] = mmask
                     cum_match[:, i] = cum_match[:, i - 1] + mmask
