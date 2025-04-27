@@ -282,6 +282,13 @@ class Main:
                 match_increment[:, t0:t] = np.mean(
                     match_increment_per_mod[sa], axis=-1
                 )
+
+                
+                # ####### Dataset Filter - Option 2.1:
+                # match_increment relative to the episode
+                msum = match_increment[:, t0:t].sum(-1) 
+                match_increment[msum>0, t0:t] /= msum[msum>0].reshape(-1, 1)
+
                 # update cumulative match
                 for i in range(t0, t):
 
@@ -296,21 +303,22 @@ class Main:
                     # # Update match and cumulative match 
                     # mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
                     
-                    # ####### Dataset Filter - Option 1:
+                    # ####### Dataset Filter - Option 2:
                     # # Compute selectable time steps based on match value increment change
-                    # mmask = (
-                    #     match_increment[:, i] - max_match[:, i - 1]
-                    # ) > params.match_incr_th
-                    # # Update max match
-                    # max_match[:, i] = max_match[:, i - 1]
-                    # max_match[mmask, i] = match_value[mmask, i]
-                    # # Update match and cumulative match 
+                    mmask = (
+                        match_increment[:, i] - max_match[:, i - 1]
+                    ) > params.match_incr_th
+                    # Update max match
+                    max_match[:, i] = max_match[:, i - 1]
+                    max_match[mmask, i] = match_increment[mmask, i]
+                    
+                    # ########## Update match and cumulative match 
                     # mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
 
                     # ####### Dataset Filter - Option 3: 
                     # # Select time steps when the gripper touches object
-                    
-                    mmask = batch_ss[:, i].any(axis=-1)
+                    # 
+                    # mmask = batch_ss[:, i].any(axis=-1)
 
                     # ####### Competence - Option 1
                     # # use match_value as it is

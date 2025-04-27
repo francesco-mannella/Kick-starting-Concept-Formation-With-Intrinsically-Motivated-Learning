@@ -48,7 +48,7 @@ def optimize_option_key(options_str):
 
 
 params = {
-    "cum_match_stop_th": [8.0],
+    "cum_match_stop_th": [3.0],
     "representation_sigma": [2],
     "base_match_sigma": [8],
     "match_sigma": [8],
@@ -60,7 +60,7 @@ params = {
     "epochs": [400],
 }
 
-base_name = "success"
+base_name = "incr_rescaled_comp"
 
 
 processes = []
@@ -82,8 +82,10 @@ for i, p in enumerate(get_combinations(params)):
     option_key = optimize_option_key(options_str)
 
     base_cmd_str = (
-        f"nohup python {orig_path}/SMMain.py "
-        f"-n {base_name}_{option_key} -s 1000 -t 55000 -x -g -w"
+        f"nohup python -u {orig_path}/SMMain.py "
+        f"-n {base_name}_{option_key} -s 1000 -t 55000 -x -g -w "
+        f"> {base_name}_{option_key}.log 2>&1"
+
     )
     cmd_str = base_cmd_str + options_str
     print(cmd_str)

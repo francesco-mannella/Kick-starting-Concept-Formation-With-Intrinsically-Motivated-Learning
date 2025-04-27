@@ -47,7 +47,7 @@ base_policy_noise = 0.02
 max_policy_noise = 0.6
 policy_weights_sigma = 2
 motor_noise = 1.0
-representation_sigma = 2
+representation_sigma = 5
 
 # Modalities order: visual, touch, proprioception, action
 modalities_weights = [1., 1., 1., 1.]
