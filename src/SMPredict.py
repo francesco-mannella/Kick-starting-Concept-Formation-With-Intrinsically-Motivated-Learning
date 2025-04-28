@@ -40,6 +40,8 @@ class SMPredict:
 
         # OLD: Competence based on successful timesteps
         comp = torch.sigmoid(self.model(torch.tensor(inp, dtype=torch.float))).detach().cpu().numpy()
+       
+        comp = np.maximum(2*comp - 1, 0)
         # Rescale: competence is the fraction of max n_success
         #comp = comp / params.cum_match_stop_th
         #comp[comp > 1] = 1.0 # Maximum possible value is 1
