@@ -31,18 +31,37 @@ def optimize_option_key(options_str):
     Returns:
         A slugified string representing the option key.
     """
-    cleaned_str = options_str.replace("-o", "").replace(" ", "")
+    cleaned_str = options_str.replace("-o", "-").replace(" ", "")
     cleaned_str = re.sub(r"epochs=\d+", "", cleaned_str)
     return slugify.slugify(cleaned_str)
 
 
+# params = {
+#     "obj_fix_prob": [0.2, 0.4, 0.6, 0.8, 1.2],
+#     "obj_var_prob": [1.2, 1.6],
+#     "obj_x": [2],
+#     "obj_y": [2],
+#     "epochs": [1000],
+# }
+#
+# base_name = "obj_params"
+
+
 params = {
-    "obj_fix_prob": [0.2, 0.4, 0.6, 0.8],
-    "obj_var_prob": [1.2, 1.6],
-    "epochs": [1000],
+    "cum_match_stop_th": [8.0],
+    "representation_sigma": [2],
+    "base_match_sigma": [8],
+    "match_sigma": [8],
+    "predict_rl": [0.02],
+    "obj_fix_prob": [0.8],
+    "obj_var_prob": [0.7, 1.2],
+    "obj_x": [2],
+    "obj_y": [2],
+    "epochs": [400],
 }
 
-base_name = "obj_params"
+base_name = "success"
+
 
 processes = []
 MAX_PROCESSES = 4
