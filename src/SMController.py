@@ -254,7 +254,7 @@ class SMController:
 
         return matches, matches_increments.ravel(), matches_per_mod, matches_increments_per_mod
 
-    def choose_policy(self, v_rt, ss_rt, p_rt, goal_norm, t):
+    def choose_policy(self, v_rt, ss_rt, p_rt, goal_activation, t):
         # TODO: ugly hack to avoid division by 0
         #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
         #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)

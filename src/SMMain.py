@@ -197,8 +197,8 @@ class Main:
         policy_changed = np.zeros((batch_size, params.stime), dtype=bool)
         bsize = batch_size * params.action_steps
 
-        visual_norm = np.zeros((batch_size, params.stime))
-        goal_norm = np.zeros((batch_size, params.stime))
+        visual_activation = np.zeros((batch_size, params.stime))
+        goal_activation = np.zeros((batch_size, params.stime))
 
         # Main loop through time steps and episodes
         smcycles = [SensoryMotorCircle(params.action_steps)] * batch_size
@@ -266,7 +266,7 @@ class Main:
                 a_p[sa].flat = Rp[3].flat
                 g_p[sa].flat = Rp[4].flat
 
-                visual_norm[:, t0:t].flat = controller.stm_v.get_norms(
+                visual_activation[:, t0:t].flat = controller.stm_v.get_activation(
                     batch_v[sa].reshape((bsize, -1))).sum(axis=-1).flat
 
                 # Do not update match during the initial empty steps
@@ -349,7 +349,7 @@ class Main:
                         success_mask, t - 2 * params.drop_first_n_steps : t, :
                     ]
 
-                    goal_norm[success_mask, t:] = visual_norm[
+                    goal_activation[success_mask, t:] = visual_activation[
                         success_mask, t - 2 * params.drop_first_n_steps : t
                     ].mean(axis=1)[:, None] 
 
@@ -359,7 +359,7 @@ class Main:
                      competences,
                      rcompetences,
                      mean_policy_noise) = controller.choose_policy(v_rt, ss_rt, p_rt,
-                                                                   goal_norm, t)
+                                                                   goal_activation, t)
 
                     self.mean_policy_noise = mean_policy_noise
 
@@ -377,7 +377,7 @@ class Main:
         # count cumulative match properly.
         policy_changed[:, -1] = 1
 
-        return matches, max_match, cum_match, episode_len, policy_changed, goal_norm
+        return matches, max_match, cum_match, episode_len, policy_changed, goal_activation
 
     def train(self, time_limits):
 
@@ -459,7 +459,7 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed, goal_norm = self.run_episodes(
+            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
                 v_p, ss_p, p_p, a_p, g_p,
@@ -610,10 +610,10 @@ class Main:
                            'match_value_ss': match_value_per_mod[matches, 1].mean(),
                            'match_value_p': match_value_per_mod[matches, 2].mean(),
                            'match_value_a': match_value_per_mod[matches, 3].mean(),
-                           'goal_norm': goal_norm[policy_changed].mean(),
-                           'goal_norm_blue': goal_norm[contexts == 1, :][policy_changed[contexts == 1, :]].mean(),
-                           'goal_norm_red': goal_norm[contexts == 2, :][policy_changed[contexts == 2, :]].mean(),
-                           'goal_norm_green': goal_norm[contexts == 3, :][policy_changed[contexts == 3, :]].mean()
+                           'goal_activation': goal_activation[policy_changed].mean(),
+                           'goal_activation_blue': goal_activation[contexts == 1, :][policy_changed[contexts == 1, :]].mean(),
+                           'goal_activation_red': goal_activation[contexts == 2, :][policy_changed[contexts == 2, :]].mean(),
+                           'goal_activation_green': goal_activation[contexts == 3, :][policy_changed[contexts == 3, :]].mean()
                            }, step=epoch)
 
             self.match_value = match_value
@@ -1240,13 +1240,13 @@ class Main:
         v_p_set = set()
         i = 0
 
-        def choose_unique_policy(self, v_rt, ss_rt, p_rt, goal_norm, t):
-            ret_val = self.choose_policy_(v_rt, ss_rt, p_rt, goal_norm, t)
+        def choose_unique_policy(self, v_rt, ss_rt, p_rt, goal_activation, t):
+            ret_val = self.choose_policy_(v_rt, ss_rt, p_rt, goal_activation, t)
                 
             # Check uniqueness only for the initial policy
             if t == 2*params.drop_first_n_steps:
-                if goal_norm[0, t] > params.maximal_goal_norm:
-                    raise RepeatedGoalPrototypeException(f"Goal norm above treshold")
+                if goal_activation[0, t] > params.maximum_goal_activation:
+                    raise RepeatedGoalPrototypeException(f"Goal activation above treshold")
                 goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
                 if goal_p in v_p_set:
                     raise RepeatedGoalPrototypeException(f"Repeated prototype {goal_p}")
@@ -1297,7 +1297,7 @@ class Main:
             ) = Rp
 
             try:
-                matches, max_match, cum_match, episodes_len, visual_goal_changed, goal_norm = self.run_episodes(
+                matches, max_match, cum_match, episodes_len, visual_goal_changed, goal_activation = self.run_episodes(
                     batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                     v_r, ss_r, p_r, a_r,
                     v_p, ss_p, p_p, a_p, g_p,

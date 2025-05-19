@@ -178,9 +178,9 @@ class SMSTM(STM):
     def spread(self, x):
         return super(SMSTM, self).spread(torch.tensor(x, dtype=torch.float)).cpu().detach().numpy()
 
-    def get_norms(self, x):
-        norm2, _ = super(SMSTM, self).get_norms_and_activation(torch.tensor(x, dtype=torch.float))
-        return norm2.cpu().detach().numpy()
+    def get_activation(self, x):
+        activation = super(SMSTM, self).forward(torch.tensor(x, dtype=torch.float))
+        return activation.cpu().detach().numpy()
 
     def backward(self, x):
         return super(SMSTM, self).backward(torch.tensor(x, dtype=torch.float)).cpu().detach().numpy()
