@@ -72,7 +72,7 @@ action_steps = 5
 obj_fix_prob = 0.2
 obj_var_prob = 1.6
 obj_rot_var = 3.1415922653
-obj_x = 2
+obj_x = 4
 obj_y = 2 
 
 maximum_goal_activation = 75.0
