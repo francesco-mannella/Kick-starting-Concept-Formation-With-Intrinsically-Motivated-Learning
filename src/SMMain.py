@@ -1066,6 +1066,8 @@ class Main:
                     print("----> Test Sims ...", end=" ", flush=True)
                     self.demo_episodes(n_episodes=params.tests, plot_prefix="parasite_episode", controller=controller_par)
 
+                controller_par.save(epoch, tag="parasite")
+
             match_value[::] = 0
             match_increment[::] = 0
             match_value_per_mod[::] = 0
@@ -1423,6 +1425,12 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "--load_weights",
+        help="Load controller weights from file",
+        action="store",
+        default=None,
+    )
+    parser.add_argument(
         "--demo",
         help="Only plot demo episodes",
         action="store_true",
@@ -1480,6 +1488,9 @@ if __name__ == "__main__":
         main.plots = plots
     else:
         main = Main(seed, plots)
+
+    if args.load_weights is not None:
+        main.controller.load(weights=args.load_weights)
 
     print(main.epoch)
 
