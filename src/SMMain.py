@@ -292,14 +292,14 @@ class Main:
 
                     # ####### Dataset Filter - Option 1:
                     # # Compute selectable time steps based on match value change
-                    mmask = (
-                         match_value[:, i] - max_match[:, i - 1]
-                    ) > params.match_incr_th
+                    #mmask = (
+                    #     match_value[:, i] - max_match[:, i - 1]
+                    #) > params.match_incr_th
                     # Update max match
-                    max_match[:, i] = max_match[:, i - 1]
-                    max_match[mmask, i] = match_value[mmask, i]
+                    #max_match[:, i] = max_match[:, i - 1]
+                    #max_match[mmask, i] = match_value[mmask, i]
                     # Update match and cumulative match 
-                    mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
+                    #mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
                     
                     # ####### Dataset Filter - Option 2:
                     # # Compute selectable time steps based on match value increment change
