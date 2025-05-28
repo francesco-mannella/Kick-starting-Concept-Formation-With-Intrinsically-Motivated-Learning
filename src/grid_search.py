@@ -62,6 +62,16 @@ def get_combinations(data):
     Yields:
        A dictionary representing a single combination of elements.
     """
+
+    for k, v in data.items():
+        if (
+            isinstance(v, str)
+            or isinstance(v, int)
+            or isinstance(v, float)
+            or isinstance(v, bool)
+        ):
+            data[k] = [v]
+
     combinations = product(*[value for value in data.values()])
     for combination in combinations:
         yield dict(zip(data.keys(), combination))
@@ -102,7 +112,6 @@ def parse_params_string(params_string):
         return None
 
 
-# Example usage (assuming you have a 'paramfile' with JSON data)
 def get_params_from_file(paramfile):
     """
     Reads a file containing JSON parameters and returns them as a dictionary.
@@ -111,7 +120,8 @@ def get_params_from_file(paramfile):
       paramfile: The path to the file containing the JSON parameters.
 
     Returns:
-      A dictionary containing the parsed parameters, or None if an error occurs.
+      A dictionary containing the parsed parameters, or None if an error
+      occurs.
     """
     try:
         with open(paramfile, "r") as f:
@@ -148,14 +158,31 @@ if __name__ == "__main__":
         help="Base name for the run and log files.",
     )
 
+    parser.add_argument(
+        "-s",
+        "--seed",
+        type=int,
+        default=1000,
+        help="Seed of the simulations",
+    )
+    parser.add_argument(
+        "-w",
+        "--wandb",
+        type=int,
+        default=False,
+        help="Store data on Weights & Biases",
+    )
+
     args = parser.parse_args()
 
     params_json = args.params_json
     base_name = args.base_name
+    seed = args.seed
+    use_wandb = "-w" if args.wandb else ""
 
     params = get_params_from_file(params_json)
 
-    processes = []
+    processes = []  # type: list[subprocess.Popen]
     MAX_PROCESSES = 4
 
     orig_path = os.path.dirname(os.path.realpath(__file__))
@@ -175,7 +202,8 @@ if __name__ == "__main__":
 
         base_cmd_str = (
             f"nohup python -u {orig_path}/SMMain.py "
-            f"-n {base_name}_{option_key} -s 1000 -t 55000 -x -g -w "
+            f"-n {base_name}_{option_key} -s {seed} "
+            f"-t 55000 -x -g {use_wandb} "
             f"> {base_name}_{option_key}.log 2>&1"
         )
         cmd_str = base_cmd_str + options_str
