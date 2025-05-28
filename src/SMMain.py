@@ -85,14 +85,15 @@ class Main:
         if self.plots is True:
             remove_figs()
 
-        random_obj_params = {
+        self.random_obj_params = {
             "fix_prop": params.obj_fix_prob,
             "var_prop": params.obj_var_prob,
             "rot_var": params.obj_rot_var,
             "pos": [params.obj_y, params.obj_x],
         }
 
-        self.env = SMEnv(seed, params.action_steps, random_obj_params)
+        self.env = SMEnv(seed, params.action_steps,
+                         rand_obj_params=self.random_obj_params)
         self.agent = SMAgent(self.env)
         self.controller = SMController(
             self.rng,
@@ -132,7 +133,8 @@ class Main:
             self.logs = tmp
             tmp = np.zeros([params.epochs, 2])
 
-        self.env = SMEnv(self.seed, params.action_steps)
+        self.env = SMEnv(self.seed, params.action_steps,
+                         rand_obj_params=self.random_obj_params)
         self.controller = SMController(
             self.rng,
             load=params.load_weights,
@@ -450,7 +452,8 @@ class Main:
             # ----- prepare episodes
             for episode in range(params.batch_size):
                 # Each environment in each epoch should have a different seed
-                env = SMEnv(self.seed + episode + epoch, params.action_steps)
+                env = SMEnv(self.seed + episode + epoch, params.action_steps,
+                            rand_obj_params=self.random_obj_params)
                 env.b2d_env.prepare_world(contexts[episode])
                 states[episode] = env.reset(contexts[episode])
                 envs[episode] = env
@@ -757,7 +760,8 @@ class Main:
             # ----- prepare episodes
             for episode in range(params.batch_size): 
                 # Each environment in each epoch should have a different seed
-                env = SMEnv(self.seed + episode + epoch, params.action_steps, store_observations=True)
+                env = SMEnv(self.seed + episode + epoch, params.action_steps,
+                            store_observations=True, rand_obj_params=self.random_obj_params)
                 env.b2d_env.prepare_world(contexts[episode])
                 states[episode] = env.reset(contexts[episode])
                 envs[episode] = env
@@ -781,7 +785,8 @@ class Main:
             # ----- prepare episodes
             for episode in range(params.batch_size): 
                 # Each environment in each epoch should have a different seed
-                env = SMEnvParasite(self.seed + episode + epoch, envs[episode].stored_observations)
+                env = SMEnvParasite(self.seed + episode + epoch, envs[episode].stored_observations,
+                                    rand_obj_params=self.random_obj_params)
                 states_par[episode] = env.reset()
                 envs_par[episode] = env
                 state_par = states_par[episode]
