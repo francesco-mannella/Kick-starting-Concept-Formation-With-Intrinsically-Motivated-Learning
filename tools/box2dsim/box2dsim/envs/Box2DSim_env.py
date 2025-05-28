@@ -242,7 +242,8 @@ class Box2DSimOneArmEnv(gym.Env):
                     verts = (verts - vmean) * (
                         self.rand_obj_params["fix_prop"]
                         + self.rand_obj_params["var_prop"]
-                        * self.rng.rand(*verts.shape)
+                        * self.rng.randn(*verts.shape)
+                        #* self.rng.rand(*verts.shape)
                     )
 
                     rot = self.rand_obj_params["rot_var"] * self.rng.randn()
