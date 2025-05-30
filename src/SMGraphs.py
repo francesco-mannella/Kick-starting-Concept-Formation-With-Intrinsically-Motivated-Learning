@@ -9,9 +9,10 @@ import numpy as np
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap
 
-import params
+import params as PARAMS
 from mkvideo import vidManager
 
+params = PARAMS.Parameters()
 
 c = [0, 0.5, 1]
 colors = np.vstack([x.ravel() for x in np.meshgrid(c, c, c)]).T

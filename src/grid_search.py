@@ -105,7 +105,7 @@ def parse_params_string(params_string):
     try:
         params = json.loads(params_string)
         return params
-    except json.JSONDecodeError:
+    except json.decoder.JSONDecodeError:
         print(
             f"Error: Invalid JSON format in params string: {params_string}"
         )  # Improved error message

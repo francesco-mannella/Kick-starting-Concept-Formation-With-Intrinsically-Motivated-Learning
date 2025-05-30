@@ -1,10 +1,102 @@
 import json
-import sys
 
 import numpy as np
 
 
-class Parameters:
+class ParameterManager:
+
+    def __init__(self):
+        self._set_param_types()
+
+    def _set_param_types(self):
+        self.param_types = {
+            k: type(v)
+            for k, v in self.__dict__.items()
+            if not k.startswith("__") and not callable(v)
+        }
+
+    def _string_to_json(self, param_string):
+        """Converts a semicolon-separated string to a JSON dictionary.
+        Args:
+            param_string: A string of semicolon-separated key-value pairs.
+        Returns:
+            A dictionary representing the JSON object.
+        """
+        if not param_string:
+            return {}
+
+        # Split the string into key-value pairs
+        params = dict(
+            s.split("=", 1) for s in param_string.split(";") if "=" in s
+        )
+        # Format the key-value pairs into a JSON string
+        params = ",".join(
+            f'"{k}":{v.replace(" ","")}' for k, v in params.items()
+        ).replace("'", '"')
+        params = "{" + params + "}"
+
+        # Load the JSON string into a dictionary
+        param_dict = json.loads(params)
+
+        return param_dict
+
+    def _json_to_params(self, param_dict):
+        """Set attributes from a dictionary.
+        Args:
+            param_dict (dict): Dictionary of parameters.
+        """
+        # Iterate over the key-value pairs in the input dictionary.
+        for key, value in param_dict.items():
+            # For each pair, set an attribute of the instance.
+            setattr(self, key, value)
+
+    def update(self, param_string):
+        param_dict = self._string_to_json(param_string)
+        self._json_to_params(param_dict)
+
+    def save(self, filepath):
+        params = {
+            key: getattr(self, key)
+            for key in self.__dict__
+            if key != "param_types"
+        }
+        with open(filepath, "w") as file:
+            json.dump(params, file, indent=4)
+
+    def load(self, filepath):
+        with open(filepath, "r") as file:
+            param_list = "".join([line.strip() + ";" for line in file])
+        self.string_to_params(param_list)
+
+    def __hash__(self):
+        # Using a tuple comprehension to collect all non-callable and
+        # non-private attributes (those not starting with "_") into a tuple
+        attr_values = tuple(
+            (attr, self._make_hashable(getattr(self, attr)))
+            for attr in dir(self)
+            if not callable(getattr(self, attr)) and not attr.startswith("_")
+        )
+        hashid = hash(attr_values)
+        # Create a unique string from the tuple and return its hash
+        return hashid
+
+    def _make_hashable(self, value):
+        if isinstance(value, dict):
+            # Convert dictionary to a frozenset of its items (key-value pairs)
+            return frozenset(
+                (key, self._make_hashable(v)) for key, v in value.items()
+            )
+        elif isinstance(value, list):
+            # Convert list to a tuple of its elements
+            return tuple(self._make_hashable(v) for v in value)
+        elif isinstance(value, set):
+            # Convert set to a frozenset of its elements
+            return frozenset(self._make_hashable(v) for v in value)
+        # Add other types like list, set, etc., if needed
+        return value
+
+
+class Parameters(ParameterManager):
     def __init__(
         self,
         task_space=None,  # {"xlim": [-10, 50], "ylim": [-10, 50]}
@@ -65,6 +157,8 @@ class Parameters:
         obj_fix_prob=0.2,
         obj_var_prob=1.6,
         obj_rot_var=3.1415922653,
+        obj_x=2,
+        obj_y=4,
     ):
 
         self.task_space = (
@@ -133,109 +227,7 @@ class Parameters:
         self.obj_fix_prob = obj_fix_prob
         self.obj_var_prob = obj_var_prob
         self.obj_rot_var = obj_rot_var
-        self.param_types = {
-            k: type(v)
-            for k, v in self.__dict__.items()
-            if not k.startswith("__") and not callable(v)
-        }
+        self.obj_x = obj_x
+        self.obj_y = obj_y
 
-    def _string_to_json(self, param_list):
-        if not param_list:
-            return {}
-        return dict(
-            item.split("=", 1) for item in param_list.split(";") if "=" in item
-        )
-
-    def _json_to_params(self, param_dict):
-        if not param_dict:
-            return
-        for key, value in param_dict.items():
-            if key in dir(self):
-                converter = self.param_types[key]
-                try:
-                    if isinstance(converter, type):
-                        setattr(self, key, converter(value))
-                    elif isinstance(converter, list):
-                        setattr(
-                            self,
-                            key,
-                            [
-                                type(converter[0])(v)
-                                for v in value.strip("[]()").split(",")
-                            ],
-                        )
-                    elif isinstance(converter, tuple):
-                        setattr(
-                            self,
-                            key,
-                            tuple(
-                                type(converter[0])(v)
-                                for v in value.strip("[]()").split(",")
-                            ),
-                        )
-                    elif isinstance(converter, np.ndarray):
-                        setattr(
-                            self,
-                            key,
-                            np.array(
-                                [
-                                    type(converter.item(0))(v)
-                                    for v in value.strip("[]()").split(",")
-                                ]
-                            ),
-                        )
-                    elif isinstance(converter, dict):
-                        setattr(self, key, json.loads(value))
-                    elif converter is bool:
-                        setattr(self, key, value == "True")
-                    else:
-                        setattr(self, key, converter(value))
-                except Exception as e:
-                    print(f"Error converting parameter {key}: {e}")
-            else:
-                print(f"There's no parameter named {key}")
-                sys.exit(1)
-
-    def update(self, param_string):
-        self.
-
-    def save(self, filepath):
-        params = {
-            key: getattr(self, key)
-            for key in self.__dict__
-            if key != "param_types"
-        }
-        with open(filepath, "w") as file:
-            json.dump(params, file, indent=4)
-
-    def load(self, filepath):
-        with open(filepath, "r") as file:
-            param_list = "".join([line.strip() + ";" for line in file])
-        self.string_to_params(param_list)
-
-    def __hash__(self):
-        # Using a tuple comprehension to collect all non-callable and
-        # non-private attributes (those not starting with "_") into a tuple
-        attr_values = tuple(
-            (attr, self._make_hashable(getattr(self, attr)))
-            for attr in dir(self)
-            if not callable(getattr(self, attr)) and not attr.startswith("_")
-        )
-        hashid = hash(attr_values)
-        # Create a unique string from the tuple and return its hash
-        return hashid
-
-    def _make_hashable(self, value):
-        if isinstance(value, dict):
-            # Convert dictionary to a frozenset of its items (key-value pairs)
-            return frozenset(
-                (key, self._make_hashable(v)) for key, v in value.items()
-            )
-        elif isinstance(value, list):
-            # Convert list to a tuple of its elements
-            return tuple(self._make_hashable(v) for v in value)
-        elif isinstance(value, set):
-            # Convert set to a frozenset of its elements
-            return frozenset(self._make_hashable(v) for v in value)
-        # Add other types like list, set, etc., if needed
-        return value
+        super(Parameters, self).__init__()

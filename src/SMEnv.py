@@ -1,19 +1,29 @@
 import gymnasium as gym
 
-import params
-
 
 class SMEnv:
-    def __init__(self, seed, action_steps=5, store_observations=False, rand_obj_params=None):
+    def __init__(
+        self,
+        params,
+        seed,
+        action_steps=5,
+        store_observations=False,
+        rand_obj_params=None,
+    ):
+
+        self.params = params
+
         self.action_steps = action_steps
-        self.store_observations=store_observations
-        self.rand_obj_params=rand_obj_params
-        self.b2d_env = gym.make("Box2DSimOneArmOneEye-v0", rand_obj_params=rand_obj_params)
+        self.store_observations = store_observations
+        self.rand_obj_params = rand_obj_params
+        self.b2d_env = gym.make(
+            "Box2DSimOneArmOneEye-v0", rand_obj_params=rand_obj_params
+        )
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)
         self.b2d_env.action_steps = action_steps
 
-        self.b2d_env.set_taskspace(**params.task_space)
+        self.b2d_env.set_taskspace(**self.params.task_space)
         self.render = None
         self.world = 0
         self.stored_observations = None
@@ -101,5 +111,3 @@ class SMEnvParasite(SMEnv):
     def reset(self):
         self.i = 0
         return self.stored_observations[self.i]
-
-
