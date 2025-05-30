@@ -1821,7 +1821,10 @@ if __name__ == "__main__":
         "-o",
         "--opt",
         nargs=1,
-        help="Additional simulation option in KEY=VALUE format (overrides params.py)",
+        help=(
+            "Additional simulation option in KEY=VALUE"
+            "format (overrides params.py)"
+        ),
         action=kvdictAppendAction,
         metavar="KEY=VALUE",
     )
