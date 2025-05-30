@@ -12,7 +12,7 @@ import pandas as pd
 import torch
 import wandb
 
-import params as PARAMS
+from params import Parameters
 from SMAgent import SMAgent
 from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
@@ -93,10 +93,16 @@ class Main:
             "pos": [self.params.obj_y, self.params.obj_x],
         }
 
-        self.env = SMEnv(params=params, seed=seed, self.params.action_steps, random_obj_params)
+        self.params.rand_obj_params = random_obj_params
+
+        self.env = SMEnv(
+            params=self.params,
+            seed=self.seed,
+        )
         self.agent = SMAgent(self.env)
         self.controller = SMController(
-            self.rng,
+            params=self.params,
+            rng=self.rng,
             load=self.params.load_weights,
             shuffle=self.params.shuffle_weights,
         )
@@ -133,9 +139,14 @@ class Main:
             self.logs = tmp
             tmp = np.zeros([self.params.epochs, 2])
 
-        self.env = SMEnv(self.seed, self.params.action_steps)
+        self.env = SMEnv(
+            params=self.params,
+            seed=self.seed,
+        )
+
         self.controller = SMController(
-            self.rng,
+            params=self.params,
+            rng=self.rng,
             load=self.params.load_weights,
             shuffle=self.params.shuffle_weights,
         )
@@ -240,7 +251,8 @@ class Main:
                         batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
 
             if t % self.params.action_steps == 0 or t == self.params.stime:
-                # get Representations for the last N = self.params.action_steps steps
+                # get Representations for the last N = self.params.action_steps
+                # steps
                 t0 = t - self.params.action_steps
                 sa = np.s_[:, t0:t, :]
 
@@ -250,7 +262,8 @@ class Main:
                 )
 
                 # Use current sigma modulated by competence
-                # self.controller.updateParams(self.controller.curr_sigma, self.controller.curr_lr)
+                # self.controller.updateParams(self.controller.curr_sigma,
+                # self.controller.curr_lr)
                 Rs, Rp = controller.spread(
                     [
                         batch_v[sa].reshape((bsize, -1)),
@@ -293,15 +306,16 @@ class Main:
                 for i in range(t0, t):
 
                     # ####### Dataset Filter - Option 1:
-                    # # Compute selectable time steps based on match value change
-                    # mmask = (
+                    # # Compute selectable time steps based on match value
+                    # change mmask = (
                     #     match_value[:, i] - max_match[:, i - 1]
                     # ) > self.params.match_incr_th
                     # # Update max match
                     # max_match[:, i] = max_match[:, i - 1]
                     # max_match[mmask, i] = match_value[mmask, i]
                     # # Update match and cumulative match
-                    # mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
+                    # # Ignore first match increase from 0
+                    # mmask[max_match[:, i-1] == 0] = 0
                     # ####### Dataset Filter - Option 2:
                     # # Select time steps when the gripper touches object
                     mmask = batch_ss[:, i].any(axis=-1)
@@ -325,10 +339,12 @@ class Main:
                     and t >= 2 * self.params.drop_first_n_steps
                 ):
 
-                    # Register subsequent changes of policy after the initial one
+                    # Register subsequent changes of policy after the initial
+                    # one
                     policy_changed[success_mask, t - 2] = 1
 
-                    # Set initial policy after warmup steps + action selection steps
+                    # Set initial policy after warmup steps + action selection
+                    # steps
                     if t == 2 * self.params.drop_first_n_steps:
                         success_mask[:] = 1
 
@@ -360,8 +376,8 @@ class Main:
 
                     self.mean_policy_noise = mean_policy_noise
 
-                    # fill successful batches with policies, goals, and competences
-                    # (from the current timestep onward)
+                    # fill successful batches with policies, goals, and
+                    # competences (from the current timestep onward)
                     batch_a[success_mask, t:, :] = policies[:, None, :]
                     batch_g[success_mask, t:, :] = goals[:, None, :]
                     batch_c[success_mask, t:, :] = competences[:, None, :]
@@ -492,8 +508,10 @@ class Main:
             for episode in range(self.params.batch_size):
                 # Each environment in each epoch should have a different seed
                 env = SMEnv(
-                    self.seed + episode + epoch, self.params.action_steps
+                    params=self.params,
+                    seed=self.seed + episode + epoch,
                 )
+
                 env.b2d_env.prepare_world(contexts[episode])
                 states[episode] = env.reset(contexts[episode])
                 envs[episode] = env
@@ -780,7 +798,8 @@ class Main:
         contexts = (np.arange(self.params.batch_size) % 3) + 1
 
         controller_par = SMController(
-            self.rng,
+            params=self.params,
+            rng=self.rng,
             load=self.params.load_weights,
             shuffle=self.params.shuffle_weights,
         )
@@ -955,8 +974,8 @@ class Main:
             for episode in range(self.params.batch_size):
                 # Each environment in each epoch should have a different seed
                 env = SMEnv(
-                    self.seed + episode + epoch,
-                    self.params.action_steps,
+                    params=self.params,
+                    seed=self.seed + episode + epoch,
                     store_observations=True,
                 )
                 env.b2d_env.prepare_world(contexts[episode])
@@ -1007,7 +1026,6 @@ class Main:
                 )
                 states_par[episode] = env.reset()
                 envs_par[episode] = env
-                state_par = states_par[episode]
 
             (
                 matches_par,
@@ -1675,16 +1693,17 @@ class Main:
                 print(e)
                 continue
 
-            l = episodes_len[0]
-            full_match_value = match_value[0, :l]
-            full_matches = matches[0, :l]
-            full_cum_match = cum_match[0, :l] / self.params.cum_match_stop_th
-            full_max_match = max_match[0, :l]
-            f_vp = v_p[0, :l]
-            f_ssp = ss_p[0, :l]
-            f_pp = p_p[0, :l]
-            f_ap = a_p[0, :l]
-            f_gp = g_p[0, :l]
+            episode_end = episodes_len[0]
+            full_match_value = match_value[0, :episode_end]
+            full_cum_match = (
+                cum_match[0, :episode_end] / self.params.cum_match_stop_th
+            )
+            full_max_match = max_match[0, :episode_end]
+            f_vp = v_p[0, :episode_end]
+            f_ssp = ss_p[0, :episode_end]
+            f_pp = p_p[0, :episode_end]
+            f_ap = a_p[0, :episode_end]
+            f_gp = g_p[0, :episode_end]
 
             env.render_info(
                 full_match_value,
@@ -1701,7 +1720,8 @@ class Main:
                 goal_p = g_p[0, 2 * self.params.drop_first_n_steps]
                 shutil.copyfile(
                     f"{site_dir}/{plot_prefix}.gif",
-                    f"{site_dir}/{plot_prefix}_00{int(goal_p[0])}{int(goal_p[1])}.gif",
+                    f"{site_dir}/{plot_prefix}_00"
+                    f"{int(goal_p[0])}{int(goal_p[1])}.gif",
                 )
             else:
                 shutil.copyfile(
@@ -1733,7 +1753,7 @@ if __name__ == "__main__":
             assert len(values) == 1
             try:
                 (k, v) = values[0].split("=", 2)
-            except ValueError as ex:
+            except ValueError:
                 raise argparse.ArgumentError(
                     self,
                     f'could not parse argument "{values[0]}" as k=v format',
@@ -1744,10 +1764,10 @@ if __name__ == "__main__":
             else:
                 try:
                     v = int(v)
-                except:
+                except ValueError:
                     try:
                         v = float(v)
-                    except:
+                    except ValueError:
                         pass
 
             override_params[k] = v
@@ -1815,10 +1835,10 @@ if __name__ == "__main__":
     demo = bool(args.demo)
     simulation_name = args.name
 
-    params = PARAMS.Parameters()
+    params = Parameters()
 
-    if gpu:
-        torch.set_default_device("cuda")
+    device = "cuda" if torch.cuda.is_available() and gpu else "cpu"
+    torch.set_default_device(device)
 
     if args.name is not None:
         named_dir = (Path(simulations_dir) / args.name).resolve()

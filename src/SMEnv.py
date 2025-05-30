@@ -6,22 +6,20 @@ class SMEnv:
         self,
         params,
         seed,
-        action_steps=5,
         store_observations=False,
-        rand_obj_params=None,
     ):
 
         self.params = params
 
-        self.action_steps = action_steps
+        self.action_steps = params.action_steps
         self.store_observations = store_observations
-        self.rand_obj_params = rand_obj_params
+        self.rand_obj_params = params.rand_obj_params
         self.b2d_env = gym.make(
-            "Box2DSimOneArmOneEye-v0", rand_obj_params=rand_obj_params
+            "Box2DSimOneArmOneEye-v0", rand_obj_params=self.rand_obj_params
         )
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)
-        self.b2d_env.action_steps = action_steps
+        self.b2d_env.action_steps = self.action_steps
 
         self.b2d_env.set_taskspace(**self.params.task_space)
         self.render = None

@@ -1,8 +1,6 @@
 import os
 import glob
-import params
 import numpy as np
-import pathlib
 
 
 from stm import SMSTM
@@ -20,64 +18,67 @@ def flt(n, s=0.1):
 
 
 class SMController:
-    def __init__(self, rng=None, load=False, shuffle=False, tag=None):
+    def __init__(self, params, rng=None, load=False, shuffle=False, tag=None):
+
+        self.params = params
         self.maxmatch = None
         self.rng = rng
         if self.rng is None:
             self.rng = np.random.RandomState()
 
         self.stm_v = SMSTM(
-            learning_rate=params.stm_lr,
-            input_size=params.visual_size,
-            output_size=params.internal_size,
-            sigma=params.internal_sigma,
-            external_radial_prop=params.v_eradial_prop,
+            learning_rate=self.params.stm_lr,
+            input_size=self.params.visual_size,
+            output_size=self.params.internal_size,
+            sigma=self.params.internal_sigma,
+            external_radial_prop=self.params.v_eradial_prop,
         )
         self.stm_ss = SMSTM(
-            learning_rate=params.stm_lr,
-            input_size=params.somatosensory_size,
-            output_size=params.internal_size,
-            sigma=params.internal_sigma,
-            external_radial_prop=params.ss_eradial_prop,
+            learning_rate=self.params.stm_lr,
+            input_size=self.params.somatosensory_size,
+            output_size=self.params.internal_size,
+            sigma=self.params.internal_sigma,
+            external_radial_prop=self.params.ss_eradial_prop,
         )
         self.stm_p = SMSTM(
-            learning_rate=params.stm_lr,
-            input_size=params.proprioception_size,
-            output_size=params.internal_size,
-            sigma=params.internal_sigma,
-            external_radial_prop=params.p_eradial_prop,
+            learning_rate=self.params.stm_lr,
+            input_size=self.params.proprioception_size,
+            output_size=self.params.internal_size,
+            sigma=self.params.internal_sigma,
+            external_radial_prop=self.params.p_eradial_prop,
         )
         self.stm_a = SMSTM(
-            learning_rate=params.stm_lr,
-            input_size=params.policy_size,
-            output_size=params.internal_size,
-            sigma=params.internal_sigma,
-            external_radial_prop=params.a_eradial_prop,
-            weights_init_sigma=params.policy_weights_sigma
+            learning_rate=self.params.stm_lr,
+            input_size=self.params.policy_size,
+            output_size=self.params.internal_size,
+            sigma=self.params.internal_sigma,
+            external_radial_prop=self.params.a_eradial_prop,
+            weights_init_sigma=self.params.policy_weights_sigma,
         )
         if load is True:
             self.load(tag=tag, shuffle=shuffle)
 
         self.predict = SMPredict(
-            params.internal_size,
-            1,
-            lr=params.predict_lr
+            self.params.internal_size, 1, lr=self.params.predict_lr
         )
 
-        weights_path = pathlib.Path(__file__).parent.resolve() / "policy_weights_random.npy"
-        initial_policy = np.load(weights_path, allow_pickle=True)
-        #self.stm_a.set_weights(initial_policy)
+        # weights_path = (
+        #     pathlib.Path(__file__).parent.resolve()
+        #     / "policy_weights_random.npy"
+        # )
+        # initial_policy = np.load(weights_path, allow_pickle=True)
+        # self.stm_a.set_weights(initial_policy)
 
-        self.match_sigma = params.match_sigma
-        self.sigma = params.internal_sigma
+        self.match_sigma = self.params.match_sigma
+        self.sigma = self.params.internal_sigma
         self.curr_sigma = self.sigma
-        self.comp_sigma = params.base_internal_sigma
+        self.comp_sigma = self.params.base_internal_sigma
         self.curr_lr = None
 
-        self.base_policy_noise = params.base_policy_noise
-        self.max_policy_noise = params.max_policy_noise
+        self.base_policy_noise = self.params.base_policy_noise
+        self.max_policy_noise = self.params.max_policy_noise
 
-        self.internal_side = int(np.sqrt(params.internal_size))
+        self.internal_side = int(np.sqrt(self.params.internal_size))
         x = np.arange(self.internal_side)
         self.radial_grid = np.stack(np.meshgrid(x, x)).reshape(2, -1).T
         x = self.radial_grid
@@ -96,14 +97,16 @@ class SMController:
         # This effectively ensures that first 10% of simulation steps
         # of each episode is not taken into account when updating
         # sensorimotor maps based on match values.
-        self.episode_mask = np.arange(params.stime*params.batch_size) % params.stime
-        self.episode_mask = self.episode_mask > params.drop_first_n_steps
+        self.episode_mask = (
+            np.arange(self.params.stime * self.params.batch_size)
+            % self.params.stime
+        )
+        self.episode_mask = self.episode_mask > self.params.drop_first_n_steps
 
-    @staticmethod
-    def comp_fun(comp):
-        basecomp = np.tanh(params.predict_base_ampl*comp)
-        hypercomp = np.tanh(params.predict_ampl*comp)
-        prob = params.predict_ampl_prop
+    def comp_fun(self, comp):
+        basecomp = np.tanh(self.params.predict_base_ampl * comp)
+        hypercomp = np.tanh(self.params.predict_ampl * comp)
+        prob = self.params.predict_ampl_prop
         return (1 - prob) * basecomp + prob * hypercomp
 
     def update_reentrant_connections(self):
@@ -134,8 +137,10 @@ class SMController:
 
     def getPoliciesFromPoints(self, points):
         # Setting minimal sigma guarantees that exact prototypes are returned,
-        # not interpolated policies over larger portion of the grid. 
-        representations = self.stm_a.getRepresentation(points, sigma=params.base_internal_sigma)
+        # not interpolated policies over larger portion of the grid.
+        representations = self.stm_a.getRepresentation(
+            points, sigma=self.params.base_internal_sigma
+        )
         policies = self.getPoliciesFromRepresentations(representations)
         return policies, representations
 
@@ -143,65 +148,92 @@ class SMController:
         noise = self.rng.randn(*vector.shape)
 
         # Normalize the noise to the desired level
-        norm_noise = noise_level * np.linalg.norm(vector, axis=-1)[:, None] * noise / np.linalg.norm(noise, axis=-1)[:, None]
+        norm_noise = (
+            noise_level
+            * np.linalg.norm(vector, axis=-1)[:, None]
+            * noise
+            / np.linalg.norm(noise, axis=-1)[:, None]
+        )
 
         # Orthogonalize the noise
-        noise_orthogonal = norm_noise - np.sum(vector * norm_noise, axis=-1)[:, None] * vector / np.linalg.norm(vector, axis=-1)[:, None]**2
+        noise_orthogonal = (
+            norm_noise
+            - np.sum(vector * norm_noise, axis=-1)[:, None]
+            * vector
+            / np.linalg.norm(vector, axis=-1)[:, None] ** 2
+        )
         # Add orthogonal noise to the original vector
         noisy_vector = vector + noise_orthogonal
         # Rescale to maintain original norm
-        noisy_vector = np.linalg.norm(vector) * noisy_vector / np.linalg.norm(noisy_vector)
+        noisy_vector = (
+            np.linalg.norm(vector)
+            * noisy_vector
+            / np.linalg.norm(noisy_vector)
+        )
 
         return noisy_vector
 
     def getPoliciesFromPointsWithNoise(self, points):
         policies, representations = self.getPoliciesFromPoints(points)
         rcomp = self.predict.spread(representations)
-        #comp = SMController.comp_fun(rcomp)
+        # comp = self.comp_fun(rcomp)
         comp = rcomp
-       
+
         # Modulating policy exploration noise according to local competence
         global_comp = self.comp_grid.mean()
-        global_incompetence = 1 - np.tanh(params.decay * global_comp)
-        local_incompetence = global_incompetence * (1 - np.tanh(params.local_decay * comp))
-        noise_sigma = (self.base_policy_noise + (self.max_policy_noise
-            - self.base_policy_noise) * local_incompetence)
+        global_incompetence = 1 - np.tanh(self.params.decay * global_comp)
+        local_incompetence = global_incompetence * (
+            1 - np.tanh(self.params.local_decay * comp)
+        )
+        noise_sigma = (
+            self.base_policy_noise
+            + (self.max_policy_noise - self.base_policy_noise)
+            * local_incompetence
+        )
 
         noise = self.rng.randn(*policies.shape)
-        #policies = policies + params.policy_noise_sigma*(1-comp)*noise
-        policies = policies + noise_sigma*noise
-        #policies = self.add_noise_to_vector_maintaining_norm(policies,
-        #                    noise_level=params.policy_noise_sigma*comp)
-        
-        return policies, comp, rcomp, noise_sigma.mean()
+        # policies = policies + self.params.policy_noise_sigma*(1-comp)*noise
+        policies = policies + noise_sigma * noise
+        # policies = self.add_noise_to_vector_maintaining_norm(policies,
+        #                    noise_level=self.params.policy_noise_sigma*comp)
 
+        noise_sigma_mean = 0 if len(noise_sigma) == 0 else noise_sigma.mean()
+
+        return policies, comp, rcomp, noise_sigma_mean
 
     def getPoliciesFromRepresentationsWithNoise(self, representations):
         policies = self.getPoliciesFromRepresentations(representations)
         rcomp = self.predict.spread(representations)
-        #comp = SMController.comp_fun(rcomp)
+        # comp = self.comp_fun(rcomp)
         comp = rcomp
-       
+
         # Modulating policy exploration noise according to local competence
         global_comp = self.comp_grid.mean()
-        global_incompetence = 1 - np.tanh(params.decay * global_comp)
-        local_incompetence = global_incompetence * (1 - np.tanh(params.local_decay * comp))
-        noise_sigma = (self.base_policy_noise + (self.max_policy_noise
-            - self.base_policy_noise) * local_incompetence)
+        global_incompetence = 1 - np.tanh(self.params.decay * global_comp)
+        local_incompetence = global_incompetence * (
+            1 - np.tanh(self.params.local_decay * comp)
+        )
+        noise_sigma = (
+            self.base_policy_noise
+            + (self.max_policy_noise - self.base_policy_noise)
+            * local_incompetence
+        )
 
         noise = self.rng.randn(*policies.shape)
-        #policies = policies + params.policy_noise_sigma*(1-comp)*noise
-        policies = policies + noise_sigma*noise
-        #policies = self.add_noise_to_vector_maintaining_norm(policies,
-        #                    noise_level=params.policy_noise_sigma*comp)
-        
+        # policies = policies + self.params.policy_noise_sigma*(1-comp)*noise
+        policies = policies + noise_sigma * noise
+        # policies = self.add_noise_to_vector_maintaining_norm(policies,
+        #                    noise_level=self.params.policy_noise_sigma*comp)
+
         return policies, comp, rcomp, noise_sigma.mean()
 
     def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
         mods = np.stack([v_p, ss_p, p_p, a_p])
         diffs = np.moveaxis(np.linalg.norm(mods - g_p, axis=-1), 0, -1)
         match_per_mod = np.exp(-(self.match_sigma**-2) * (diffs**2))
-        match = np.average(match_per_mod, axis=-1, weights=params.modalities_weights)
+        match = np.average(
+            match_per_mod, axis=-1, weights=self.params.modalities_weights
+        )
         return match, match_per_mod
 
     # TODO: This method is outdated and is kept for reference
@@ -227,17 +259,27 @@ class SMController:
 
         # same for increments
         def get_incr(x):
-            y = x.reshape(-1, params.stime)
+            y = x.reshape(-1, self.params.stime)
             n, stime = y.shape
             incr = np.maximum(0, np.diff(y))
             incr = np.hstack([np.zeros([n, 1]), incr])
 
             return incr
 
-        matches_increments_per_mod = np.stack([
-            np.stack([get_incr(matches_per_mod[:, row, col]).ravel()
-                for col in range(5)]) for row in range(5)]).transpose(2, 0, 1)
-        matches_increments = np.sum(matches_increments_per_mod, axis=(1, 2)) / np.sum(mask)
+        matches_increments_per_mod = np.stack(
+            [
+                np.stack(
+                    [
+                        get_incr(matches_per_mod[:, row, col]).ravel()
+                        for col in range(5)
+                    ]
+                )
+                for row in range(5)
+            ]
+        ).transpose(2, 0, 1)
+        matches_increments = np.sum(
+            matches_increments_per_mod, axis=(1, 2)
+        ) / np.sum(mask)
 
         # # requires that all sensory modalities change
         # mask_req = [
@@ -247,49 +289,69 @@ class SMController:
         #     [0, 0, 0, 0, 0],
         #     [0, 0, 0, 0, 0],
         # ]
-        # 
+        #
         # matches_mins = matches_increments_per_mod > 0.01
-        # matches_min_for_all = np.sum(matches_mins, axis=(1, 2)) == 3 
+        # matches_min_for_all = np.sum(matches_mins, axis=(1, 2)) == 3
         # matches_increments = matches_increments * matches_min_for_all
 
-        return matches, matches_increments.ravel(), matches_per_mod, matches_increments_per_mod
+        return (
+            matches,
+            matches_increments.ravel(),
+            matches_per_mod,
+            matches_increments_per_mod,
+        )
 
     def choose_policy(self, v_rt, ss_rt, p_rt, t):
         # TODO: ugly hack to avoid division by 0
-        #v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
-        #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
-        #p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
+        # v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
+        # ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
+        # p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
         v_rt_w = self.predict.spread(v_rt)
         ss_rt_w = self.predict.spread(ss_rt)
         p_rt_w = self.predict.spread(p_rt)
 
-        v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
-        ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
-        p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
+        def weighted_average(v, w):
+            sum_vw = (v * w).sum(axis=1)
+            sum_w = w.sum(axis=1)
+            safe_divisor = np.where(sum_w >= 1e-30, sum_w, 1)
+            safe_sum_vw = np.where(sum_w >= 1e-30, sum_vw, 0)
+            return safe_sum_vw / safe_divisor
 
-        #goals = np.average([v_rt, ss_rt, p_rt],
+        v_rt = weighted_average(v_rt, v_rt_w)
+        ss_rt = weighted_average(ss_rt, ss_rt_w)
+        p_rt = weighted_average(p_rt, p_rt_w)
+
+        # goals = np.average([v_rt, ss_rt, p_rt],
         #                   axis=0,
-        #                   weights=[params.modalities_weights[0],
-        #                            params.modalities_weights[1],
-        #                            params.modalities_weights[2]])
-        #goals = (v_rt + ss_rt + p_rt) / 3 # TEST
-        #goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
-        goals_out = v_rt # TEST: Visual modality only
+        #                   weights=[self.params.modalities_weights[0],
+        #                            self.params.modalities_weights[1],
+        #                            self.params.modalities_weights[2]])
+        # goals = (v_rt + ss_rt + p_rt) / 3 # TEST
+        # goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
+        goals_out = v_rt  # TEST: Visual modality only
 
-        goals_p, goals = self.stm_a.get_point_and_representation(goals_out, sigma=params.representation_sigma) 
+        goals_p, goals = self.stm_a.get_point_and_representation(
+            goals_out, sigma=self.params.representation_sigma
+        )
 
         # update policies in successful episodes
-        (policies,
-         competences,
-         rcompetences,
-         mean_policy_noise) = self.getPoliciesFromPointsWithNoise(goals_p)
+        (policies, competences, rcompetences, mean_policy_noise) = (
+            self.getPoliciesFromPointsWithNoise(goals_p)
+        )
 
-        return goals_p, goals, policies, competences, rcompetences, mean_policy_noise
+        return (
+            goals_p,
+            goals,
+            policies,
+            competences,
+            rcompetences,
+            mean_policy_noise,
+        )
 
     def getCompetenceGrid(self):
         comp = self.predict.spread(self.goal_grid)
         return comp
-        #return SMController.comp_fun(comp)
+        # return self.comp_fun(comp)
 
     def spread(self, inps):
 
@@ -302,7 +364,7 @@ class SMController:
         p_out = self.stm_p.spread(p)
         a_out = self.stm_a.spread(a)
 
-        sigma = params.base_internal_sigma
+        sigma = self.params.base_internal_sigma
         v_p, v_r = self.stm_v.get_point_and_representation(v_out, sigma)
         ss_p, ss_r = self.stm_ss.get_point_and_representation(ss_out, sigma)
         p_p, p_r = self.stm_p.get_point_and_representation(p_out, sigma)
@@ -330,7 +392,7 @@ class SMController:
         cum_match,
         policy_changed,
         local_lr,
-        local_sigma
+        local_sigma,
     ):
         curr_loss = None
         mean_modulation = None
@@ -341,10 +403,11 @@ class SMController:
         n_items = sum(match_ind)
 
         # TODO: Do we need hard and soft attention filtering simultaneously?
-        # Furthermore, the soft part should be relative: normalized in relation to maximum value.
-        # In the supervised version match_value is binary (0 or 1), so there is not soft filtering effectively.
-        # For now, we simplify to hard filtering.
-        #modulate = cgoals[match_ind] * match_value[match_ind, None]
+        # Furthermore, the soft part should be relative: normalized in relation
+        # to maximum value.  In the supervised version match_value is binary (0
+        # or 1), so there is not soft filtering effectively.  For now, we
+        # simplify to hard filtering.
+        # modulate = cgoals[match_ind] * match_value[match_ind, None]
         modulate = cgoals[match_ind]
         mean_modulation = modulate.mean()
 
@@ -352,21 +415,41 @@ class SMController:
 
         # update maps
         if n_items > 0:
-            self.stm_v.update_params(sigma = local_sigma)
-            self.stm_ss.update_params(sigma = local_sigma)
-            self.stm_p.update_params(sigma = local_sigma)
-            self.stm_a.update_params(sigma = local_sigma)
-            curr_loss = (self.stm_v.update(visuals[match_ind], modulate).item(),
-                         self.stm_ss.update(ssensories[match_ind], modulate).item(),
-                         self.stm_p.update(proprios[match_ind], modulate).item(),
-                         self.stm_a.update(policies[match_ind], modulate).item())
+            self.stm_v.update_params(sigma=local_sigma)
+            self.stm_ss.update_params(sigma=local_sigma)
+            self.stm_p.update_params(sigma=local_sigma)
+            self.stm_a.update_params(sigma=local_sigma)
+            curr_loss = (
+                self.stm_v.update(visuals[match_ind], modulate).item(),
+                self.stm_ss.update(ssensories[match_ind], modulate).item(),
+                self.stm_p.update(proprios[match_ind], modulate).item(),
+                self.stm_a.update(policies[match_ind], modulate).item(),
+            )
 
-        # update predictor: predictor predicts cumulated matches for a particular goal
-        #goals = goals.reshape((params.batch_size, params.stime, -1))
-        #match_distance = np.sqrt(np.log(match_value)/-params.match_sigma**-2)
-        #match_distance = match_value.reshape((params.batch_size, params.stime, -1))
+        # # update predictor: predictor predicts cumulated matches for a
+        # # particular goal
+        # goals = goals.reshape(
+        #     (
+        #         self.params.batch_size,
+        #         self.params.stime,
+        #         -1,
+        #     )
+        # )
+        # match_distance = np.sqrt(
+        #     np.log(match_value) / -self.params.match_sigma**-2
+        # )
+        # match_distance = match_value.reshape(
+        #     (
+        #         self.params.batch_size,
+        #         self.params.stime,
+        #         -1,
+        #     )
+        # )
+        #
+        # self.predict.update(
+        #     goals[policy_changed], cum_match[policy_changed, None]
+        # )
 
-        #self.predict.update(goals[policy_changed], cum_match[policy_changed, None])
         self.predict.update(goals[match_ind], match_value[match_ind, None])
 
         return n_items, match_ind, curr_loss, mean_modulation
@@ -394,7 +477,10 @@ class SMController:
 
     def save(self, epoch, tag=None):
 
-        storage_dir = f"storage{'-' if tag is not None else '' }{tag if tag is not None else ''}"
+        storage_dir = (
+            f"storage{'-' if tag is not None else '' }"
+            f"{tag if tag is not None else ''}"
+        )
         epoch_dir = f"{storage_dir}/{epoch:06d}"
         os.makedirs(storage_dir, exist_ok=True)
         os.makedirs(epoch_dir, exist_ok=True)
@@ -425,7 +511,10 @@ class SMController:
     ):
 
         if weights is None:
-            storage_dir = f"storage{'-' if tag is not None else '' }{tag if tag is not None else ''}"
+            storage_dir = (
+                f"storage{'-' if tag is not None else '' }"
+                f"{tag if tag is not None else ''}"
+            )
             if os.path.isdir(storage_dir):
                 if epoch is None:
                     epochs = sorted(glob.glob(f"{storage_dir}/*"))
@@ -440,7 +529,7 @@ class SMController:
             else:
                 raise Exception(f"{storage_dir} does not exist!")
 
-        if shuffle == True:
+        if shuffle is True:
             for k in weights.keys():
                 self.rng.shuffle(weights[k])
 
@@ -452,6 +541,5 @@ class SMController:
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
 
     smcontrol = SMController()
