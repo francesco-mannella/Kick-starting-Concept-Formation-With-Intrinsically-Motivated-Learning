@@ -212,6 +212,9 @@ class Main:
         policy_changed = np.zeros((batch_size, self.params.stime), dtype=bool)
         bsize = batch_size * self.params.action_steps
 
+        visual_activation = np.zeros((batch_size, params.stime))
+        goal_activation = np.zeros((batch_size, params.stime))
+
         # Main loop through time steps and episodes
         smcycles = [SensoryMotorCircle(self.params.action_steps)] * batch_size
         for t in range(1, self.params.stime + 1):
@@ -283,6 +286,9 @@ class Main:
                 p_p[sa].flat = Rp[2].flat
                 a_p[sa].flat = Rp[3].flat
                 g_p[sa].flat = Rp[4].flat
+
+                visual_activation[:, t0:t].flat = controller.stm_v.get_activation(
+                    batch_v[sa].reshape((bsize, -1))).sum(axis=-1).flat
 
                 # Do not update match during the initial empty steps
                 if t <= self.params.drop_first_n_steps:
@@ -365,14 +371,17 @@ class Main:
                         :,
                     ]
 
-                    (
-                        goals_p,
-                        goals,
-                        policies,
-                        competences,
-                        rcompetences,
-                        mean_policy_noise,
-                    ) = controller.choose_policy(v_rt, ss_rt, p_rt, t)
+                    goal_activation[success_mask, t:] = visual_activation[
+                        success_mask, t - 2 * params.drop_first_n_steps : t
+                    ].mean(axis=1)[:, None] 
+
+                    (goals_p,
+                     goals,
+                     policies,
+                     competences,
+                     rcompetences,
+                     mean_policy_noise) = controller.choose_policy(v_rt, ss_rt, p_rt,
+                                                                   goal_activation, t)
 
                     self.mean_policy_noise = mean_policy_noise
 
@@ -390,7 +399,7 @@ class Main:
         # count cumulative match properly.
         policy_changed[:, -1] = 1
 
-        return matches, max_match, cum_match, episode_len, policy_changed
+        return matches, max_match, cum_match, episode_len, policy_changed, goal_activation
 
     def train(self, time_limits):
 
@@ -520,36 +529,17 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed = (
-                self.run_episodes(
-                    batch_v,
-                    batch_ss,
-                    batch_p,
-                    batch_a,
-                    batch_g,
-                    batch_c,
-                    batch_log,
-                    v_r,
-                    ss_r,
-                    p_r,
-                    a_r,
-                    v_p,
-                    ss_p,
-                    p_p,
-                    a_p,
-                    g_p,
-                    match_value_per_mod,
-                    match_value,
-                    match_increment_per_mod,
-                    match_increment,
-                    agent,
-                    controller,
-                    contexts,
-                    envs,
-                    states,
-                )
-            )
-
+            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+                v_r, ss_r, p_r, a_r,
+                v_p, ss_p, p_p, a_p, g_p,
+                match_value_per_mod,
+                match_value,
+                match_increment_per_mod,
+                match_increment,
+                agent, controller, contexts,
+                envs, states)
+           
             # Episode success rate: in how many episodes policy ever changes?
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
 
@@ -986,35 +976,16 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed = (
-                self.run_episodes(
-                    batch_v,
-                    batch_ss,
-                    batch_p,
-                    batch_a,
-                    batch_g,
-                    batch_c,
-                    batch_log,
-                    v_r,
-                    ss_r,
-                    p_r,
-                    a_r,
-                    v_p,
-                    ss_p,
-                    p_p,
-                    a_p,
-                    g_p,
-                    match_value_per_mod,
-                    match_value,
-                    match_increment_per_mod,
-                    match_increment,
-                    agent,
-                    controller,
-                    contexts,
-                    envs,
-                    states,
-                )
-            )
+            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+                v_r, ss_r, p_r, a_r,
+                v_p, ss_p, p_p, a_p, g_p,
+                match_value_per_mod,
+                match_value,
+                match_increment_per_mod,
+                match_increment,
+                agent, controller, contexts,
+                envs, states)
             mean_policy_noise = self.mean_policy_noise
 
             # ----- prepare episodes
@@ -1027,29 +998,10 @@ class Main:
                 states_par[episode] = env.reset()
                 envs_par[episode] = env
 
-            (
-                matches_par,
-                max_match_par,
-                cum_match_par,
-                _,
-                policy_changed_par,
-            ) = self.run_episodes(
-                batch_v,
-                batch_ss,
-                batch_p,
-                batch_a_par,
-                batch_g_par,
-                batch_c_par,
-                batch_log_par,
-                v_r_par,
-                ss_r_par,
-                p_r_par,
-                a_r_par,
-                v_p_par,
-                ss_p_par,
-                p_p_par,
-                a_p_par,
-                g_p_par,
+            matches_par, max_match_par, cum_match_par, _, policy_changed_par, goal_activation_par = self.run_episodes(
+                batch_v, batch_ss, batch_p, batch_a_par, batch_g_par, batch_c_par, batch_log_par,
+                v_r_par, ss_r_par, p_r_par, a_r_par,
+                v_p_par, ss_p_par, p_p_par, a_p_par, g_p_par,
                 match_value_per_mod_par,
                 match_value_par,
                 match_increment_per_mod_par,
@@ -1403,6 +1355,8 @@ class Main:
                         controller=controller_par,
                     )
 
+                controller_par.save(epoch, tag="parasite")
+
             match_value[::] = 0
             match_increment[::] = 0
             match_value_per_mod[::] = 0
@@ -1595,11 +1549,13 @@ class Main:
         v_p_set = set()
         i = 0
 
-        def choose_unique_policy(self, v_rt, ss_rt, p_rt, t):
-            ret_val = self.choose_policy_(v_rt, ss_rt, p_rt, t)
-
+        def choose_unique_policy(self, v_rt, ss_rt, p_rt, goal_activation, t):
+            ret_val = self.choose_policy_(v_rt, ss_rt, p_rt, goal_activation, t)
+                
             # Check uniqueness only for the initial policy
-            if t == 2 * self.params.drop_first_n_steps:
+            if t == 2*params.drop_first_n_steps:
+                if goal_activation[0, t] > params.maximum_goal_activation:
+                    raise RepeatedGoalPrototypeException(f"Goal activation above treshold")
                 goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
                 if goal_p in v_p_set:
                     raise RepeatedGoalPrototypeException(
@@ -1656,29 +1612,10 @@ class Main:
             ) = Rp
 
             try:
-                (
-                    matches,
-                    max_match,
-                    cum_match,
-                    episodes_len,
-                    visual_goal_changed,
-                ) = self.run_episodes(
-                    batch_v,
-                    batch_ss,
-                    batch_p,
-                    batch_a,
-                    batch_g,
-                    batch_c,
-                    batch_log,
-                    v_r,
-                    ss_r,
-                    p_r,
-                    a_r,
-                    v_p,
-                    ss_p,
-                    p_p,
-                    a_p,
-                    g_p,
+                matches, max_match, cum_match, episodes_len, visual_goal_changed, goal_activation = self.run_episodes(
+                    batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+                    v_r, ss_r, p_r, a_r,
+                    v_p, ss_p, p_p, a_p, g_p,
                     match_value_per_mod,
                     match_value,
                     match_increment_per_mod,
@@ -1813,6 +1750,12 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "--load_weights",
+        help="Load controller weights from file",
+        action="store",
+        default=None,
+    )
+    parser.add_argument(
         "--demo",
         help="Only plot demo episodes",
         action="store_true",
@@ -1864,8 +1807,8 @@ if __name__ == "__main__":
             "np"
         ]  # This is an ugly way to remove numpy import from params
         run = wandb.init(
-            project="grasp-simulation",
-            entity="francesco-mannella",
+            project="kickstarting_concept",
+            entity="hill_uw",
             name=args.name,
             config=config,
         )
@@ -1875,6 +1818,9 @@ if __name__ == "__main__":
         main.plots = plots
     else:
         main = Main(seed=seed, params=params, plots=plots)
+
+    if args.load_weights is not None:
+        main.controller.load(weights=args.load_weights)
 
     print(main.epoch)
 

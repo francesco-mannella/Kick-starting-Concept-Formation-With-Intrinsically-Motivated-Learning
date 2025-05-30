@@ -97,8 +97,8 @@ class SMEnv:
 
 class SMEnvParasite(SMEnv):
 
-    def __init__(self, seed, observations):
-        super(SMEnvParasite, self).__init__(seed)
+    def __init__(self, seed, observations, rand_obj_params=None):
+        super(SMEnvParasite, self).__init__(seed, rand_obj_params=rand_obj_params)
         self.stored_observations = observations
         self.i = 0
 
