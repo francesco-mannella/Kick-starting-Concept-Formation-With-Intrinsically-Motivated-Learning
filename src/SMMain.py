@@ -697,7 +697,6 @@ class Main:
         batch_v = np.zeros([params.batch_size, params.stime, params.visual_size])
         batch_ss = np.zeros([params.batch_size, params.stime, params.somatosensory_size])
         batch_p = np.zeros([params.batch_size, params.stime, params.proprioception_size])
-        
         batch_a = np.zeros([params.batch_size, params.stime, params.policy_size])
         batch_c = np.zeros([params.batch_size, params.stime, 1])
         batch_log = np.zeros([params.batch_size, params.stime, 1])
@@ -712,6 +711,9 @@ class Main:
         a_p = np.zeros([params.batch_size, params.stime, 2])
         g_p = np.zeros([params.batch_size, params.stime, 2])
 
+        batch_v_par = np.zeros([params.batch_size, params.stime, params.visual_size])
+        batch_ss_par = np.zeros([params.batch_size, params.stime, params.somatosensory_size])
+        batch_p_par = np.zeros([params.batch_size, params.stime, params.proprioception_size])
         batch_a_par = np.zeros([params.batch_size, params.stime, params.policy_size])
         batch_c_par = np.zeros([params.batch_size, params.stime, 1])
         batch_log_par = np.zeros([params.batch_size, params.stime, 1])
@@ -790,9 +792,12 @@ class Main:
                 states_par[episode] = env.reset()
                 envs_par[episode] = env
                 state_par = states_par[episode]
+                batch_v_par[episode, 0, :] = state_par["VISUAL_SENSORS"].ravel()
+                batch_ss_par[episode, 0, :] = state_par["TOUCH_SENSORS"]
+                batch_p_par[episode, 0, :] = state_par["JOINT_POSITIONS"][:5]
 
             matches_par, max_match_par, cum_match_par, _, policy_changed_par, goal_activation_par = self.run_episodes(
-                batch_v, batch_ss, batch_p, batch_a_par, batch_g_par, batch_c_par, batch_log_par,
+                batch_v_par, batch_ss_par, batch_p_par, batch_a_par, batch_g_par, batch_c_par, batch_log_par,
                 v_r_par, ss_r_par, p_r_par, a_r_par,
                 v_p_par, ss_p_par, p_p_par, a_p_par, g_p_par,
                 match_value_per_mod_par,
@@ -802,7 +807,7 @@ class Main:
                 agent, controller_par, contexts,
                 envs_par, states_par)
             mean_policy_noise_par = self.mean_policy_noise
-           
+
             # Episode success rate: in how many episodes policy ever changes?
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
             episode_success_rate_par = (policy_changed_par.sum(axis=1) >= 2).mean()
@@ -908,9 +913,9 @@ class Main:
 
             (update_items_par, update_episodes_par, curr_loss_par, mean_modulation_par) =\
                 controller_par.update(
-                    batch_v.reshape((bsize, -1)),
-                    batch_ss.reshape((bsize, -1)),
-                    batch_p.reshape((bsize, -1)),
+                    batch_v_par.reshape((bsize, -1)),
+                    batch_ss_par.reshape((bsize, -1)),
+                    batch_p_par.reshape((bsize, -1)),
                     batch_a_par.reshape((bsize, -1)),
                     batch_g_par.reshape((bsize, -1)),
                     match_value_par.reshape(-1),
@@ -1067,11 +1072,23 @@ class Main:
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
                 epoch_start = time.perf_counter()
 
+                controller_par.save(epoch, tag="parasite")
+                visual_map(wfile=f"{site_dir}/visual_weights-parasite.npy")
+                comp_map(wfile=f"{site_dir}/comp_grid-parasite.npy")
+
                 if os.path.isfile("PLOT_SIMS"):
                     print("----> Test Sims ...", end=" ", flush=True)
                     self.demo_episodes(n_episodes=params.tests, plot_prefix="parasite_episode", controller=controller_par)
+                
+                if use_wandb:
+                    log_data = {
+                        "visual_map_par": wandb.Image("www/visual_map.png"),
+                        "comp_map_par": wandb.Image("www/comp_map.png"),
+                    }
+                    for i in range(params.tests):
+                        log_data[f"parasite_episode{i}"] = wandb.Image(f"www/parasite_episode{i}.gif")
+                    wandb.log(log_data, step=epoch)
 
-                controller_par.save(epoch, tag="parasite")
 
             match_value[::] = 0
             match_increment[::] = 0

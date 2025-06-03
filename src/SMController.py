@@ -394,7 +394,8 @@ class SMController:
 
     def save(self, epoch, tag=None):
 
-        storage_dir = f"storage{'-' if tag is not None else '' }{tag if tag is not None else ''}"
+        suffix = "" if tag is None else f"-{tag}"
+        storage_dir = f"storage{suffix}"
         epoch_dir = f"{storage_dir}/{epoch:06d}"
         os.makedirs(storage_dir, exist_ok=True)
         os.makedirs(epoch_dir, exist_ok=True)
@@ -413,8 +414,8 @@ class SMController:
             allow_pickle=True,
         )
 
-        np.save("www/visual_weights", self.stm_v.get_weights())
-        np.save("www/comp_grid", self.comp_grid)
+        np.save(f"www/visual_weights{suffix}", self.stm_v.get_weights())
+        np.save(f"www/comp_grid{suffix}", self.comp_grid)
 
     def load(
         self,

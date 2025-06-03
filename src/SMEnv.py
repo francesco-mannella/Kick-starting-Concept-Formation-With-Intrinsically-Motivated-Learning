@@ -1,3 +1,4 @@
+import copy
 import gymnasium as gym
 
 import params
@@ -42,7 +43,7 @@ class SMEnv:
         if self.render is not None:
             self.b2d_env.render(self.render)
         if self.stored_observations is not None:
-            self.stored_observations.append(observation)
+            self.stored_observations.append(copy.deepcopy(observation))
         return observation
 
     def reset(
