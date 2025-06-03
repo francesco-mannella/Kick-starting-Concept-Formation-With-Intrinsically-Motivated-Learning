@@ -1042,7 +1042,15 @@ class Main:
                            'match_value_v_par': match_value_per_mod_par[matches_par, 0].mean(),
                            'match_value_ss_par': match_value_per_mod_par[matches_par, 1].mean(),
                            'match_value_p_par': match_value_per_mod_par[matches_par, 2].mean(),
-                           'match_value_a_par': match_value_per_mod_par[matches_par, 3].mean()
+                           'match_value_a_par': match_value_per_mod_par[matches_par, 3].mean(),
+                           'goal_activation': goal_activation[policy_changed].mean(),
+                           'goal_activation_blue': goal_activation[contexts == 1, :][policy_changed[contexts == 1, :]].mean(),
+                           'goal_activation_red': goal_activation[contexts == 2, :][policy_changed[contexts == 2, :]].mean(),
+                           'goal_activation_green': goal_activation[contexts == 3, :][policy_changed[contexts == 3, :]].mean(),
+                           'goal_activation_par': goal_activation_par[policy_changed].mean(),
+                           'goal_activation_blue_par': goal_activation_par[contexts == 1, :][policy_changed_par[contexts == 1, :]].mean(),
+                           'goal_activation_red_par': goal_activation_par[contexts == 2, :][policy_changed_par[contexts == 2, :]].mean(),
+                           'goal_activation_green_par': goal_activation_par[contexts == 3, :][policy_changed_par[contexts == 3, :]].mean()
                            }, step=epoch)
 
             self.match_value = match_value
