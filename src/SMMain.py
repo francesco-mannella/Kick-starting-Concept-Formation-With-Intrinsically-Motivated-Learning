@@ -1488,7 +1488,6 @@ if __name__ == "__main__":
 
     if args.load_weights is not None:
         weights = np.load(args.load_weights, allow_pickle=True)[0]
-        main.controller.load(weights=weights)
 
     if args.name is not None:
         named_dir = (Path(simulations_dir) / args.name).resolve()
@@ -1523,6 +1522,9 @@ if __name__ == "__main__":
     else:
         main = Main(seed, plots)
 
+    if args.load_weights is not None:
+        main.controller.load(weights=weights)
+   
     print(main.epoch)
 
     try:
