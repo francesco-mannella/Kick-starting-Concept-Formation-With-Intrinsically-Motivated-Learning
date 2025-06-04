@@ -1486,6 +1486,10 @@ if __name__ == "__main__":
     if gpu:
         torch.set_default_device("cuda")
 
+    if args.load_weights is not None:
+        weights = np.load(args.load_weights, allow_pickle=True)[0]
+        main.controller.load(weights=weights)
+
     if args.name is not None:
         named_dir = (Path(simulations_dir) / args.name).resolve()
         os.makedirs(named_dir, exist_ok=True)
@@ -1518,10 +1522,6 @@ if __name__ == "__main__":
         main.plots = plots
     else:
         main = Main(seed, plots)
-
-    if args.load_weights is not None:
-        weights = np.load(args.load_weights, allow_pickle=True)[0]
-        main.controller.load(weights=weights)
 
     print(main.epoch)
 
