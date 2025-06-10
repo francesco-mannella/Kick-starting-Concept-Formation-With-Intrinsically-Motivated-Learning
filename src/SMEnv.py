@@ -26,7 +26,7 @@ class SMEnv:
             "rng": self.b2d_env.rng,
             "action_steps": self.action_steps,
             "store_observations": self.store_observations,
-            "rand_objs_params": self.rand_obj_params,
+            "rand_obj_params": self.rand_obj_params,
         }
 
     def __setstate__(self, state):

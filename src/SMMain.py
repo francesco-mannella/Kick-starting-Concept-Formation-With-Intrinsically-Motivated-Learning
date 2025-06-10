@@ -126,6 +126,13 @@ class Main:
         self.rng = np.random.RandomState()
         self.rng.__setstate__(state["rng"])
 
+        self.random_obj_params = {
+            "fix_prop": params.obj_fix_prob,
+            "var_prop": params.obj_var_prob,
+            "rot_var": params.obj_rot_var,
+            "pos": [params.obj_y, params.obj_x],
+        }
+
         nlogs = len(self.logs)
         if params.epochs > nlogs:
             tmp = np.zeros([params.epochs, 3])
@@ -641,6 +648,7 @@ class Main:
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
                 self.diagnose()
+                self.evaluation_episodes(controller=controller, epoch=epoch)
 
                 time_elapsed = time.perf_counter() - epoch_start
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
@@ -1075,16 +1083,20 @@ class Main:
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
                 self.diagnose()
+                self.evaluation_episodes(controller=controller, epoch=epoch)
 
                 time_elapsed = time.perf_counter() - epoch_start
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
                 epoch_start = time.perf_counter()
 
+                self.evaluation_episodes(controller=controller_par, epoch=epoch,
+                                         suffix="_par")
+
                 controller_par.save(epoch, tag="parasite")
                 visual_map(wfile=f"{site_dir}/visual_weights-parasite.npy")
                 comp_map(wfile=f"{site_dir}/comp_grid-parasite.npy")
 
-                if os.path.isfile("PLOT_SIMS"):
+                if self.plots and os.path.isfile("PLOT_SIMS"):
                     print("----> Test Sims ...", end=" ", flush=True)
                     self.demo_episodes(n_episodes=params.tests, plot_prefix="parasite_episode", controller=controller_par)
                 
@@ -1093,10 +1105,10 @@ class Main:
                         "visual_map_par": wandb.Image("www/visual_map.png"),
                         "comp_map_par": wandb.Image("www/comp_map.png"),
                     }
-                    for i in range(params.tests):
-                        log_data[f"parasite_episode{i}"] = wandb.Image(f"www/parasite_episode{i}.gif")
+                    if self.plots and os.path.isfile("PLOT_SIMS"):
+                        for i in range(params.tests):
+                            log_data[f"parasite_episode{i}"] = wandb.Image(f"www/parasite_episode{i}.gif")
                     wandb.log(log_data, step=epoch)
-
 
             match_value[::] = 0
             match_increment[::] = 0
@@ -1232,6 +1244,76 @@ class Main:
 
     def demo_episode(self, idx):
         pass
+
+    def evaluation_episodes(self, n_episodes=params.internal_size, controller=None,
+                            epoch=0, suffix=""):
+        agent = self.agent
+        if controller == None:
+            controller = self.controller
+        #controller.curr_sigma = 0.1
+
+        batch_v = np.zeros([n_episodes, params.stime, params.visual_size])
+        batch_ss = np.zeros([n_episodes, params.stime, params.somatosensory_size])
+        batch_p = np.zeros([n_episodes, params.stime, params.proprioception_size])
+        batch_a = np.zeros([n_episodes, params.stime, params.policy_size])
+        batch_g = np.zeros([n_episodes, params.stime, params.internal_size])
+        batch_c = np.ones([n_episodes, params.stime, 1])
+        batch_log = np.ones([n_episodes, params.stime, 1])
+
+        v_r = np.zeros([n_episodes, params.stime, params.internal_size])
+        ss_r = np.zeros([n_episodes, params.stime, params.internal_size])
+        p_r = np.zeros([n_episodes, params.stime, params.internal_size])
+        a_r = np.zeros([n_episodes, params.stime, params.internal_size])
+
+        v_p = np.zeros([n_episodes, params.stime, 2])
+        ss_p = np.zeros([n_episodes, params.stime, 2])
+        p_p = np.zeros([n_episodes, params.stime, 2])
+        a_p = np.zeros([n_episodes, params.stime, 2])
+        g_p = np.zeros([n_episodes, params.stime, 2])
+
+        match_value = np.zeros([n_episodes, params.stime])
+        match_value_per_mod = np.zeros([n_episodes, params.stime, 4])
+        match_increment = np.zeros([n_episodes, params.stime])
+        match_increment_per_mod = np.zeros([n_episodes, params.stime, 4])
+
+        contexts = [(i % 3) + 1 for i in range(n_episodes)]
+        envs = [None] * n_episodes
+        states = [None] * n_episodes
+       
+        # ----- prepare episodes
+        for episode in range(n_episodes):
+            # Each environment in each epoch should have a different seed
+            env = SMEnv(self.seed + episode, params.action_steps,
+                        rand_obj_params=self.random_obj_params)
+            env.b2d_env.prepare_world(contexts[episode])
+            states[episode] = env.reset(contexts[episode])
+            envs[episode] = env
+            state = states[episode]
+            batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
+            batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
+            batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
+
+        matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
+            batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
+            v_r, ss_r, p_r, a_r,
+            v_p, ss_p, p_p, a_p, g_p,
+            match_value_per_mod,
+            match_value,
+            match_increment_per_mod,
+            match_increment,
+            agent, controller, contexts,
+            envs, states)
+           
+        # Episode success rate: in how many episodes policy ever changes?
+        episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
+
+        if use_wandb:
+            wandb.log({f'eval_mean_comp{suffix}': batch_log[policy_changed].mean(),
+                       f'eval_mean_cum_match{suffix}': cum_match[policy_changed].mean() / params.cum_match_stop_th,
+                       f'eval_episode_success_rate{suffix}': episode_success_rate,
+                       }, step=epoch)
+
+
 
     def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo",
                       controller=None, unique_prototypes=False):
