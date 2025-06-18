@@ -166,6 +166,20 @@ class Main:
             or obj_xy[1] > ylim[1]
         )
 
+    def calc_match_inc_within_episode(self, policy_changed, match_value_per_mod):
+        def corr(x):
+            return np.corrcoef(np.arange(len(x)), x)[0, 1]
+        corrs_coeffs_p = []
+        corrs_coeffs_ss = []
+        pcs = policy_changed.cumsum(axis=1)
+        for i in range(params.batch_size):
+            for j in range(pcs[i, -1]):
+                corrs_coeffs_ss.append(corr(match_value_per_mod[i, pcs[i] == j, 1]))
+                corrs_coeffs_p.append(corr(match_value_per_mod[i, pcs[i] == j, 2]))
+        episode_match_inc_p = np.mean(corrs_coeffs_p)
+        episode_match_inc_ss = np.mean(corrs_coeffs_ss)
+        return episode_match_inc_p, episode_match_inc_ss
+
     def run_episodes(
         self,
         batch_v,
@@ -484,15 +498,8 @@ class Main:
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
           
             # Calculate within-episode match increase
-            def corr(x):
-                return np.corrcoef(np.arange(len(x)), x)[0, 1]
-            corrs_coeffs = []
-            pcs = policy_changed.cumsum(axis=1)
-            for i in range(params.batch_size):
-                for j in range(pcs[i, -1]):
-                    corrs_coeffs = (corr(match_value_per_mod[i, pcs[i] == j, 1])
-                        + corr(match_value_per_mod[i, pcs[i] == j, 2])) / 2
-            mean_episode_match_inc = np.mean(corrs_coeffs)
+            episode_match_inc_p, episode_match_inc_ss =\
+                self.calc_match_inc_within_episode(policy_changed, match_value_per_mod)
 
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
@@ -635,7 +642,9 @@ class Main:
                            'goal_activation_blue': goal_activation[contexts == 1, :][policy_changed[contexts == 1, :]].mean(),
                            'goal_activation_red': goal_activation[contexts == 2, :][policy_changed[contexts == 2, :]].mean(),
                            'goal_activation_green': goal_activation[contexts == 3, :][policy_changed[contexts == 3, :]].mean(),
-                           'mean_episode_match_inc': mean_episode_match_inc
+                           'mean_episode_match_inc': (episode_match_inc_ss + episode_match_inc_p) / 2,
+                           'episode_match_inc_ss': episode_match_inc_ss,
+                           'episode_match_inc_p': episode_match_inc_p
                            }, step=epoch)
 
             self.match_value = match_value
@@ -833,24 +842,10 @@ class Main:
             episode_success_rate_par = (policy_changed_par.sum(axis=1) >= 2).mean()
             
             # Calculate within-episode match increase
-            def corr(x):
-                return np.corrcoef(np.arange(len(x)), x)[0, 1]
-            corrs_coeffs = []
-            pcs = policy_changed.cumsum(axis=1)
-            for i in range(params.batch_size):
-                for j in range(pcs[i, -1]):
-                    corrs_coeffs = (corr(match_value_per_mod[i, pcs[i] == j, 1])
-                        + corr(match_value_per_mod[i, pcs[i] == j, 2])) / 2
-            mean_episode_match_inc = np.mean(corrs_coeffs)
-
-            corrs_coeffs = []
-            pcs = policy_changed_par.cumsum(axis=1)
-            for i in range(params.batch_size):
-                for j in range(pcs[i, -1]):
-                    corrs_coeffs = (corr(match_value_per_mod_par[i, pcs[i] == j, 1])
-                        + corr(match_value_per_mod_par[i, pcs[i] == j, 2])) / 2
-            mean_episode_match_inc_par = np.mean(corrs_coeffs)
-
+            episode_match_inc_p, episode_match_inc_ss =\
+                self.calc_match_inc_within_episode(policy_changed, match_value_per_mod)
+            episode_match_inc_p_par, episode_match_inc_ss_par =\
+                self.calc_match_inc_within_episode(policy_changed_par, match_value_per_mod_par)
 
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
@@ -1091,8 +1086,12 @@ class Main:
                            'goal_activation_blue_par': goal_activation_par[contexts == 1, :][policy_changed_par[contexts == 1, :]].mean(),
                            'goal_activation_red_par': goal_activation_par[contexts == 2, :][policy_changed_par[contexts == 2, :]].mean(),
                            'goal_activation_green_par': goal_activation_par[contexts == 3, :][policy_changed_par[contexts == 3, :]].mean(),
-                           'mean_episode_match_inc': mean_episode_match_inc,
-                           'mean_episode_match_inc_par': mean_episode_match_inc_par
+                           'episode_match_inc_ss': episode_match_inc_ss,
+                           'episode_match_inc_p': episode_match_inc_p,
+                           'episode_match_inc_ss_par': episode_match_inc_ss_par,
+                           'episode_match_inc_p_par': episode_match_inc_p_par,
+                           'mean_episode_match_inc': (episode_match_inc_ss + episode_match_inc_p) / 2, 
+                           'mean_episode_match_inc_par': (episode_match_inc_ss_par + episode_match_inc_p_par) / 2 
                            }, step=epoch)
 
             self.match_value = match_value
@@ -1341,13 +1340,17 @@ class Main:
         # Episode success rate: in how many episodes policy ever changes?
         episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
 
+        episode_match_inc_p, episode_match_inc_ss =\
+            self.calc_match_inc_within_episode(policy_changed, match_value_per_mod)
+        
         if use_wandb:
             wandb.log({f'eval_mean_comp{suffix}': batch_log[policy_changed].mean(),
                        f'eval_mean_cum_match{suffix}': cum_match[policy_changed].mean() / params.cum_match_stop_th,
                        f'eval_episode_success_rate{suffix}': episode_success_rate,
+                       f'eval_episode_match_inc_ss{suffix}': episode_match_inc_ss,
+                       f'eval_episode_match_inc_p{suffix}': episode_match_inc_p,
+                       f'mean_episode_match_inc{suffix}': (episode_match_inc_ss + episode_match_inc_p) / 2, 
                        }, step=epoch)
-
-
 
     def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo",
                       controller=None, unique_prototypes=False):
