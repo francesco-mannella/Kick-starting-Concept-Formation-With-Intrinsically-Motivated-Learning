@@ -482,7 +482,18 @@ class Main:
            
             # Episode success rate: in how many episodes policy ever changes?
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
-            
+          
+            # Calculate within-episode match increase
+            def corr(x):
+                return np.corrcoef(np.arange(len(x)), x)[0, 1]
+            corrs_coeffs = []
+            pcs = policy_changed.cumsum(axis=1)
+            for i in range(params.batch_size):
+                for j in range(pcs[i, -1]):
+                    corrs_coeffs = (corr(match_value_per_mod[i, pcs[i] == j, 1])
+                        + corr(match_value_per_mod[i, pcs[i] == j, 2])) / 2
+            mean_episode_match_inc = np.mean(corrs_coeffs)
+
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
             comp = controller.comp_grid.mean()
@@ -623,7 +634,8 @@ class Main:
                            'goal_activation': goal_activation[policy_changed].mean(),
                            'goal_activation_blue': goal_activation[contexts == 1, :][policy_changed[contexts == 1, :]].mean(),
                            'goal_activation_red': goal_activation[contexts == 2, :][policy_changed[contexts == 2, :]].mean(),
-                           'goal_activation_green': goal_activation[contexts == 3, :][policy_changed[contexts == 3, :]].mean()
+                           'goal_activation_green': goal_activation[contexts == 3, :][policy_changed[contexts == 3, :]].mean(),
+                           'mean_episode_match_inc': mean_episode_match_inc
                            }, step=epoch)
 
             self.match_value = match_value
@@ -820,6 +832,26 @@ class Main:
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
             episode_success_rate_par = (policy_changed_par.sum(axis=1) >= 2).mean()
             
+            # Calculate within-episode match increase
+            def corr(x):
+                return np.corrcoef(np.arange(len(x)), x)[0, 1]
+            corrs_coeffs = []
+            pcs = policy_changed.cumsum(axis=1)
+            for i in range(params.batch_size):
+                for j in range(pcs[i, -1]):
+                    corrs_coeffs = (corr(match_value_per_mod[i, pcs[i] == j, 1])
+                        + corr(match_value_per_mod[i, pcs[i] == j, 2])) / 2
+            mean_episode_match_inc = np.mean(corrs_coeffs)
+
+            corrs_coeffs = []
+            pcs = policy_changed_par.cumsum(axis=1)
+            for i in range(params.batch_size):
+                for j in range(pcs[i, -1]):
+                    corrs_coeffs = (corr(match_value_per_mod_par[i, pcs[i] == j, 1])
+                        + corr(match_value_per_mod_par[i, pcs[i] == j, 2])) / 2
+            mean_episode_match_inc_par = np.mean(corrs_coeffs)
+
+
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
             comp = controller.comp_grid.mean()
@@ -1058,7 +1090,9 @@ class Main:
                            'goal_activation_par': goal_activation_par[policy_changed].mean(),
                            'goal_activation_blue_par': goal_activation_par[contexts == 1, :][policy_changed_par[contexts == 1, :]].mean(),
                            'goal_activation_red_par': goal_activation_par[contexts == 2, :][policy_changed_par[contexts == 2, :]].mean(),
-                           'goal_activation_green_par': goal_activation_par[contexts == 3, :][policy_changed_par[contexts == 3, :]].mean()
+                           'goal_activation_green_par': goal_activation_par[contexts == 3, :][policy_changed_par[contexts == 3, :]].mean(),
+                           'mean_episode_match_inc': mean_episode_match_inc,
+                           'mean_episode_match_inc_par': mean_episode_match_inc_par
                            }, step=epoch)
 
             self.match_value = match_value
