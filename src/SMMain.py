@@ -174,8 +174,12 @@ class Main:
         pcs = policy_changed.cumsum(axis=1)
         for i in range(params.batch_size):
             for j in range(pcs[i, -1]):
-                corrs_coeffs_ss.append(corr(match_value_per_mod[i, pcs[i] == j, 1]))
-                corrs_coeffs_p.append(corr(match_value_per_mod[i, pcs[i] == j, 2]))
+                corr_ss = corr(match_value_per_mod[i, pcs[i] == j, 1])
+                if not np.isnan(corr_ss):
+                    corrs_coeffs_ss.append(corr_ss)
+                corr_p = corr(match_value_per_mod[i, pcs[i] == j, 2])
+                if not np.isnan(corr_p):
+                    corrs_coeffs_p.append(corr_p)
         episode_match_inc_p = np.mean(corrs_coeffs_p)
         episode_match_inc_ss = np.mean(corrs_coeffs_ss)
         return episode_match_inc_p, episode_match_inc_ss
