@@ -640,7 +640,7 @@ class Main:
             self.batch_a = batch_a
 
             # diagnose
-            if (epoch > 0 and epoch % params.epochs_to_test == 0) or epoch == (
+            if (epoch % params.epochs_to_test == 0) or epoch == (
                 params.epochs - 1
             ):
 
@@ -1075,7 +1075,7 @@ class Main:
             self.batch_a = batch_a
 
             # diagnose
-            if (epoch > 0 and epoch % params.epochs_to_test == 0) or epoch == (
+            if (epoch % params.epochs_to_test == 0) or epoch == (
                 params.epochs - 1
             ):
 
@@ -1199,36 +1199,36 @@ class Main:
             print("----> Test Sims ...", end=" ", flush=True)
             self.demo_episodes(n_episodes=params.tests, plot_prefix="episode")
 
-        if os.path.isfile("COMPUTE_TRAJECTORIES"):
-            print(
-                "----> Compute Trajectories ...",
-                end=" ",
-                flush=True,
-            )
-            context = 4  # no object
-            trj = np.zeros([params.internal_size, params.stime, 2])
-
-            state = env.reset(context)
-            agent.reset()
-            for i, goal_r in enumerate(controller.goal_grid):
-                policy = controller.getPoliciesFromRepresentations(
-                    np.array([goal_r])
-                )
-                agent.updatePolicy(policy)
-                smcycle = SensoryMotorCircle()
-                for t in range(params.stime):
-                    state = smcycle.step(env, agent, state)
-                    trj[i, t] = state["JOINT_POSITIONS"][-2:]
-                if i % 10 == 0 or i == params.internal_size - 1:
-                    print(
-                        "{:d}% ".format(int(100 * (i / params.internal_size))),
-                        end=" ",
-                        flush=True,
-                    )
-            print(flush=True)
-            np.save(f"{site_dir}/trajectories", trj)
-            np.save(f"{epoch_dir}/trajectories", trj)
-            trajectories_map()
+        # if os.path.isfile("COMPUTE_TRAJECTORIES"):
+        #     print(
+        #         "----> Compute Trajectories ...",
+        #         end=" ",
+        #         flush=True,
+        #     )
+        #     context = 4  # no object
+        #     trj = np.zeros([params.internal_size, params.stime, 2])
+        #
+        #     state = env.reset(context)
+        #     agent.reset()
+        #     for i, goal_r in enumerate(controller.goal_grid):
+        #         policy = controller.getPoliciesFromRepresentations(
+        #             np.array([goal_r])
+        #         )
+        #         agent.updatePolicy(policy)
+        #         smcycle = SensoryMotorCircle()
+        #         for t in range(params.stime):
+        #             state = smcycle.step(env, agent, state)
+        #             trj[i, t] = state["JOINT_POSITIONS"][-2:]
+        #         if i % 10 == 0 or i == params.internal_size - 1:
+        #             print(
+        #                 "{:d}% ".format(int(100 * (i / params.internal_size))),
+        #                 end=" ",
+        #                 flush=True,
+        #             )
+        #     print(flush=True)
+        #     np.save(f"{site_dir}/trajectories", trj)
+        #     np.save(f"{epoch_dir}/trajectories", trj)
+        #     trajectories_map()
 
         if use_wandb:
             log_data = {
@@ -1245,7 +1245,7 @@ class Main:
     def demo_episode(self, idx):
         pass
 
-    def evaluation_episodes(self, n_episodes=params.internal_size, controller=None,
+    def evaluation_episodes(self, n_episodes=params.evaluation_episodes, controller=None,
                             epoch=0, suffix=""):
         agent = self.agent
         if controller == None:
