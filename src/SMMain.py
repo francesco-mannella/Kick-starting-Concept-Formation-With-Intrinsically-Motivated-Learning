@@ -173,7 +173,7 @@ class Main:
         corrs_coeffs_ss = []
         pcs = policy_changed.cumsum(axis=1)
         for i in range(params.batch_size):
-            for j in range(pcs[i, -1]):
+            for j in range(1, pcs[i, -1]):
                 corr_ss = corr(match_value_per_mod[i, pcs[i] == j, 1])
                 if not np.isnan(corr_ss):
                     corrs_coeffs_ss.append(corr_ss)
