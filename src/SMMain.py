@@ -180,6 +180,7 @@ class Main:
                 corr_p = corr(match_value_per_mod[i, pcs[i] == j, 2])
                 if not np.isnan(corr_p):
                     corrs_coeffs_p.append(corr_p)
+
         episode_match_inc_p = np.mean(corrs_coeffs_p)
         episode_match_inc_ss = np.mean(corrs_coeffs_ss)
         return episode_match_inc_p, episode_match_inc_ss
@@ -1285,7 +1286,7 @@ class Main:
     def evaluation_episodes(self, n_episodes=params.evaluation_episodes, controller=None,
                             epoch=0, suffix=""):
         agent = self.agent
-        if controller == None:
+        if controller is None:
             controller = self.controller
         #controller.curr_sigma = 0.1
 
@@ -1330,6 +1331,11 @@ class Main:
             batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
             batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
+
+        # Do not introduce noise to policy search
+        controller.base_policy_noise = 0.0
+        controller.max_policy_noise = 0.0
+
         matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
             batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
             v_r, ss_r, p_r, a_r,
@@ -1340,7 +1346,11 @@ class Main:
             match_increment,
             agent, controller, contexts,
             envs, states)
-           
+
+        # Reset policy noise
+        controller.base_policy_noise = params.base_policy_noise
+        controller.max_policy_noise = params.max_policy_noise
+
         # Episode success rate: in how many episodes policy ever changes?
         episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
 
@@ -1451,6 +1461,10 @@ class Main:
                 g_p[:, 0, :],
             ) = Rp
 
+            # Do not introduce noise to policy search
+            controller.base_policy_noise = 0.0
+            controller.max_policy_noise = 0.0
+
             try:
                 matches, max_match, cum_match, episodes_len, visual_goal_changed, goal_activation = self.run_episodes(
                     batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
@@ -1465,6 +1479,10 @@ class Main:
             except RepeatedGoalPrototypeException as e:
                 print(e)
                 continue
+
+            # Reset policy noise
+            controller.base_policy_noise = params.base_policy_noise
+            controller.max_policy_noise = params.max_policy_noise
 
             l = episodes_len[0]
             full_match_value = match_value[0, :l]
