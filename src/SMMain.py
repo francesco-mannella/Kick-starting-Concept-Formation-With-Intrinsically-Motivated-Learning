@@ -166,7 +166,7 @@ class Main:
             or obj_xy[1] > ylim[1]
         )
 
-    def calc_match_inc_within_episode(self, policy_changed, match_value_per_mod):
+    def calc_match_inc_within_goal(self, policy_changed, match_value_per_mod):
         def corr(x):
             return np.corrcoef(np.arange(len(x)), x)[0, 1]
         corrs_coeffs_p = []
@@ -222,6 +222,7 @@ class Main:
         episode_len = np.zeros(batch_size, dtype=int)
         max_match = np.zeros((batch_size, params.stime))
         matches = np.zeros((batch_size, params.stime), dtype=bool)
+        policy_selection_steps = np.zeros((batch_size, params.stime), dtype=bool)
         policy_changed = np.zeros((batch_size, params.stime), dtype=bool)
         bsize = batch_size * params.action_steps
 
@@ -377,6 +378,8 @@ class Main:
                         success_mask, t - 2 * params.drop_first_n_steps : t, :
                     ]
 
+                    policy_selection_steps[success_mask, t - 2 * params.drop_first_n_steps : t] = 1
+
                     goal_activation[success_mask, t:] = visual_activation[
                         success_mask, t - 2 * params.drop_first_n_steps : t
                     ].mean(axis=1)[:, None] 
@@ -405,7 +408,7 @@ class Main:
         # count cumulative match properly.
         policy_changed[:, -1] = 1
 
-        return matches, max_match, cum_match, episode_len, policy_changed, goal_activation
+        return matches, max_match, cum_match, episode_len, policy_changed, policy_selection_steps, goal_activation
 
     def train(self, time_limits):
 
@@ -488,7 +491,7 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
+            matches, max_match, cum_match, _, policy_changed, policy_selection_steps, goal_activation = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
                 v_p, ss_p, p_p, a_p, g_p,
@@ -504,7 +507,7 @@ class Main:
           
             # Calculate within-episode match increase
             episode_match_inc_p, episode_match_inc_ss =\
-                self.calc_match_inc_within_episode(policy_changed, match_value_per_mod)
+                self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
 
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
@@ -566,6 +569,7 @@ class Main:
                     batch_g.reshape((bsize, -1)),
                     match_value.reshape(-1),
                     matches.reshape(-1),
+                    policy_selection_steps.reshape(-1),
                     cum_match,
                     policy_changed,
                     local_lr,
@@ -806,7 +810,7 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
+            matches, max_match, cum_match, _, policy_changed, policy_selection_steps, goal_activation = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
                 v_p, ss_p, p_p, a_p, g_p,
@@ -830,7 +834,7 @@ class Main:
                 batch_ss_par[episode, 0, :] = state_par["TOUCH_SENSORS"]
                 batch_p_par[episode, 0, :] = state_par["JOINT_POSITIONS"][:5]
 
-            matches_par, max_match_par, cum_match_par, _, policy_changed_par, goal_activation_par = self.run_episodes(
+            matches_par, max_match_par, cum_match_par, _, policy_changed_par, policy_selection_steps_par, goal_activation_par = self.run_episodes(
                 batch_v_par, batch_ss_par, batch_p_par, batch_a_par, batch_g_par, batch_c_par, batch_log_par,
                 v_r_par, ss_r_par, p_r_par, a_r_par,
                 v_p_par, ss_p_par, p_p_par, a_p_par, g_p_par,
@@ -848,9 +852,9 @@ class Main:
             
             # Calculate within-episode match increase
             episode_match_inc_p, episode_match_inc_ss =\
-                self.calc_match_inc_within_episode(policy_changed, match_value_per_mod)
+                self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
             episode_match_inc_p_par, episode_match_inc_ss_par =\
-                self.calc_match_inc_within_episode(policy_changed_par, match_value_per_mod_par)
+                self.calc_match_inc_within_goal(policy_changed_par, match_value_per_mod_par)
 
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
@@ -945,6 +949,7 @@ class Main:
                     batch_g.reshape((bsize, -1)),
                     match_value.reshape(-1),
                     matches.reshape(-1),
+                    policy_selection_steps.reshape(-1),
                     cum_match,
                     policy_changed,
                     local_lr,
@@ -960,6 +965,7 @@ class Main:
                     batch_g_par.reshape((bsize, -1)),
                     match_value_par.reshape(-1),
                     matches_par.reshape(-1),
+                    policy_selection_steps_par.reshape(-1),
                     cum_match_par,
                     policy_changed_par,
                     local_lr_par,
@@ -1336,7 +1342,7 @@ class Main:
         controller.base_policy_noise = 0.0
         controller.max_policy_noise = 0.0
 
-        matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
+        matches, max_match, cum_match, _, policy_changed, policy_selection_steps, goal_activation = self.run_episodes(
             batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
             v_r, ss_r, p_r, a_r,
             v_p, ss_p, p_p, a_p, g_p,
@@ -1355,7 +1361,7 @@ class Main:
         episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
 
         episode_match_inc_p, episode_match_inc_ss =\
-            self.calc_match_inc_within_episode(policy_changed, match_value_per_mod)
+            self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
         
         if use_wandb:
             wandb.log({f'eval_mean_comp{suffix}': batch_log[policy_changed].mean(),
@@ -1466,7 +1472,7 @@ class Main:
             controller.max_policy_noise = 0.0
 
             try:
-                matches, max_match, cum_match, episodes_len, visual_goal_changed, goal_activation = self.run_episodes(
+                matches, max_match, cum_match, episodes_len, visual_goal_changed, policy_selection_steps, goal_activation = self.run_episodes(
                     batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                     v_r, ss_r, p_r, a_r,
                     v_p, ss_p, p_p, a_p, g_p,
