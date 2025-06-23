@@ -338,6 +338,13 @@ class SMController:
 
         cgoals = goals * local_lr
 
+        print(local_lr.shape)
+        print(goals.shape)
+
+        print(policy_selection_steps[:200])
+        print(policy_changed[0])
+        exit(1)
+
         # compute number of chosen patterns (return)
         n_items = sum(match_ind)
 
