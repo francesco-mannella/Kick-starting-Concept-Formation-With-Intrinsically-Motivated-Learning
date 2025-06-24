@@ -324,7 +324,8 @@ class Main:
                     # match_value[:, i] = mmask
 
                     matches[:, i] = mmask
-                    cum_match[:, i] = cum_match[:, i - 1] + mmask
+                    # Match is cumulated within a single policy and reset with policy change
+                    cum_match[:, i] = cum_match[:, i - 1] * (1 - policy_changed[:, i]) + mmask
                 success_mask = cum_match[:, t - 1] >= params.cum_match_stop_th
 
                 if t < params.stime and t >= params.drop_first_n_steps + params.policy_selection_steps:
