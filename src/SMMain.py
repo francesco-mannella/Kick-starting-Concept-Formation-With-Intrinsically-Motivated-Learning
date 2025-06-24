@@ -533,7 +533,7 @@ class Main:
                     match_value.reshape(-1),
                     matches.reshape(-1),
                     cum_match,
-                    policy_changed,
+                    policy_changed.reshape(-1),
                     local_lr,
                     local_sigma
                 )

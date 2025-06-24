@@ -341,20 +341,30 @@ class SMController:
         #modulate = cgoals[match_ind] * match_value[match_ind, None]
         modulate_effect = cgoals[match_ind]
         mean_modulation = modulate_effect.mean()
-        #modulate_cond = cgoals[policy_selection_steps]
 
-        #local_sigma_cond = local_sigma[policy_selection_steps]
         local_sigma_effect = local_sigma[match_ind]
+
+        # Condition modulation uses policy_selection_steps and competence statistics
+        # of the goal selected at timestep i.
+        cond_ind = np.zeros(match_ind.shape, dtype=np.bool)
+        local_sigma_cond = np.zeros(local_sigma.shape)
+        cgoals_cond = np.zeros(cgoals.shape)
+        for i in np.where(policy_changed == 1)[0]:
+            cond_ind[i - params.policy_selection_steps: i] = 1
+            local_sigma_cond[i - params.policy_selection_steps: i] = local_sigma[i, None]
+            cgoals_cond[i - params.policy_selection_steps: i] = cgoals[i, None]
+
+        local_sigma_cond = local_sigma_cond[cond_ind]
+        modulate_cond = cgoals_cond[cond_ind]
 
         # update maps
         if n_items > 0:
-            self.stm_v.update_params(sigma = local_sigma_effect)
+            self.stm_v.update_params(sigma = local_sigma_cond)
             self.stm_ss.update_params(sigma = local_sigma_effect)
             self.stm_p.update_params(sigma = local_sigma_effect)
             self.stm_a.update_params(sigma = local_sigma_effect)
             curr_loss = (
-                         #self.stm_v.update(visuals[match_ind], modulate).item(),
-                         self.stm_v.update(visuals[match_ind], modulate_effect).item(),
+                         self.stm_v.update(visuals[cond_ind], modulate_cond).item(),
                          self.stm_ss.update(ssensories[match_ind], modulate_effect).item(),
                          self.stm_p.update(proprios[match_ind], modulate_effect).item(),
                          self.stm_a.update(policies[match_ind], modulate_effect).item())
