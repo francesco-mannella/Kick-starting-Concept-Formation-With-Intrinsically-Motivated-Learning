@@ -169,11 +169,15 @@ class Main:
     def calc_match_inc_within_goal(self, policy_changed, match_value_per_mod):
         def corr(x):
             return np.corrcoef(np.arange(len(x)), x)[0, 1]
+
+        # Drop first warmup steps
+        policy_changed = policy_changed[:, ]
+
         corrs_coeffs_p = []
         corrs_coeffs_ss = []
         pcs = policy_changed.cumsum(axis=1)
         for i in range(policy_changed.shape[0]):
-            for j in range(1, pcs[i, -1]):
+            for j in range(0, pcs[i, -1]):
                 corr_ss = corr(match_value_per_mod[i, pcs[i] == j, 1])
                 if not np.isnan(corr_ss):
                     corrs_coeffs_ss.append(corr_ss)
@@ -358,30 +362,29 @@ class Main:
                     cum_match[:, i] = cum_match[:, i - 1] + mmask
                 success_mask = cum_match[:, t - 1] >= params.cum_match_stop_th
 
-                if t < params.stime and t >= 2*params.drop_first_n_steps:
+                if t < params.stime and t >= params.drop_first_n_steps + params.policy_selection_steps:
 
                     # Register subsequent changes of policy after the initial one
                     policy_changed[success_mask, t-2] = 1
                     
                     # Set initial policy after warmup steps + action selection steps 
-                    if t == 2*params.drop_first_n_steps:
+                    if t == params.drop_first_n_steps + params.policy_selection_steps:
                         success_mask[:] = 1
                     
-                    # For now, we use X = params.drop_first_n_steps.
                     v_rt = v_r[
-                        success_mask, t - 2 * params.drop_first_n_steps : t, :
+                        success_mask, t - params.policy_selection_steps : t, :
                     ]
                     ss_rt = ss_r[
-                        success_mask, t - 2 * params.drop_first_n_steps : t, :
+                        success_mask, t - params.policy_selection_steps : t, :
                     ]
                     p_rt = p_r[
-                        success_mask, t - 2 * params.drop_first_n_steps : t, :
+                        success_mask, t - params.policy_selection_steps : t, :
                     ]
 
-                    policy_selection_steps[success_mask, t - 2 * params.drop_first_n_steps : t] = 1
+                    policy_selection_steps[success_mask, t - params.policy_selection_steps : t] = 1
 
                     goal_activation[success_mask, t:] = visual_activation[
-                        success_mask, t - 2 * params.drop_first_n_steps : t
+                        success_mask, t - params.policy_selection_steps : t
                     ].mean(axis=1)[:, None] 
 
                     (goals_p,

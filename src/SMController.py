@@ -93,12 +93,6 @@ class SMController:
         self.goal_grid /= self.goal_grid.sum(axis=1)
         self.comp_grid = self.getCompetenceGrid()
 
-        # This effectively ensures that first 10% of simulation steps
-        # of each episode is not taken into account when updating
-        # sensorimotor maps based on match values.
-        self.episode_mask = np.arange(params.stime*params.batch_size) % params.stime
-        self.episode_mask = self.episode_mask > params.drop_first_n_steps
-
     @staticmethod
     def comp_fun(comp):
         basecomp = np.tanh(params.predict_base_ampl*comp)
