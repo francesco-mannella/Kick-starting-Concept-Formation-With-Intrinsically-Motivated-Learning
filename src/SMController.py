@@ -321,7 +321,6 @@ class SMController:
         goals,
         match_value,
         match_ind,
-        policy_selection_steps,
         cum_match,
         policy_changed,
         local_lr,
@@ -342,20 +341,20 @@ class SMController:
         #modulate = cgoals[match_ind] * match_value[match_ind, None]
         modulate_effect = cgoals[match_ind]
         mean_modulation = modulate_effect.mean()
-        modulate_cond = cgoals[policy_selection_steps]
+        #modulate_cond = cgoals[policy_selection_steps]
 
-        local_sigma_cond = local_sigma[policy_selection_steps]
+        #local_sigma_cond = local_sigma[policy_selection_steps]
         local_sigma_effect = local_sigma[match_ind]
 
         # update maps
         if n_items > 0:
-            self.stm_v.update_params(sigma = local_sigma_cond)
+            self.stm_v.update_params(sigma = local_sigma_effect)
             self.stm_ss.update_params(sigma = local_sigma_effect)
             self.stm_p.update_params(sigma = local_sigma_effect)
             self.stm_a.update_params(sigma = local_sigma_effect)
             curr_loss = (
                          #self.stm_v.update(visuals[match_ind], modulate).item(),
-                         self.stm_v.update(visuals[policy_selection_steps], modulate_cond).item(),
+                         self.stm_v.update(visuals[match_ind], modulate_effect).item(),
                          self.stm_ss.update(ssensories[match_ind], modulate_effect).item(),
                          self.stm_p.update(proprios[match_ind], modulate_effect).item(),
                          self.stm_a.update(policies[match_ind], modulate_effect).item())

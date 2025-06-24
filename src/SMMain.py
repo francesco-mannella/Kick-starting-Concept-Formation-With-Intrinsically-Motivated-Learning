@@ -462,7 +462,7 @@ class Main:
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
           
             # Mark end of each policy
-            policy_ended = np.zeros([params.batch_size, params.stime], dtype=bool)
+            policy_ended = np.zeros(policy_changed.shape, dtype=bool)
             policy_ended[:, -1] = 1
             policy_ended[:, :-1] = policy_changed[:, 1:]
             # Initial policy change does not count
@@ -532,7 +532,6 @@ class Main:
                     batch_g.reshape((bsize, -1)),
                     match_value.reshape(-1),
                     matches.reshape(-1),
-                    policy_selection_steps.reshape(-1),
                     cum_match,
                     policy_changed,
                     local_lr,
@@ -808,13 +807,13 @@ class Main:
                 self.calc_match_inc_within_goal(policy_changed_par, match_value_per_mod_par)
 
             # Mark end of each policy
-            policy_ended = np.zeros([params.batch_size, params.stime], dtype=bool)
+            policy_ended = np.zeros(policy_changed.shape, dtype=bool)
             policy_ended[:, -1] = 1
             policy_ended[:, :-1] = policy_changed[:, 1:]
             # Initial policy change does not count
             policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
 
-            policy_ended_par = np.zeros([params.batch_size, params.stime], dtype=bool)
+            policy_ended_par = np.zeros(policy_changed_par.shape, dtype=bool)
             policy_ended_par[:, -1] = 1
             policy_ended_par[:, :-1] = policy_changed_par[:, 1:]
             # Initial policy change does not count
@@ -913,7 +912,6 @@ class Main:
                     batch_g.reshape((bsize, -1)),
                     match_value.reshape(-1),
                     matches.reshape(-1),
-                    policy_selection_steps.reshape(-1),
                     cum_match,
                     policy_changed,
                     local_lr,
@@ -929,7 +927,6 @@ class Main:
                     batch_g_par.reshape((bsize, -1)),
                     match_value_par.reshape(-1),
                     matches_par.reshape(-1),
-                    policy_selection_steps_par.reshape(-1),
                     cum_match_par,
                     policy_changed_par,
                     local_lr_par,
@@ -1313,7 +1310,7 @@ class Main:
         episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
 
         # Mark end of each policy
-        policy_ended = np.zeros([params.batch_size, params.stime], dtype=bool)
+        policy_ended = np.zeros(policy_changed.shape, dtype=np.bool) 
         policy_ended[:, -1] = 1
         policy_ended[:, :-1] = policy_changed[:, 1:]
         # Initial policy change does not count
@@ -1429,7 +1426,7 @@ class Main:
             controller.max_policy_noise = 0.0
 
             try:
-                matches, max_match, cum_match, episodes_len, visual_goal_changed, policy_selection_steps, goal_activation = self.uun_episodes(
+                matches, max_match, cum_match, episodes_len, visual_goal_changed, goal_activation = self.run_episodes(
                     batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                     v_r, ss_r, p_r, a_r,
                     v_p, ss_p, p_p, a_p, g_p,
