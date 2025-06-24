@@ -50,8 +50,7 @@ motor_noise = 1.0
 representation_sigma = 2
 
 # Modalities order: visual, touch, proprioception, action
-modalities_weights = [1., 1., 1., 1.]
-#modalities_weights = [0., 1., 0., 0.]  # select touch only
+modalities_weights = [0., 1., 1., 0.] # select touch and proprioception
 match_incr_th = 0.02
 cum_match_stop_th = 10.0
 predict_lr = 0.1
