@@ -170,14 +170,12 @@ class Main:
         def corr(x):
             return np.corrcoef(np.arange(len(x)), x)[0, 1]
 
-        # Drop first warmup steps
-        policy_changed = policy_changed[:, ]
-
         corrs_coeffs_p = []
         corrs_coeffs_ss = []
         pcs = policy_changed.cumsum(axis=1)
         for i in range(policy_changed.shape[0]):
-            for j in range(0, pcs[i, -1]):
+            # Start from 1 to drop warm up steps
+            for j in range(1, pcs[i, -1]):
                 corr_ss = corr(match_value_per_mod[i, pcs[i] == j, 1])
                 if not np.isnan(corr_ss):
                     corrs_coeffs_ss.append(corr_ss)
@@ -209,8 +207,6 @@ class Main:
         g_p,
         match_value_per_mod,
         match_value,
-        match_increment_per_mod,
-        match_increment,
         agent,
         controller,
         contexts,
@@ -226,7 +222,6 @@ class Main:
         episode_len = np.zeros(batch_size, dtype=int)
         max_match = np.zeros((batch_size, params.stime))
         matches = np.zeros((batch_size, params.stime), dtype=bool)
-        policy_selection_steps = np.zeros((batch_size, params.stime), dtype=bool)
         policy_changed = np.zeros((batch_size, params.stime), dtype=bool)
         bsize = batch_size * params.action_steps
 
@@ -263,11 +258,11 @@ class Main:
                         states[episode] = None
                     else:
                         states[episode] = state
-                        batch_v[episode, t, :] = state[
+                        batch_v[episode, t-1, :] = state[
                             "VISUAL_SENSORS"
                         ].ravel()
-                        batch_ss[episode, t, :] = state["TOUCH_SENSORS"]
-                        batch_p[episode, t, :] = state["JOINT_POSITIONS"][:5]
+                        batch_ss[episode, t-1, :] = state["TOUCH_SENSORS"]
+                        batch_p[episode, t-1, :] = state["JOINT_POSITIONS"][:5]
 
             if t % params.action_steps == 0 or t == params.stime:
                 # get Representations for the last N = params.action_steps steps
@@ -312,42 +307,12 @@ class Main:
                         v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa]
                     )
                 )
-                match_increment_per_mod[sa] = np.maximum(
-                    0,
-                    match_value_per_mod[sa]
-                    - match_value_per_mod[:, (t0 - 1) : (t - 1), :],
-                )
-                match_increment[:, t0:t] = np.mean(
-                    match_increment_per_mod[sa], axis=-1
-                )
+               
                 # update cumulative match
                 for i in range(t0, t):
 
-                    # ####### Dataset Filter - Option 1:
-                    # # Compute selectable time steps based on match value change
-                    #mmask = (
-                    #     match_value[:, i] - max_match[:, i - 1]
-                    #) > params.match_incr_th
-                    # Update max match
-                    #max_match[:, i] = max_match[:, i - 1]
-                    #max_match[mmask, i] = match_value[mmask, i]
-                    # Update match and cumulative match 
-                    #mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
-                    
-                    # ####### Dataset Filter - Option 2:
-                    # # Compute selectable time steps based on match value increment change
-                    # mmask = (
-                    #     match_increment[:, i] - max_match[:, i - 1]
-                    # ) > params.match_incr_th
-                    # # Update max match
-                    # max_match[:, i] = max_match[:, i - 1]
-                    # max_match[mmask, i] = match_value[mmask, i]
-                    # # Update match and cumulative match 
-                    # mmask[max_match[:, i-1] == 0] = 0 # Ignore first match increase from 0
-
                     # ####### Dataset Filter - Option 3: 
                     # # Select time steps when the gripper touches object
-                    
                     mmask = batch_ss[:, i].any(axis=-1)
 
                     # ####### Competence - Option 1
@@ -364,13 +329,13 @@ class Main:
 
                 if t < params.stime and t >= params.drop_first_n_steps + params.policy_selection_steps:
 
-                    # Register subsequent changes of policy after the initial one
-                    policy_changed[success_mask, t-2] = 1
-                    
                     # Set initial policy after warmup steps + action selection steps 
                     if t == params.drop_first_n_steps + params.policy_selection_steps:
                         success_mask[:] = 1
-                    
+ 
+                    # Register every change of policy (including setting the initial one)
+                    policy_changed[success_mask, t] = 1
+                   
                     v_rt = v_r[
                         success_mask, t - params.policy_selection_steps : t, :
                     ]
@@ -380,8 +345,6 @@ class Main:
                     p_rt = p_r[
                         success_mask, t - params.policy_selection_steps : t, :
                     ]
-
-                    policy_selection_steps[success_mask, t - params.policy_selection_steps : t] = 1
 
                     goal_activation[success_mask, t:] = visual_activation[
                         success_mask, t - params.policy_selection_steps : t
@@ -404,14 +367,10 @@ class Main:
                     batch_c[success_mask, t:, :] = competences[:, None, :]
                     batch_log[success_mask, t:, :] = rcompetences[:, None, :]
 
-                    cum_match[success_mask, t - 1] = 0
-                    max_match[success_mask, t - 1] = 0
+                    cum_match[success_mask, t] = 0
+                    max_match[success_mask, t] = 0
 
-        # At the end of the episode we mark all policies as finished to
-        # count cumulative match properly.
-        policy_changed[:, -1] = 1
-
-        return matches, max_match, cum_match, episode_len, policy_changed, policy_selection_steps, goal_activation
+        return matches, max_match, cum_match, episode_len, policy_changed, goal_activation
 
     def train(self, time_limits):
 
@@ -460,10 +419,6 @@ class Main:
 
         match_value = np.zeros([params.batch_size, params.stime])
         match_value_per_mod = np.zeros([params.batch_size, params.stime, 4])
-        match_increment = np.zeros([params.batch_size, params.stime])
-        match_increment_per_mod = np.zeros(
-            [params.batch_size, params.stime, 4]
-        )
 
         cum_match = None
         envs = [None] * params.batch_size
@@ -494,20 +449,25 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed, policy_selection_steps, goal_activation = self.run_episodes(
+            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
                 v_p, ss_p, p_p, a_p, g_p,
                 match_value_per_mod,
                 match_value,
-                match_increment_per_mod,
-                match_increment,
                 agent, controller, contexts,
                 envs, states)
-           
-            # Episode success rate: in how many episodes policy ever changes?
+
+            # Episode success rate: in how many episodes policy ever changes after the initial one?
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
           
+            # Mark end of each policy
+            policy_ended = np.zeros([params.batch_size, params.stime], dtype=bool)
+            policy_ended[:, -1] = 1
+            policy_ended[:, :-1] = policy_changed[:, 1:]
+            # Initial policy change does not count
+            policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
+
             # Calculate within-episode match increase
             episode_match_inc_p, episode_match_inc_ss =\
                 self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
@@ -613,16 +573,16 @@ class Main:
             print(f"{update_items:#7d} {items}", end=" ", flush=True)
             print(f"{batch_ss.sum():#10.2f}", end=" ", flush=True)
             logs[epoch] = [
-                batch_log[policy_changed].min(),
-                batch_log[policy_changed].mean(),
-                batch_log[policy_changed].max(),
+                batch_log[policy_ended].min(),
+                batch_log[policy_ended].mean(),
+                batch_log[policy_ended].max(),
             ]
             print(
                 ("%8.7f " * 3)
                 % (
-                    batch_log[policy_changed].min(),
-                    batch_log[policy_changed].mean(),
-                    batch_log[policy_changed].max(),
+                    batch_log[policy_ended].min(),
+                    batch_log[policy_ended].mean(),
+                    batch_log[policy_ended].max(),
                 ),
                 end="",
             )
@@ -640,7 +600,7 @@ class Main:
                            'stm_a_loss': curr_loss[3],
                            'mean_sigma': local_sigma.mean(),
                            'mean_lr': local_lr.mean(),
-                           'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
+                           'mean_cum_match': cum_match[policy_ended].mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
                            'episode_success_rate': episode_success_rate,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
@@ -650,19 +610,17 @@ class Main:
                            'match_value_ss': match_value_per_mod[matches, 1].mean(),
                            'match_value_p': match_value_per_mod[matches, 2].mean(),
                            'match_value_a': match_value_per_mod[matches, 3].mean(),
-                           'goal_activation': goal_activation[policy_changed].mean(),
-                           'goal_activation_blue': goal_activation[contexts == 1, :][policy_changed[contexts == 1, :]].mean(),
-                           'goal_activation_red': goal_activation[contexts == 2, :][policy_changed[contexts == 2, :]].mean(),
-                           'goal_activation_green': goal_activation[contexts == 3, :][policy_changed[contexts == 3, :]].mean(),
+                           'goal_activation': goal_activation[policy_ended].mean(),
+                           'goal_activation_blue': goal_activation[contexts == 1, :][policy_ended[contexts == 1, :]].mean(),
+                           'goal_activation_red': goal_activation[contexts == 2, :][policy_ended[contexts == 2, :]].mean(),
+                           'goal_activation_green': goal_activation[contexts == 3, :][policy_ended[contexts == 3, :]].mean(),
                            'mean_episode_match_inc': (episode_match_inc_ss + episode_match_inc_p) / 2,
                            'episode_match_inc_ss': episode_match_inc_ss,
                            'episode_match_inc_p': episode_match_inc_p
                            }, step=epoch)
 
             self.match_value = match_value
-            self.match_increment = match_increment
             self.match_value_per_mod = match_value_per_mod
-            self.match_increment_per_mod = match_increment_per_mod
             self.v_r = v_r
             self.ss_r = ss_r
             self.p_r = p_r
@@ -688,9 +646,7 @@ class Main:
                 epoch_start = time.perf_counter()
 
             match_value[::] = 0
-            match_increment[::] = 0
             match_value_per_mod[::] = 0
-            match_increment_per_mod[::] = 0
             batch_v[::] = 0
             batch_ss[::] = 0
             batch_p[::] = 0
@@ -771,13 +727,9 @@ class Main:
 
         match_value = np.zeros([params.batch_size, params.stime])
         match_value_per_mod = np.zeros([params.batch_size, params.stime, 4])
-        match_increment = np.zeros([params.batch_size, params.stime])
-        match_increment_per_mod = np.zeros([params.batch_size, params.stime, 4])
 
         match_value_par = np.zeros([params.batch_size, params.stime])
         match_value_per_mod_par = np.zeros([params.batch_size, params.stime, 4])
-        match_increment_par = np.zeros([params.batch_size, params.stime])
-        match_increment_per_mod_par = np.zeros([params.batch_size, params.stime, 4])
 
         cum_match = None
         envs = [None] * params.batch_size
@@ -813,14 +765,12 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed, policy_selection_steps, goal_activation = self.run_episodes(
+            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
                 batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                 v_r, ss_r, p_r, a_r,
                 v_p, ss_p, p_p, a_p, g_p,
                 match_value_per_mod,
                 match_value,
-                match_increment_per_mod,
-                match_increment,
                 agent, controller, contexts,
                 envs, states)
             mean_policy_noise = self.mean_policy_noise
@@ -837,14 +787,12 @@ class Main:
                 batch_ss_par[episode, 0, :] = state_par["TOUCH_SENSORS"]
                 batch_p_par[episode, 0, :] = state_par["JOINT_POSITIONS"][:5]
 
-            matches_par, max_match_par, cum_match_par, _, policy_changed_par, policy_selection_steps_par, goal_activation_par = self.run_episodes(
+            matches_par, max_match_par, cum_match_par, _, policy_changed_par, goal_activation_par = self.run_episodes(
                 batch_v_par, batch_ss_par, batch_p_par, batch_a_par, batch_g_par, batch_c_par, batch_log_par,
                 v_r_par, ss_r_par, p_r_par, a_r_par,
                 v_p_par, ss_p_par, p_p_par, a_p_par, g_p_par,
                 match_value_per_mod_par,
                 match_value_par,
-                match_increment_per_mod_par,
-                match_increment_par,
                 agent, controller_par, contexts,
                 envs_par, states_par)
             mean_policy_noise_par = self.mean_policy_noise
@@ -858,6 +806,19 @@ class Main:
                 self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
             episode_match_inc_p_par, episode_match_inc_ss_par =\
                 self.calc_match_inc_within_goal(policy_changed_par, match_value_per_mod_par)
+
+            # Mark end of each policy
+            policy_ended = np.zeros([params.batch_size, params.stime], dtype=bool)
+            policy_ended[:, -1] = 1
+            policy_ended[:, :-1] = policy_changed[:, 1:]
+            # Initial policy change does not count
+            policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
+
+            policy_ended_par = np.zeros([params.batch_size, params.stime], dtype=bool)
+            policy_ended_par[:, -1] = 1
+            policy_ended_par[:, :-1] = policy_changed_par[:, 1:]
+            # Initial policy change does not count
+            policy_ended_par[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
 
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
@@ -1029,22 +990,22 @@ class Main:
             print(f"{update_items:#7d} {items}", end=" ", flush=True)
             print(f"{batch_ss.sum():#10.2f}", end=" ", flush=True)
             logs[epoch] = [
-                batch_log[policy_changed].min(),
-                batch_log[policy_changed].mean(),
-                batch_log[policy_changed].max(),
+                batch_log[policy_ended].min(),
+                batch_log[policy_ended].mean(),
+                batch_log[policy_ended].max(),
             ]
             logs_par[epoch] = [
-                batch_log_par[policy_changed_par].min(),
-                batch_log_par[policy_changed_par].mean(),
-                batch_log_par[policy_changed_par].max(),
+                batch_log_par[policy_ended_par].min(),
+                batch_log_par[policy_ended_par].mean(),
+                batch_log_par[policy_ended_par].max(),
             ]
 
             print(
                 ("%8.7f " * 3)
                 % (
-                    batch_log[policy_changed].min(),
-                    batch_log[policy_changed].mean(),
-                    batch_log[policy_changed].max(),
+                    batch_log[policy_ended].min(),
+                    batch_log[policy_ended].mean(),
+                    batch_log[policy_ended].max(),
                 ),
                 end="",
             )
@@ -1063,7 +1024,7 @@ class Main:
                            'stm_a_loss': curr_loss[3],
                            'mean_sigma': local_sigma.mean(),
                            'mean_lr': local_lr.mean(),
-                           'mean_cum_match': cum_match[policy_changed].mean() / params.cum_match_stop_th,
+                           'mean_cum_match': cum_match[policy_ended].mean() / params.cum_match_stop_th,
                            'grid_comp_mean': comp,
                            'episode_success_rate': episode_success_rate,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
@@ -1083,7 +1044,7 @@ class Main:
                            'stm_a_loss_par': curr_loss_par[3],
                            'mean_sigma_par': local_sigma_par.mean(),
                            'mean_lr_par': local_lr_par.mean(),
-                           'mean_cum_match_par': cum_match_par[policy_changed_par].mean() / params.cum_match_stop_th,
+                           'mean_cum_match_par': cum_match_par[policy_ended_par].mean() / params.cum_match_stop_th,
                            'grid_comp_mean_par': comp_par,
                            'episode_success_rate_par': episode_success_rate_par,
                            'policy_weights_norm_par': np.linalg.norm(controller_par.stm_a.get_weights(), axis=-1).mean(),
@@ -1092,14 +1053,14 @@ class Main:
                            'match_value_ss_par': match_value_per_mod_par[matches_par, 1].mean(),
                            'match_value_p_par': match_value_per_mod_par[matches_par, 2].mean(),
                            'match_value_a_par': match_value_per_mod_par[matches_par, 3].mean(),
-                           'goal_activation': goal_activation[policy_changed].mean(),
-                           'goal_activation_blue': goal_activation[contexts == 1, :][policy_changed[contexts == 1, :]].mean(),
-                           'goal_activation_red': goal_activation[contexts == 2, :][policy_changed[contexts == 2, :]].mean(),
-                           'goal_activation_green': goal_activation[contexts == 3, :][policy_changed[contexts == 3, :]].mean(),
-                           'goal_activation_par': goal_activation_par[policy_changed].mean(),
-                           'goal_activation_blue_par': goal_activation_par[contexts == 1, :][policy_changed_par[contexts == 1, :]].mean(),
-                           'goal_activation_red_par': goal_activation_par[contexts == 2, :][policy_changed_par[contexts == 2, :]].mean(),
-                           'goal_activation_green_par': goal_activation_par[contexts == 3, :][policy_changed_par[contexts == 3, :]].mean(),
+                           'goal_activation': goal_activation[policy_ended].mean(),
+                           'goal_activation_blue': goal_activation[contexts == 1, :][policy_ended[contexts == 1, :]].mean(),
+                           'goal_activation_red': goal_activation[contexts == 2, :][policy_ended[contexts == 2, :]].mean(),
+                           'goal_activation_green': goal_activation[contexts == 3, :][policy_ended[contexts == 3, :]].mean(),
+                           'goal_activation_par': goal_activation_par[policy_ended].mean(),
+                           'goal_activation_blue_par': goal_activation_par[contexts == 1, :][policy_ended_par[contexts == 1, :]].mean(),
+                           'goal_activation_red_par': goal_activation_par[contexts == 2, :][policy_ended_par[contexts == 2, :]].mean(),
+                           'goal_activation_green_par': goal_activation_par[contexts == 3, :][policy_ended_par[contexts == 3, :]].mean(),
                            'episode_match_inc_ss': episode_match_inc_ss,
                            'episode_match_inc_p': episode_match_inc_p,
                            'episode_match_inc_ss_par': episode_match_inc_ss_par,
@@ -1109,9 +1070,7 @@ class Main:
                            }, step=epoch)
 
             self.match_value = match_value
-            self.match_increment = match_increment
             self.match_value_per_mod = match_value_per_mod
-            self.match_increment_per_mod = match_increment_per_mod
             self.v_r = v_r
             self.ss_r = ss_r
             self.p_r = p_r
@@ -1158,9 +1117,7 @@ class Main:
                     wandb.log(log_data, step=epoch)
 
             match_value[::] = 0
-            match_increment[::] = 0
             match_value_per_mod[::] = 0
-            match_increment_per_mod[::] = 0
             batch_v[::] = 0
             batch_ss[::] = 0
             batch_p[::] = 0
@@ -1175,9 +1132,7 @@ class Main:
             a_p[::] = 0
 
             match_value_par[::] = 0
-            match_increment_par[::] = 0
             match_value_per_mod_par[::] = 0
-            match_increment_per_mod_par[::] = 0
             v_r_par[::] = 0
             ss_r_par[::] = 0
             p_r_par[::] = 0
@@ -1212,9 +1167,7 @@ class Main:
 
         data = {}
         data["match_value"] = self.match_value
-        data["match_increment"] = self.match_increment
         data["match_value_per_mod"] = self.match_value_per_mod
-        data["match_increment_per_mod"] = self.match_increment_per_mod
         data["v_r"] = self.v_r
         data["ss_r"] = self.ss_r
         data["p_r"] = self.p_r
@@ -1320,8 +1273,6 @@ class Main:
 
         match_value = np.zeros([n_episodes, params.stime])
         match_value_per_mod = np.zeros([n_episodes, params.stime, 4])
-        match_increment = np.zeros([n_episodes, params.stime])
-        match_increment_per_mod = np.zeros([n_episodes, params.stime, 4])
 
         contexts = [(i % 3) + 1 for i in range(n_episodes)]
         envs = [None] * n_episodes
@@ -1345,14 +1296,12 @@ class Main:
         controller.base_policy_noise = 0.0
         controller.max_policy_noise = 0.0
 
-        matches, max_match, cum_match, _, policy_changed, policy_selection_steps, goal_activation = self.run_episodes(
+        matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
             batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
             v_r, ss_r, p_r, a_r,
             v_p, ss_p, p_p, a_p, g_p,
             match_value_per_mod,
             match_value,
-            match_increment_per_mod,
-            match_increment,
             agent, controller, contexts,
             envs, states)
 
@@ -1363,12 +1312,19 @@ class Main:
         # Episode success rate: in how many episodes policy ever changes?
         episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
 
+        # Mark end of each policy
+        policy_ended = np.zeros([params.batch_size, params.stime], dtype=bool)
+        policy_ended[:, -1] = 1
+        policy_ended[:, :-1] = policy_changed[:, 1:]
+        # Initial policy change does not count
+        policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
+
         episode_match_inc_p, episode_match_inc_ss =\
             self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
         
         if use_wandb:
-            wandb.log({f'eval_mean_comp{suffix}': batch_log[policy_changed].mean(),
-                       f'eval_mean_cum_match{suffix}': cum_match[policy_changed].mean() / params.cum_match_stop_th,
+            wandb.log({f'eval_mean_comp{suffix}': batch_log[policy_ended].mean(),
+                       f'eval_mean_cum_match{suffix}': cum_match[policy_ended].mean() / params.cum_match_stop_th,
                        f'eval_episode_success_rate{suffix}': episode_success_rate,
                        f'eval_episode_match_inc_ss{suffix}': episode_match_inc_ss,
                        f'eval_episode_match_inc_p{suffix}': episode_match_inc_p,
@@ -1408,8 +1364,6 @@ class Main:
 
         match_value = np.zeros([1, params.stime])
         match_value_per_mod = np.zeros([1, params.stime, 4])
-        match_increment = np.zeros([1, params.stime])
-        match_increment_per_mod = np.zeros([1, params.stime, 4])
 
         v_p_set = set()
         i = 0
@@ -1475,14 +1429,12 @@ class Main:
             controller.max_policy_noise = 0.0
 
             try:
-                matches, max_match, cum_match, episodes_len, visual_goal_changed, policy_selection_steps, goal_activation = self.run_episodes(
+                matches, max_match, cum_match, episodes_len, visual_goal_changed, policy_selection_steps, goal_activation = self.uun_episodes(
                     batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
                     v_r, ss_r, p_r, a_r,
                     v_p, ss_p, p_p, a_p, g_p,
                     match_value_per_mod,
                     match_value,
-                    match_increment_per_mod,
-                    match_increment,
                     agent, controller, contexts,
                     envs, states)
             except RepeatedGoalPrototypeException as e:
