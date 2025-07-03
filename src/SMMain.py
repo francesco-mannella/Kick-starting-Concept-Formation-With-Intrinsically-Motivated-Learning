@@ -307,13 +307,13 @@ class Main:
                         v_p[sa], ss_p[sa], p_p[sa], a_p[sa], g_p[sa]
                     )
                 )
-               
+                
                 # update cumulative match
                 for i in range(t0, t):
 
-                    # ####### Dataset Filter - Option 3: 
-                    # # Select time steps when the gripper touches object
-                    mmask = batch_ss[:, i].any(axis=-1)
+                    # ####### Dataset Filtering 
+                    # # Select time steps when state changes from no-touch to touch
+                    mmask = batch_ss[:, i].any(axis=-1) & (~batch_ss[:, i-1].any(axis=-1))
 
                     # ####### Competence - Option 1
                     # # use match_value as it is
