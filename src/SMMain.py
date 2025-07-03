@@ -312,12 +312,9 @@ class Main:
                 for i in range(t0, t):
 
                     # ####### Dataset Filtering 
-                    # Select time steps when state changes from no-touch to touch
-                    mmask = batch_ss[:, i].any(axis=-1) & (~batch_ss[:, i-1].any(axis=-1))
+                    # Select time steps when match in touch modality increases locally
+                    mmask = match_value_per_mod[:, i, 1] > match_value_per_mod[:, i-1, 1]
 
-                    # Select only timesteps where match increases *locally* over a certain threshold
-                    #mmask[match_value[:, i] - match_value[:, i-1] < params.match_incr_th] = 0
-                    
                     # Select only timesteps where match increases *globally* over a certain threshold
                     mmask[match_value[:, i] - max_match[:, i] < params.match_incr_th] = 0
                     max_match[mmask, i:] = match_value[mmask, i, None]
