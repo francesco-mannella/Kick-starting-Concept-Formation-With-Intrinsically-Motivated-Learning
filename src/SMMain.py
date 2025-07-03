@@ -315,8 +315,12 @@ class Main:
                     # Select time steps when state changes from no-touch to touch
                     mmask = batch_ss[:, i].any(axis=-1) & (~batch_ss[:, i-1].any(axis=-1))
 
-                    # Select only timesteps where match increases over certain threshold
-                    mmask[match_value[:, i] - match_value[:, i-1] < params.match_incr_th] = 0
+                    # Select only timesteps where match increases *locally* over a certain threshold
+                    #mmask[match_value[:, i] - match_value[:, i-1] < params.match_incr_th] = 0
+                    
+                    # Select only timesteps where match increases *globally* over a certain threshold
+                    mmask[match_value[:, i] - max_match[:, i] < params.match_incr_th] = 0
+                    max_match[mmask, i:] = match_value[mmask, i]
 
                     # ####### Competence - Option 1
                     # # use match_value as it is
@@ -372,7 +376,7 @@ class Main:
                     batch_log[success_mask, t:, :] = rcompetences[:, None, :]
 
                     cum_match[success_mask, t] = 0
-                    max_match[success_mask, t] = 0
+                    max_match[success_mask, t:] = 0
 
         return matches, max_match, cum_match, episode_len, policy_changed, goal_activation
 
