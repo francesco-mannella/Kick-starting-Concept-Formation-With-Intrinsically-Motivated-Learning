@@ -316,8 +316,8 @@ class Main:
                     mmask = match_value_per_mod[:, i, 1] > match_value_per_mod[:, i-1, 1]
 
                     # Select only timesteps where match increases *globally* over a certain threshold
-                    mmask[match_value[:, i] - max_match[:, i] < params.match_incr_th] = 0
-                    max_match[mmask, i:] = match_value[mmask, i, None]
+                    #mmask[match_value[:, i] - max_match[:, i] < params.match_incr_th] = 0
+                    #max_match[mmask, i:] = match_value[mmask, i, None]
 
                     # ####### Competence - Option 1
                     # # use match_value as it is
