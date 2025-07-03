@@ -312,8 +312,11 @@ class Main:
                 for i in range(t0, t):
 
                     # ####### Dataset Filtering 
-                    # # Select time steps when state changes from no-touch to touch
+                    # Select time steps when state changes from no-touch to touch
                     mmask = batch_ss[:, i].any(axis=-1) & (~batch_ss[:, i-1].any(axis=-1))
+
+                    # Select only timesteps where match increases over certain threshold
+                    mmask[match_value[:, i] - match_value[:, i-1] < params.match_incr_th] = 0
 
                     # ####### Competence - Option 1
                     # # use match_value as it is

@@ -52,7 +52,7 @@ representation_sigma = 2
 # Modalities order: visual, touch, proprioception, action
 modalities_weights = [0., 1., 1., 0.] # select touch and proprioception
 match_incr_th = 0.02
-cum_match_stop_th = 10.0
+cum_match_stop_th = 3.0
 predict_lr = 0.1
 reach_grip_prop = 0.1
 
@@ -60,10 +60,10 @@ predict_ampl = 2
 predict_base_ampl = 2
 predict_ampl_prop = 0.95
 
-epochs = 500 
+epochs = 400 
 batch_size = 24 
 tests = 12
-evaluation_episodes = 200
+evaluation_episodes = 24
 epochs_to_test = 100 
 load_weights = False
 shuffle_weights = False
