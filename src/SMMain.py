@@ -1526,7 +1526,11 @@ if __name__ == "__main__":
         action="store",
         default=1e99,
     )
-    parser.add_argument("-g", "--gpu", help="Use gpu", action="store_true")
+    parser.add_argument(
+        "-g",
+        "--gpu",
+        help="Use gpu",
+        action="store_true")
     parser.add_argument(
         "-s",
         "--seed",
@@ -1550,6 +1554,12 @@ if __name__ == "__main__":
         "-n",
         "--name",
         help="Simulation name (to store results in named folders)",
+        action="store",
+        default=None,
+    )
+    parser.add_argument(
+        "--group",
+        help="Simulation group name (to organize experiments on wandb)",
         action="store",
         default=None,
     )
@@ -1617,6 +1627,7 @@ if __name__ == "__main__":
             project="kickstarting_concept",
             entity="hill_uw",
             name=args.name,
+            group=args.group,
             config=config,
         )
 
