@@ -10,6 +10,7 @@ class SMEnv:
     ):
 
         self.params = params
+        self.seed = seed
 
         self.action_steps = params.action_steps
         self.store_observations = store_observations
@@ -37,12 +38,8 @@ class SMEnv:
         }
 
     def __setstate__(self, state):
-        self.__init__(
-            seed=0,
-            action_steps=state["action_steps"],
-            store_observations=state["store_observations"],
-            rand_obj_params=state["rand_obj_params"],
-        )
+        self.rand_obj_params = state["rand_objs_params"]
+        self.action_steps = state["action_steps"]
         self.b2d_env.rng = state["rng"]
 
     def step(self, action):
@@ -98,7 +95,9 @@ class SMEnv:
 class SMEnvParasite(SMEnv):
 
     def __init__(self, seed, observations, rand_obj_params=None):
-        super(SMEnvParasite, self).__init__(seed, rand_obj_params=rand_obj_params)
+        super(SMEnvParasite, self).__init__(
+            seed, rand_obj_params=rand_obj_params
+        )
         self.stored_observations = observations
         self.i = 0
 

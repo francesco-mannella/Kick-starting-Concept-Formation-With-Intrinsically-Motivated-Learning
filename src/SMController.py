@@ -2,7 +2,6 @@ import os
 import glob
 import numpy as np
 
-
 from stm import SMSTM
 from SMPredict import SMPredict
 
@@ -466,7 +465,6 @@ class SMController:
         }
 
     def __setstate__(self, state):
-        self.__init__()
         self.stm_v.set_weights(state["visual"])
         self.stm_ss.set_weights(state["ssensory"])
         self.stm_p.set_weights(state["proprio"])

@@ -114,6 +114,7 @@ class Main:
     def __getstate__(self):
         return {
             "controller": self.controller.__getstate__(),
+            "params": repr(self.params),
             "env": self.env.__getstate__(),
             "rng": self.rng.__getstate__(),
             "seed": self.seed,
@@ -131,6 +132,10 @@ class Main:
         torch.manual_seed(self.seed)
         self.rng = np.random.RandomState()
         self.rng.__setstate__(state["rng"])
+
+        print(state["params"])
+        self.params = Parameters()
+        self.params.update(state["params"], mode="json")
 
         nlogs = len(self.logs)
         if self.params.epochs > nlogs:
@@ -287,8 +292,13 @@ class Main:
                 a_p[sa].flat = Rp[3].flat
                 g_p[sa].flat = Rp[4].flat
 
-                visual_activation[:, t0:t].flat = controller.stm_v.get_activation(
-                    batch_v[sa].reshape((bsize, -1))).sum(axis=-1).flat
+                visual_activation[:, t0:t].flat = (
+                    controller.stm_v.get_activation(
+                        batch_v[sa].reshape((bsize, -1))
+                    )
+                    .sum(axis=-1)
+                    .flat
+                )
 
                 # Do not update match during the initial empty steps
                 if t <= self.params.drop_first_n_steps:
@@ -373,15 +383,18 @@ class Main:
 
                     goal_activation[success_mask, t:] = visual_activation[
                         success_mask, t - 2 * params.drop_first_n_steps : t
-                    ].mean(axis=1)[:, None] 
+                    ].mean(axis=1)[:, None]
 
-                    (goals_p,
-                     goals,
-                     policies,
-                     competences,
-                     rcompetences,
-                     mean_policy_noise) = controller.choose_policy(v_rt, ss_rt, p_rt,
-                                                                   goal_activation, t)
+                    (
+                        goals_p,
+                        goals,
+                        policies,
+                        competences,
+                        rcompetences,
+                        mean_policy_noise,
+                    ) = controller.choose_policy(
+                        v_rt, ss_rt, p_rt, goal_activation, t
+                    )
 
                     self.mean_policy_noise = mean_policy_noise
 
@@ -399,7 +412,14 @@ class Main:
         # count cumulative match properly.
         policy_changed[:, -1] = 1
 
-        return matches, max_match, cum_match, episode_len, policy_changed, goal_activation
+        return (
+            matches,
+            max_match,
+            cum_match,
+            episode_len,
+            policy_changed,
+            goal_activation,
+        )
 
     def train(self, time_limits):
 
@@ -529,17 +549,41 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
-                batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
-                v_r, ss_r, p_r, a_r,
-                v_p, ss_p, p_p, a_p, g_p,
+            (
+                matches,
+                max_match,
+                cum_match,
+                _,
+                policy_changed,
+                goal_activation,
+            ) = self.run_episodes(
+                batch_v,
+                batch_ss,
+                batch_p,
+                batch_a,
+                batch_g,
+                batch_c,
+                batch_log,
+                v_r,
+                ss_r,
+                p_r,
+                a_r,
+                v_p,
+                ss_p,
+                p_p,
+                a_p,
+                g_p,
                 match_value_per_mod,
                 match_value,
                 match_increment_per_mod,
                 match_increment,
-                agent, controller, contexts,
-                envs, states)
-           
+                agent,
+                controller,
+                contexts,
+                envs,
+                states,
+            )
+
             # Episode success rate: in how many episodes policy ever changes?
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
 
@@ -976,16 +1020,40 @@ class Main:
                 batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
                 batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-            matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
-                batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
-                v_r, ss_r, p_r, a_r,
-                v_p, ss_p, p_p, a_p, g_p,
+            (
+                matches,
+                max_match,
+                cum_match,
+                _,
+                policy_changed,
+                goal_activation,
+            ) = self.run_episodes(
+                batch_v,
+                batch_ss,
+                batch_p,
+                batch_a,
+                batch_g,
+                batch_c,
+                batch_log,
+                v_r,
+                ss_r,
+                p_r,
+                a_r,
+                v_p,
+                ss_p,
+                p_p,
+                a_p,
+                g_p,
                 match_value_per_mod,
                 match_value,
                 match_increment_per_mod,
                 match_increment,
-                agent, controller, contexts,
-                envs, states)
+                agent,
+                controller,
+                contexts,
+                envs,
+                states,
+            )
             mean_policy_noise = self.mean_policy_noise
 
             # ----- prepare episodes
@@ -998,10 +1066,30 @@ class Main:
                 states_par[episode] = env.reset()
                 envs_par[episode] = env
 
-            matches_par, max_match_par, cum_match_par, _, policy_changed_par, goal_activation_par = self.run_episodes(
-                batch_v, batch_ss, batch_p, batch_a_par, batch_g_par, batch_c_par, batch_log_par,
-                v_r_par, ss_r_par, p_r_par, a_r_par,
-                v_p_par, ss_p_par, p_p_par, a_p_par, g_p_par,
+            (
+                matches_par,
+                max_match_par,
+                cum_match_par,
+                _,
+                policy_changed_par,
+                goal_activation_par,
+            ) = self.run_episodes(
+                batch_v,
+                batch_ss,
+                batch_p,
+                batch_a_par,
+                batch_g_par,
+                batch_c_par,
+                batch_log_par,
+                v_r_par,
+                ss_r_par,
+                p_r_par,
+                a_r_par,
+                v_p_par,
+                ss_p_par,
+                p_p_par,
+                a_p_par,
+                g_p_par,
                 match_value_per_mod_par,
                 match_value_par,
                 match_increment_per_mod_par,
@@ -1495,6 +1583,13 @@ class Main:
                 log_data[f"episode{i}"] = wandb.Image(f"www/episode{i}.gif")
             wandb.log(log_data, step=epoch)
 
+    def save(self):
+        np.save("main.dump", [self], allow_pickle=True)
+
+    @staticmethod
+    def load():
+        return np.load("main.dump.npy", allow_pickle="True")[0]
+
     def collect_sensory_states(self):
         pass
 
@@ -1550,12 +1645,16 @@ class Main:
         i = 0
 
         def choose_unique_policy(self, v_rt, ss_rt, p_rt, goal_activation, t):
-            ret_val = self.choose_policy_(v_rt, ss_rt, p_rt, goal_activation, t)
-                
+            ret_val = self.choose_policy_(
+                v_rt, ss_rt, p_rt, goal_activation, t
+            )
+
             # Check uniqueness only for the initial policy
-            if t == 2*params.drop_first_n_steps:
+            if t == 2 * params.drop_first_n_steps:
                 if goal_activation[0, t] > params.maximum_goal_activation:
-                    raise RepeatedGoalPrototypeException(f"Goal activation above treshold")
+                    raise RepeatedGoalPrototypeException(
+                        "Goal activation above treshold"
+                    )
                 goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
                 if goal_p in v_p_set:
                     raise RepeatedGoalPrototypeException(
@@ -1612,10 +1711,30 @@ class Main:
             ) = Rp
 
             try:
-                matches, max_match, cum_match, episodes_len, visual_goal_changed, goal_activation = self.run_episodes(
-                    batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
-                    v_r, ss_r, p_r, a_r,
-                    v_p, ss_p, p_p, a_p, g_p,
+                (
+                    matches,
+                    max_match,
+                    cum_match,
+                    episodes_len,
+                    visual_goal_changed,
+                    goal_activation,
+                ) = self.run_episodes(
+                    batch_v,
+                    batch_ss,
+                    batch_p,
+                    batch_a,
+                    batch_g,
+                    batch_c,
+                    batch_log,
+                    v_r,
+                    ss_r,
+                    p_r,
+                    a_r,
+                    v_p,
+                    ss_p,
+                    p_p,
+                    a_p,
+                    g_p,
                     match_value_per_mod,
                     match_value,
                     match_increment_per_mod,
@@ -1782,6 +1901,8 @@ if __name__ == "__main__":
     simulation_name = args.name
 
     params = Parameters()
+    if os.path.isfile("params.json"):
+        params.load("params.json", mode="json")
 
     device = "cuda" if torch.cuda.is_available() and gpu else "cpu"
     torch.set_default_device(device)
@@ -1790,8 +1911,8 @@ if __name__ == "__main__":
         named_dir = (Path(simulations_dir) / args.name).resolve()
         os.makedirs(named_dir, exist_ok=True)
         os.chdir(named_dir)
-        Path("PLOT_SIMS").touch()
-        Path("COMPUTE_TRAJECTORIES").touch()
+        # Path("PLOT_SIMS").touch()
+        # Path("COMPUTE_TRAJECTORIES").touch()
 
     # Override params with command-line options
     for k, v in override_params.items():

@@ -1,3 +1,4 @@
+import sys
 import json
 
 import numpy as np
@@ -15,33 +16,55 @@ class ParameterManager:
             if not k.startswith("__") and not callable(v)
         }
 
-    def _string_to_json(self, param_string):
+    def check_json_format(self, json_string):
+        json_string = (
+            json_string.replace("'", '"')
+            .replace(" ", "")
+            .replace("True", "true")
+            .replace("False", "false")
+        )
+        return json_string
+
+    def _string_to_json(self, param_string, mode="user"):
         """Converts a semicolon-separated string to a JSON dictionary.
+
         Args:
-            param_string: A string of semicolon-separated key-value pairs.
+            param_string (str): String representing the params.
+            mode (str): Format of the string; "user" for
+              semicolon-separated key-value pairs, "json" for JSON string.
+
         Returns:
-            A dictionary representing the JSON object.
+            dict: Dictionary representing the JSON object.
+
         """
         if not param_string:
             return {}
 
-        # Split the string into key-value pairs
-        params = dict(
-            s.split("=", 1) for s in param_string.split(";") if "=" in s
-        )
-        # Format the key-value pairs into a JSON string
-        params = ",".join(
-            f'"{k}":{v.replace(" ","")}' for k, v in params.items()
-        ).replace("'", '"')
-        params = "{" + params + "}"
+        if mode == "user":
+            # Split the string into key-value pairs
+            param_string = param_string.replace(" ", "")
+            params = dict(
+                s.split("=", 1) for s in param_string.split(";") if "=" in s
+            )
+            # Format the key-value pairs into a JSON string
+            params = ",".join(f'"{k.strip()}":{v}' for k, v in params.items())
+            params = "{" + params + "}"
+        else:
+            params = param_string
 
-        # Load the JSON string into a dictionary
-        param_dict = json.loads(params)
+        params = self.check_json_format(params)
+
+        try:
+            param_dict = json.loads(params)
+        except ValueError as e:
+            print(f"Error decoding JSON: {e}")
+            sys.exit(1)
 
         return param_dict
 
     def _json_to_params(self, param_dict):
         """Set attributes from a dictionary.
+
         Args:
             param_dict (dict): Dictionary of parameters.
         """
@@ -50,23 +73,73 @@ class ParameterManager:
             # For each pair, set an attribute of the instance.
             setattr(self, key, value)
 
-    def update(self, param_string):
-        param_dict = self._string_to_json(param_string)
+    def _params_to_dict(self):
+        params = {
+            key: value
+            for key, value in self.__dict__.items()
+            if key != "param_types" and not callable(value)
+        }
+        return params
+
+    def __repr__(self):
+        params = self._params_to_dict()
+        return json.dumps(params)
+
+    def update(self, param_string, mode="user"):
+        """Update parameters based on the input string.
+
+        Args:
+            param_string (str): Input string containing parameters.
+            mode (str, optional): "user" to convert the input
+                string to JSON. "json" if the input string is a
+                json format. Defaults to "user".
+        """
+        if mode == "user":
+            # Convert user-provided string to JSON format
+            param_dict = self._string_to_json(param_string)
+        elif mode == "json":
+            param_dict = self._string_to_json(param_string, mode="json")
+
+        # Update internal parameters using the JSON dictionary
         self._json_to_params(param_dict)
 
-    def save(self, filepath):
-        params = {
-            key: getattr(self, key)
-            for key in self.__dict__
-            if key != "param_types"
-        }
-        with open(filepath, "w") as file:
-            json.dump(params, file, indent=4)
+    def save(self, filepath, mode="user"):
+        """Saves parameters to a file.
 
-    def load(self, filepath):
+        Args:
+            filepath (str): The path to the file.
+            mode (str, optional): Specifies the saving mode.
+              "user": Saves parameters in a human-readable format.
+              Each parameter is written as 'key = value' on a new line.
+              "json": Saves parameters in JSON format.
+              Defaults to "user".
+        """
+        with open(filepath, "w") as file:
+            if mode == "user":
+                for key, value in self._params_to_dict().items():
+                    file.write(f"{key} = {value}\n")
+            elif mode == "json":
+                params = self._params_to_dict()
+                json.dump(params, file, indent=4)
+
+    def load(self, filepath, mode="user"):
+        """Loads parameters from a file.
+
+        Args:
+            filepath (str): The path to the file.
+            mode (str, optional): Specifies the loading mode.
+              "user": Loads parameters from a human-readable format.
+              Expects each parameter to be in the format 'key = value'.
+              "json": Loads parameters from JSON format.
+              Defaults to "user".
+        """
         with open(filepath, "r") as file:
-            param_list = "".join([line.strip() + ";" for line in file])
-        self.string_to_params(param_list)
+            if mode == "user":
+                param_list = "".join([line.strip() + ";" for line in file])
+                self.update(param_list)
+            elif mode == "json":
+                params = json.load(file)
+                self.__dict__.update(params)
 
     def __hash__(self):
         # Using a tuple comprehension to collect all non-callable and
@@ -231,3 +304,21 @@ class Parameters(ParameterManager):
         self.obj_y = obj_y
 
         super(Parameters, self).__init__()
+
+
+if __name__ == "__main__":
+    # Use case 1: Initialize, update, and save parameters to a file.
+    param_string = "epochs=2;predict_lr=0.2"
+    param_file = "tmp_file"
+    p1 = Parameters()
+    p1.update(param_string)
+    p1.save(param_file)
+    p1.save(param_file + ".json", mode="json")
+
+    # Use case 2: Load parameters from a file.
+    p2 = Parameters()
+    p2.load(param_file)
+    p2.load(param_file + ".json", mode="json")
+
+    # Use case 3: Update parameters using a JSON string.
+    p1.update(repr(p2), mode="json")
