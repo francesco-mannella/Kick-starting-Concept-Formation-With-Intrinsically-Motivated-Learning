@@ -538,8 +538,9 @@ class Main:
                     batch_g.reshape((bsize, -1)),
                     match_value.reshape(-1),
                     matches.reshape(-1),
-                    cum_match,
+                    max_match.reshape(-1),
                     policy_changed.reshape(-1),
+                    policy_ended.reshape(-1),
                     local_lr,
                     local_sigma
                 )
@@ -918,8 +919,9 @@ class Main:
                     batch_g.reshape((bsize, -1)),
                     match_value.reshape(-1),
                     matches.reshape(-1),
-                    cum_match,
+                    max_match,
                     policy_changed,
+                    policy_ended,
                     local_lr,
                     local_sigma
                 )
@@ -933,8 +935,9 @@ class Main:
                     batch_g_par.reshape((bsize, -1)),
                     match_value_par.reshape(-1),
                     matches_par.reshape(-1),
-                    cum_match_par,
+                    max_match_par,
                     policy_changed_par,
+                    policy_ended_par,
                     local_lr_par,
                     local_sigma_par
                 )
