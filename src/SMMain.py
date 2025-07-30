@@ -313,8 +313,9 @@ class Main:
 
                     # ####### Dataset Filtering 
                     # Select time steps when internal representation of touch modality changes
-                    mmask = (ss_p[:, i] != ss_p[:, i-1]).any(axis=-1)
-                    #mmask = match_value_per_mod[:, i, 1] > match_value_per_mod[:, i-1, 1]
+                    #mmask = (ss_p[:, i] != ss_p[:, i-1]).any(axis=-1)
+                    # Select time steps when match in touch modality increases
+                    mmask = match_value_per_mod[:, i, 1] > match_value_per_mod[:, i-1, 1]
 
                     # Select only timesteps where match increases *globally* over a certain threshold
                     mmask[match_value[:, i] - max_match[:, i] < params.match_incr_th] = 0
