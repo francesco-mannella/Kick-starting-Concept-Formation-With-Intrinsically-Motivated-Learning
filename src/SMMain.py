@@ -103,8 +103,6 @@ class Main:
         self.logs = np.zeros([params.epochs, 3])
         self.epoch = 0
 
-        self.mean_policy_noise = 0.0
-
     def __getstate__(self):
         return {
             "controller": self.controller.__getstate__(),
@@ -365,8 +363,6 @@ class Main:
                      mean_policy_noise) = controller.choose_policy(v_rt, ss_rt, p_rt,
                                                                    goal_activation, t)
 
-                    self.mean_policy_noise = mean_policy_noise
-
                     # fill successful batches with policies, goals, and competences
                     # (from the current timestep onward)
                     batch_a[success_mask, t:, :] = policies[:, None, :]
@@ -612,7 +608,6 @@ class Main:
                            'episode_success_rate': episode_success_rate,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
                            'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
-                           'mean_policy_noise': self.mean_policy_noise,
                            'match_value_v': match_value_per_mod[matches, 0].mean(),
                            'match_value_ss': match_value_per_mod[matches, 1].mean(),
                            'match_value_p': match_value_per_mod[matches, 2].mean(),
@@ -780,7 +775,6 @@ class Main:
                 match_value,
                 agent, controller, contexts,
                 envs, states)
-            mean_policy_noise = self.mean_policy_noise
 
             # ----- prepare episodes
             for episode in range(params.batch_size): 
@@ -802,7 +796,6 @@ class Main:
                 match_value_par,
                 agent, controller_par, contexts,
                 envs_par, states_par)
-            mean_policy_noise_par = self.mean_policy_noise
 
             # Episode success rate: in how many episodes policy ever changes?
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
@@ -1036,7 +1029,6 @@ class Main:
                            'episode_success_rate': episode_success_rate,
                            'policy_weights_avg': np.abs(controller.stm_a.get_weights()).mean(), 
                            'policy_weights_norm': np.linalg.norm(controller.stm_a.get_weights(), axis=-1).mean(),
-                           'mean_policy_noise': mean_policy_noise,
                            'match_value_v': match_value_per_mod[matches, 0].mean(),
                            'match_value_ss': match_value_per_mod[matches, 1].mean(),
                            'match_value_p': match_value_per_mod[matches, 2].mean(),
@@ -1055,7 +1047,6 @@ class Main:
                            'grid_comp_mean_par': comp_par,
                            'episode_success_rate_par': episode_success_rate_par,
                            'policy_weights_norm_par': np.linalg.norm(controller_par.stm_a.get_weights(), axis=-1).mean(),
-                           'mean_policy_noise_par': mean_policy_noise_par,
                            'match_value_v_par': match_value_per_mod_par[matches_par, 0].mean(),
                            'match_value_ss_par': match_value_per_mod_par[matches_par, 1].mean(),
                            'match_value_p_par': match_value_per_mod_par[matches_par, 2].mean(),
