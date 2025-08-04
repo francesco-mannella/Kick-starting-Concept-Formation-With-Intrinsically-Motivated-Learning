@@ -380,9 +380,6 @@ class SMController:
         # this goal is not used for update.
         predictor_update_steps = policy_ended & (max_match > 0)
 
-        print(goals[predictor_update_steps])
-        print(max_match[predictor_update_steps])
-
         self.predict.update(goals[predictor_update_steps], max_match[predictor_update_steps, None])
         #self.predict.update(goals[match_ind], match_value[match_ind, None])
 
