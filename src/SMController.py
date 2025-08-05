@@ -254,12 +254,12 @@ class SMController:
         #ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
         #p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
         v_rt_w = self.predict.spread(v_rt)
-        ss_rt_w = self.predict.spread(ss_rt)
-        p_rt_w = self.predict.spread(p_rt)
+        #ss_rt_w = self.predict.spread(ss_rt)
+        #p_rt_w = self.predict.spread(p_rt)
 
         v_rt = (v_rt * v_rt_w).sum(axis=1) / v_rt_w.sum(axis=1)
-        ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
-        p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
+        #ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
+        #p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
 
         #goals = np.average([v_rt, ss_rt, p_rt],
         #                   axis=0,
@@ -379,9 +379,6 @@ class SMController:
         # If no timesteps where selected for a given goal (i.e. max_match = 0),
         # this goal is not used for update.
         predictor_update_steps = policy_ended & (max_match > 0)
-
-        print(goals[predictor_update_steps])
-        print(max_match[predictor_update_steps])
 
         self.predict.update(goals[predictor_update_steps], max_match[predictor_update_steps, None])
         #self.predict.update(goals[match_ind], match_value[match_ind, None])
