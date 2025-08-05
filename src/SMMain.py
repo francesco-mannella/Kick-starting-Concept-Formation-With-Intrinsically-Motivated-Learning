@@ -2,15 +2,14 @@ import argparse
 import os
 import shutil
 import types
-from pathlib import Path
-
-import pandas as pd
 import sys
 import time
 from pathlib import Path
+from collections import defaultdict
 
-import matplotlib
 import numpy as np
+import pandas as pd
+import matplotlib
 import torch
 import wandb
 
@@ -1372,30 +1371,31 @@ class Main:
         match_value = np.zeros([1, params.stime])
         match_value_per_mod = np.zeros([1, params.stime, 4])
 
-        v_p_set = set()
+        v_p_set = defaultdict(int)
         i = 0
 
         def choose_unique_policy(self, v_rt, ss_rt, p_rt, goal_activation, t):
             ret_val = self.choose_policy_(v_rt, ss_rt, p_rt, goal_activation, t)
-                
+            goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
+            # Count frequency of individual goals
+            v_p_set[goal_p] += 1
+            
             # Check uniqueness only for the initial policy
-            if t == 2*params.drop_first_n_steps:
+            if unique_prototypes and t == params.drop_first_n_steps + params.policy_selection_steps:
                 if goal_activation[0, t] > params.maximum_goal_activation:
                     raise RepeatedGoalPrototypeException(f"Goal activation above treshold")
-                goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
-                if goal_p in v_p_set:
+                if v_p_set[goal_p] > 1:
                     raise RepeatedGoalPrototypeException(f"Repeated prototype {goal_p}")
-                v_p_set.add(goal_p)
             
             return ret_val
 
-        if unique_prototypes:
-            controller.choose_policy_ = controller.choose_policy
-            controller.choose_policy = types.MethodType(choose_unique_policy, controller)
+        controller.choose_policy_ = controller.choose_policy
+        controller.choose_policy = types.MethodType(choose_unique_policy, controller)
 
-        while i < n_episodes:
+        while len(v_p_set) < n_episodes:
             print(f"Simulating demo episode {i}")
             context = (i % 3) + 1
+            i += 1
             env.b2d_env.prepare_world(context)
             state = env.reset(
                 context, plot=f"{site_dir}/{plot_prefix}", render="offline"
@@ -1478,11 +1478,12 @@ class Main:
                 goal_p = g_p[0, 2*params.drop_first_n_steps]
                 shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal_p[0])}{int(goal_p[1])}.gif")
             else:
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{i}.gif")
-            i += 1
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
 
-        if unique_prototypes:
-            controller.choose_policy = controller.choose_policy_
+        #TODO: implement this function
+        goal_frequency_map(v_p_set)
+
+        controller.choose_policy = controller.choose_policy_
 
         print("demo episodes: Done!!!")
 
