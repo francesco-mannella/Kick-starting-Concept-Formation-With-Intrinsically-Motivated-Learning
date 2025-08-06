@@ -173,6 +173,20 @@ def comp_map(wfile=None):
     fig.savefig(f"{site_dir}/comp_map.png")
     plt.close("all")
 
+def goal_frequency_map(v_p_set):
+
+    data = np.zeros(internal_side, internal_side)
+
+    for k, v in v_p_set.values():
+        data[k[0], k[1]] = v
+
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(111, aspect="equal")
+    ax.imshow(data, vmin=0, vmax=1)
+    ax.set_axis_off()
+    fig.tight_layout(pad=0.0)
+    fig.savefig(f"{site_dir}/goal_frequency_map.png")
+    plt.close("all")
 
 def representations_movements(v_r, ss_r, p_r, a_r, name):
 

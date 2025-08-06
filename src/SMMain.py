@@ -1108,9 +1108,6 @@ class Main:
                         "visual_map_par": wandb.Image("www/visual_map.png"),
                         "comp_map_par": wandb.Image("www/comp_map.png"),
                     }
-                    if self.plots and os.path.isfile("PLOT_SIMS"):
-                        for i in range(params.tests):
-                            log_data[f"parasite_episode{i}"] = wandb.Image(f"www/parasite_episode{i}.gif")
                     wandb.log(log_data, step=epoch)
 
             match_value[::] = 0
@@ -1232,8 +1229,6 @@ class Main:
                 "visual_map": wandb.Image("www/visual_map.png"),
                 "comp_map": wandb.Image("www/comp_map.png"),
             }
-            for i in range(params.tests):
-                log_data[f"episode{i}"] = wandb.Image(f"www/episode{i}.gif")
             wandb.log(log_data, step=epoch)
 
     def collect_sensory_states(self):
@@ -1328,7 +1323,7 @@ class Main:
                        f'mean_episode_match_inc{suffix}': (episode_match_inc_ss + episode_match_inc_p) / 2, 
                        }, step=epoch)
 
-    def demo_episodes(self, n_episodes=params.internal_size, plot_prefix="demo",
+    def demo_episodes(self, n_episodes=params.demo_episodes, plot_prefix="demo",
                       controller=None, unique_prototypes=False):
        
         if n_episodes > params.internal_size:
@@ -1471,8 +1466,14 @@ class Main:
             else:
                 shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
 
-        #TODO: implement this function
         goal_frequency_map(v_p_set)
+        shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/goal_frequency_map_{plot_prefix}.png")
+        
+        if use_wandb:
+            log_data = {f"goal_frequency_map_{plot_prefix}": wandb.Image(f"{site_dir}/goal_frequency_map_{plot_prefix}.png")}
+            for f in glob.glob(f"{site_dir}/{plot_prefix}*.gif"):
+                log_data[Path(f).stem] = wandb.Image(f)
+            wandb.log(log_data, step=self.epoch)
 
         controller.choose_policy = controller.choose_policy_
 

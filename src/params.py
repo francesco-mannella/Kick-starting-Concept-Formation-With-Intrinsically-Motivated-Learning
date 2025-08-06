@@ -64,6 +64,7 @@ epochs = 1000
 batch_size = 24 
 tests = 12
 evaluation_episodes = 24
+demo_episodes = 2
 epochs_to_test = 100 
 load_weights = False
 shuffle_weights = False
