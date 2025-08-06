@@ -19,7 +19,7 @@ from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
 from SMAgent import SMAgent
 from box2dsim.envs.Simulator import TestPlotterVisualSalience
-from SMGraphs import comp_map, log, remove_figs, trajectories_map, visual_map
+from SMGraphs import comp_map, log, remove_figs, trajectories_map, visual_map, goal_frequency_map
 
 
 matplotlib.use("Agg")
@@ -1362,6 +1362,9 @@ class Main:
 
         def choose_unique_policy(self, v_rt, ss_rt, p_rt, goal_activation, t):
             ret_val = self.choose_policy_(v_rt, ss_rt, p_rt, goal_activation, t)
+            if ret_val[0].shape[0] < 1:
+                return ret_val
+
             goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
             # Count frequency of individual goals
             v_p_set[goal_p] += 1
@@ -1379,7 +1382,7 @@ class Main:
         controller.choose_policy = types.MethodType(choose_unique_policy, controller)
 
         while len(v_p_set) < n_episodes:
-            print(f"Simulating demo episode {i}")
+            print(f"Simulating demo episode {len(v_p_set)}")
             context = (i % 3) + 1
             i += 1
             env.b2d_env.prepare_world(context)

@@ -64,7 +64,7 @@ epochs = 1000
 batch_size = 24 
 tests = 12
 evaluation_episodes = 24
-demo_episodes = 2
+demo_episodes = 10
 epochs_to_test = 100 
 load_weights = False
 shuffle_weights = False
@@ -76,4 +76,4 @@ obj_rot_var = 0.5*3.1415922653
 obj_x = 2
 obj_y = 0.25 
 
-maximum_goal_activation = 75.0
+maximum_goal_activation = 575.0

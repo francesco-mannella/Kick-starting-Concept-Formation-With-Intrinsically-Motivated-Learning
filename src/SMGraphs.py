@@ -175,10 +175,10 @@ def comp_map(wfile=None):
 
 def goal_frequency_map(v_p_set):
 
-    data = np.zeros(internal_side, internal_side)
+    data = np.zeros((internal_side, internal_side))
 
-    for k, v in v_p_set.values():
-        data[k[0], k[1]] = v
+    for k in v_p_set:
+        data[int(k[0]), int(k[1])] = v_p_set[k]
 
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, aspect="equal")
