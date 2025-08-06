@@ -53,7 +53,7 @@ representation_sigma = 2
 modalities_weights = [0., 1., 1., 0.] # select touch and proprioception
 match_incr_th = 0.001
 cum_match_stop_th = 3.0
-predict_lr = 0.1
+predict_lr = 0.05
 reach_grip_prop = 0.1
 
 predict_ampl = 2
