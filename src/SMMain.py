@@ -4,6 +4,7 @@ import shutil
 import types
 import sys
 import time
+import glob
 from pathlib import Path
 from collections import defaultdict
 
@@ -1371,8 +1372,8 @@ class Main:
             
             # Check uniqueness only for the initial policy
             if unique_prototypes and t == params.drop_first_n_steps + params.policy_selection_steps:
-                if goal_activation[0, t] > params.maximum_goal_activation:
-                    raise RepeatedGoalPrototypeException(f"Goal activation above treshold")
+                #if goal_activation[0, t] > params.maximum_goal_activation:
+                #    raise RepeatedGoalPrototypeException(f"Goal activation above treshold")
                 if v_p_set[goal_p] > 1:
                     raise RepeatedGoalPrototypeException(f"Repeated prototype {goal_p}")
             
@@ -1385,6 +1386,8 @@ class Main:
             print(f"Simulating demo episode {len(v_p_set)}")
             context = (i % 3) + 1
             i += 1
+            if i > params.demo_episodes_max_trials:
+                break
             env.b2d_env.prepare_world(context)
             state = env.reset(
                 context, plot=f"{site_dir}/{plot_prefix}", render="offline"
