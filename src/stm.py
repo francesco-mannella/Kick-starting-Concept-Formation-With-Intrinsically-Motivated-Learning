@@ -147,9 +147,12 @@ class STM(torch.nn.Module):
         return norms2, radials
 
     def backward(self, radials):
-        radials = radials / radials.sum(dim=1).reshape(-1, 1)
+        radials = radials / (radials.sum(dim=1).reshape(-1, 1) + 1e-5)
     
-        x = torch.matmul(radials, self.kernel.T)
+        #CHANGE: Use single prototype instead of weighted average.
+        #x = torch.matmul(radials, self.kernel.T)
+        x = self.kernel.T[radials.argmax(dim=-1)]
+
         return x
 
     def loss(self, radial_norms2, extrinsic=None):
