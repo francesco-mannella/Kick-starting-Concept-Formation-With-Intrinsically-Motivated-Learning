@@ -164,20 +164,20 @@ class Main:
             or obj_xy[1] > ylim[1]
         )
 
-    def calc_match_inc_within_goal(self, policy_changed, match_value_per_mod):
+    def calc_match_inc_within_goal(self, policy_ended, match_value_per_mod):
         def corr(x):
             return np.corrcoef(np.arange(len(x)), x)[0, 1]
 
         corrs_coeffs_p = []
         corrs_coeffs_ss = []
-        pcs = policy_changed.cumsum(axis=1)
-        for i in range(policy_changed.shape[0]):
-            # Start from 1 to drop warm up steps
-            for j in range(1, pcs[i, -1]):
-                corr_ss = corr(match_value_per_mod[i, pcs[i] == j, 1])
+
+        for i in range(policy_ended.shape[0]):
+            prev_ind = -1
+            for curr_ind in np.argwhere(policy_ended[i])[:, 0]:
+                corr_ss = corr(match_value_per_mod[i, prev_ind+1:curr_ind+1, 1])
                 if not np.isnan(corr_ss):
                     corrs_coeffs_ss.append(corr_ss)
-                corr_p = corr(match_value_per_mod[i, pcs[i] == j, 2])
+                corr_p = corr(match_value_per_mod[i, prev_ind+1:curr_ind+1, 2])
                 if not np.isnan(corr_p):
                     corrs_coeffs_p.append(corr_p)
 
@@ -466,14 +466,14 @@ class Main:
           
             # Mark end of each policy
             policy_ended = np.zeros(policy_changed.shape, dtype=bool)
-            policy_ended[:, -1] = 1
+            policy_ended[:, -1] = 1 # End of an episode automatically ends policy
             policy_ended[:, :-1] = policy_changed[:, 1:]
             # Initial policy change does not count
-            policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
+            policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps - 1] = 0
 
             # Calculate within-episode match increase
             episode_match_inc_p, episode_match_inc_ss =\
-                self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
+                self.calc_match_inc_within_goal(policy_ended, match_value_per_mod)
 
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
@@ -801,24 +801,25 @@ class Main:
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
             episode_success_rate_par = (policy_changed_par.sum(axis=1) >= 2).mean()
             
-            # Calculate within-episode match increase
-            episode_match_inc_p, episode_match_inc_ss =\
-                self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
-            episode_match_inc_p_par, episode_match_inc_ss_par =\
-                self.calc_match_inc_within_goal(policy_changed_par, match_value_per_mod_par)
-
             # Mark end of each policy
             policy_ended = np.zeros(policy_changed.shape, dtype=bool)
             policy_ended[:, -1] = 1
             policy_ended[:, :-1] = policy_changed[:, 1:]
             # Initial policy change does not count
-            policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
+            policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps - 1] = 0
 
             policy_ended_par = np.zeros(policy_changed_par.shape, dtype=bool)
             policy_ended_par[:, -1] = 1
             policy_ended_par[:, :-1] = policy_changed_par[:, 1:]
             # Initial policy change does not count
-            policy_ended_par[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
+            policy_ended_par[:, params.drop_first_n_steps + params.policy_selection_steps - 1] = 0
+
+            # Calculate within-episode match increase
+            episode_match_inc_p, episode_match_inc_ss =\
+                self.calc_match_inc_within_goal(policy_ended, match_value_per_mod)
+            episode_match_inc_p_par, episode_match_inc_ss_par =\
+                self.calc_match_inc_within_goal(policy_ended_par, match_value_per_mod_par)
+
 
             # Grid competence as global competence
             controller.comp_grid = controller.getCompetenceGrid()
@@ -1310,10 +1311,10 @@ class Main:
         policy_ended[:, -1] = 1
         policy_ended[:, :-1] = policy_changed[:, 1:]
         # Initial policy change does not count
-        policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps] = 0
+        policy_ended[:, params.drop_first_n_steps + params.policy_selection_steps - 1] = 0
 
         episode_match_inc_p, episode_match_inc_ss =\
-            self.calc_match_inc_within_goal(policy_changed, match_value_per_mod)
+            self.calc_match_inc_within_goal(policy_ended, match_value_per_mod)
         
         if use_wandb:
             wandb.log({f'eval_mean_comp{suffix}': batch_log[policy_ended].mean(),
