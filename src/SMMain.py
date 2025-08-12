@@ -1475,7 +1475,7 @@ class Main:
 
         goal_frequency_map(v_p_set)
         shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/goal_frequency_map_{plot_prefix}.png")
-        
+       
         if use_wandb:
             log_data = {f"goal_frequency_map_{plot_prefix}": wandb.Image(f"{site_dir}/goal_frequency_map_{plot_prefix}.png")}
             for f in glob.glob(f"{site_dir}/{plot_prefix}*.gif"):

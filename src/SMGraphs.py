@@ -188,7 +188,7 @@ def goal_frequency_map(v_p_set):
 
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, aspect="equal")
-    ax.imshow(data, vmin=0, vmax=1)
+    ax.imshow(data)
     ax.set_axis_off()
     fig.tight_layout(pad=0.0)
     fig.savefig(f"{site_dir}/goal_frequency_map.png")
