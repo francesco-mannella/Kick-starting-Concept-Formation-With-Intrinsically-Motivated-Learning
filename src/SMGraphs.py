@@ -48,6 +48,9 @@ def remove_figs(epoch=0):
             copyfile(
                 f"{site_dir}/trajectories.png", f"{epoch_dir}/trajectories.png"
             )
+            copyfile(
+                f"{site_dir}/goal_frequency_map.png", f"{epoch_dir}/goal_frequency_map.png"
+            )
         except OSError:
             pass
     else:
@@ -83,6 +86,7 @@ def remove_figs(epoch=0):
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/comp_map.png")
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/log.png")
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/trajectories.png")
+        copyfile(f"{site_dir}/blank.gif", f"{site_dir}/goal_frequency_map.png")
 
 
 def trajectories_map(wfile=None):
