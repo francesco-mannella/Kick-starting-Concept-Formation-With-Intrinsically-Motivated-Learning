@@ -1383,8 +1383,8 @@ class Main:
         controller.choose_policy_ = controller.choose_policy
         controller.choose_policy = types.MethodType(choose_unique_policy, controller)
 
-        while len(v_p_set) < n_episodes:
-            print(f"Simulating demo episode {len(v_p_set)}")
+        while sum(v_p_set.values()) < n_episodes:
+            print(f"Simulating demo episode {sum(v_p_set.values())}")
             context = (i % 3) + 1
             i += 1
             if i > params.demo_episodes_max_trials:
