@@ -184,6 +184,8 @@ def goal_frequency_map(v_p_set):
     for k in v_p_set:
         data[int(k[0]), int(k[1])] = v_p_set[k]
 
+    data /= data.sum()
+
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, aspect="equal")
     ax.imshow(data, vmin=0, vmax=1)

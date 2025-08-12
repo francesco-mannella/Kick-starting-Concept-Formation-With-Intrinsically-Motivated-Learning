@@ -1471,7 +1471,7 @@ class Main:
                 goal_p = g_p[0, 2*params.drop_first_n_steps]
                 shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal_p[0])}{int(goal_p[1])}.gif")
             else:
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{len(v_p_set)-1}.gif")
+                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{sum(v_p_set.values())-1}.gif")
 
         goal_frequency_map(v_p_set)
         shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/goal_frequency_map_{plot_prefix}.png")
