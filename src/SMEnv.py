@@ -46,6 +46,12 @@ class SMEnv:
             self.stored_observations.append(copy.deepcopy(observation))
         return observation
 
+    def get_b2d_state(self):
+        return self.b2d_env.get_objects_params()
+
+    def set_b2d_state(self, state):
+        self.b2d_env.set_objects_params(state)
+
     def reset(
         self,
         world=None,

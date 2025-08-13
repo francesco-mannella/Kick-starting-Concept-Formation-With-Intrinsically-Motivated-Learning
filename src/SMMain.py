@@ -1103,7 +1103,7 @@ class Main:
 
                 if self.plots and os.path.isfile("PLOT_SIMS"):
                     print("----> Test Sims ...", end=" ", flush=True)
-                    self.demo_episodes(n_episodes=params.tests, plot_prefix="parasite_episode", controller=controller_par)
+                    self.evaluation_episodes(n_episodes=params.tests, suffix="_demo_par", render="offline", controller=controller_par)
                 
                 if use_wandb:
                     log_data = {
@@ -1193,7 +1193,7 @@ class Main:
 
         if os.path.isfile("PLOT_SIMS"):
             print("----> Test Sims ...", end=" ", flush=True)
-            self.demo_episodes(n_episodes=params.tests, plot_prefix="episode")
+            self.evaluation_episodes(n_episodes=params.tests, render="offline", suffix="_demo")
 
         # if os.path.isfile("COMPUTE_TRAJECTORIES"):
         #     print(
@@ -1240,11 +1240,14 @@ class Main:
         pass
 
     def evaluation_episodes(self, n_episodes=params.evaluation_episodes, controller=None,
-                            epoch=0, suffix=""):
+                            epoch=0, suffix="", render=None, env_states=None):
         agent = self.agent
         if controller is None:
             controller = self.controller
         #controller.curr_sigma = 0.1
+
+        if env_states is not None:
+            n_episodes = len(env_states)
 
         batch_v = np.zeros([n_episodes, params.stime, params.visual_size])
         batch_ss = np.zeros([n_episodes, params.stime, params.somatosensory_size])
@@ -1278,19 +1281,22 @@ class Main:
             env = SMEnv(self.seed + episode, params.action_steps,
                         rand_obj_params=self.random_obj_params)
             env.b2d_env.prepare_world(contexts[episode])
-            states[episode] = env.reset(contexts[episode])
+            states[episode] = env.reset(contexts[episode],
+                                        plot=f"{site_dir}/episode_{episode}{suffix}",
+                                        render=render)
+            if env_states is not None:
+                env.set_b2d_state(env_states[episode])
             envs[episode] = env
             state = states[episode]
             batch_v[episode, 0, :] = state["VISUAL_SENSORS"].ravel()
             batch_ss[episode, 0, :] = state["TOUCH_SENSORS"]
             batch_p[episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-
         # Do not introduce noise to policy search
         controller.base_policy_noise = 0.0
         controller.max_policy_noise = 0.0
 
-        matches, max_match, cum_match, _, policy_changed, goal_activation = self.run_episodes(
+        matches, max_match, cum_match, episodes_len, policy_changed, goal_activation = self.run_episodes(
             batch_v, batch_ss, batch_p, batch_a, batch_g, batch_c, batch_log,
             v_r, ss_r, p_r, a_r,
             v_p, ss_p, p_p, a_p, g_p,
@@ -1298,7 +1304,13 @@ class Main:
             match_value,
             agent, controller, contexts,
             envs, states)
+        goal_counts = defaultdict(int)
+        for goal in g_p[policy_changed]:
+            goal_counts[(int(goal[0]), int(goal[1]))] += 1
 
+        goal_frequency_map(goal_counts)
+        shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/goal_frequency_map{suffix}.png")
+       
         # Reset policy noise
         controller.base_policy_noise = params.base_policy_noise
         controller.max_policy_noise = params.max_policy_noise
@@ -1316,21 +1328,46 @@ class Main:
         episode_match_inc_p, episode_match_inc_ss =\
             self.calc_match_inc_within_goal(policy_ended, match_value_per_mod)
         
+        if render is not None:
+            for i in range(n_episodes):
+                l = episodes_len[i]
+                full_match_value = match_value[i, :l]
+                full_matches = matches[i, :l]
+                full_cum_match = cum_match[i, :l] / params.cum_match_stop_th
+                full_max_match = max_match[i, :l]
+                f_vp = v_p[i, :l]
+                f_ssp = ss_p[i, :l]
+                f_pp = p_p[i, :l]
+                f_ap = a_p[i, :l]
+                f_gp = g_p[i, :l]
+
+                envs[i].render_info(
+                    full_match_value,
+                    full_max_match,
+                    full_cum_match,
+                    f_vp,
+                    f_ssp,
+                    f_pp,
+                    f_ap,
+                    f_gp,
+                )
+                envs[i].close()
+
         if use_wandb:
-            wandb.log({f'eval_mean_comp{suffix}': batch_log[policy_ended].mean(),
-                       f'eval_mean_cum_match{suffix}': cum_match[policy_ended].mean() / params.cum_match_stop_th,
-                       f'eval_episode_success_rate{suffix}': episode_success_rate,
-                       f'eval_episode_match_inc_ss{suffix}': episode_match_inc_ss,
-                       f'eval_episode_match_inc_p{suffix}': episode_match_inc_p,
-                       f'mean_episode_match_inc{suffix}': (episode_match_inc_ss + episode_match_inc_p) / 2, 
-                       }, step=epoch)
+            log_data = {f'eval_mean_comp{suffix}': batch_log[policy_ended].mean(),
+                        f'eval_mean_cum_match{suffix}': cum_match[policy_ended].mean() / params.cum_match_stop_th,
+                        f'eval_episode_success_rate{suffix}': episode_success_rate,
+                        f'eval_episode_match_inc_ss{suffix}': episode_match_inc_ss,
+                        f'eval_episode_match_inc_p{suffix}': episode_match_inc_p,
+                        f'mean_episode_match_inc{suffix}': (episode_match_inc_ss + episode_match_inc_p) / 2, 
+                        f'eval_goal_frequency_map{suffix}': wandb.Image(f'{site_dir}/goal_frequency_map{suffix}.png')
+                       }
+            for f in glob.glob(f"{site_dir}/episode_*{suffix}.gif"):
+                log_data[Path(f).stem] = wandb.Image(f)
+            wandb.log(log_data, step=epoch)
 
-    def demo_episodes(self, n_episodes=params.demo_episodes, plot_prefix="demo",
-                      controller=None, unique_prototypes=False):
-       
-        if n_episodes > params.internal_size:
-            n_episodes = params.internal_size
-
+    def monte_carlo_episode_search(self, n_trials=params.demo_episodes_max_trials,
+                                   controller=None):
         env = self.env
         agent = self.agent
         if controller == None:
@@ -1359,8 +1396,7 @@ class Main:
         match_value = np.zeros([1, params.stime])
         match_value_per_mod = np.zeros([1, params.stime, 4])
 
-        v_p_set = defaultdict(int)
-        i = 0
+        goals_env_states = defaultdict(list)
 
         def choose_unique_policy(self, v_rt, ss_rt, p_rt, goal_activation, t):
             ret_val = self.choose_policy_(v_rt, ss_rt, p_rt, goal_activation, t)
@@ -1369,30 +1405,18 @@ class Main:
 
             goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
             # Count frequency of individual goals
-            v_p_set[goal_p] += 1
-            
-            # Check uniqueness only for the initial policy
-            if unique_prototypes and t == params.drop_first_n_steps + params.policy_selection_steps:
-                #if goal_activation[0, t] > params.maximum_goal_activation:
-                #    raise RepeatedGoalPrototypeException(f"Goal activation above treshold")
-                if v_p_set[goal_p] > 1:
-                    raise RepeatedGoalPrototypeException(f"Repeated prototype {goal_p}")
-            
-            return ret_val
+            goals_env_states[goal_p].append(init_b2d_state)
+            raise RepeatedGoalPrototypeException(f"Goal prototype {goal_p}")
 
         controller.choose_policy_ = controller.choose_policy
         controller.choose_policy = types.MethodType(choose_unique_policy, controller)
 
-        while sum(v_p_set.values()) < n_episodes:
-            print(f"Simulating demo episode {sum(v_p_set.values())}")
+        for i in range(n_trials):
             context = (i % 3) + 1
             i += 1
-            if i > params.demo_episodes_max_trials:
-                break
             env.b2d_env.prepare_world(context)
-            state = env.reset(
-                context, plot=f"{site_dir}/{plot_prefix}", render="offline"
-            )
+            state = env.reset(context)
+            init_b2d_state = env.get_b2d_state()
 
             envs = [env]
             states = [state]
@@ -1445,46 +1469,9 @@ class Main:
             controller.base_policy_noise = params.base_policy_noise
             controller.max_policy_noise = params.max_policy_noise
 
-            l = episodes_len[0]
-            full_match_value = match_value[0, :l]
-            full_matches = matches[0, :l]
-            full_cum_match = cum_match[0, :l] / params.cum_match_stop_th
-            full_max_match = max_match[0, :l]
-            f_vp = v_p[0, :l]
-            f_ssp = ss_p[0, :l]
-            f_pp = p_p[0, :l]
-            f_ap = a_p[0, :l]
-            f_gp = g_p[0, :l]
-
-            env.render_info(
-                full_match_value,
-                full_max_match,
-                full_cum_match,
-                f_vp,
-                f_ssp,
-                f_pp,
-                f_ap,
-                f_gp,
-            )
-            env.close()
-            if plot_prefix == "demo":
-                goal_p = g_p[0, 2*params.drop_first_n_steps]
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}_00{int(goal_p[0])}{int(goal_p[1])}.gif")
-            else:
-                shutil.copyfile(f"{site_dir}/{plot_prefix}.gif", f"{site_dir}/{plot_prefix}{sum(v_p_set.values())-1}.gif")
-
-        goal_frequency_map(v_p_set)
-        shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/goal_frequency_map_{plot_prefix}.png")
-       
-        if use_wandb:
-            log_data = {f"goal_frequency_map_{plot_prefix}": wandb.Image(f"{site_dir}/goal_frequency_map_{plot_prefix}.png")}
-            for f in glob.glob(f"{site_dir}/{plot_prefix}*.gif"):
-                log_data[Path(f).stem] = wandb.Image(f)
-            wandb.log(log_data, step=self.epoch)
-
         controller.choose_policy = controller.choose_policy_
 
-        print("demo episodes: Done!!!")
+        return goals_env_states
 
     def get_context_from_visual(self):
         pass
@@ -1649,7 +1636,13 @@ if __name__ == "__main__":
 
     try:
         if demo:
-            main.demo_episodes(unique_prototypes=True)
+            goals_env_states = main.monte_carlo_episode_search()
+            goal_counts = {k: len(v) for k, v in goals_env_states.items()}
+            goal_frequency_map(goal_counts)
+            shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/first_goal_frequency_map_monte_carlo.png")
+            for k, v in goals_env_states.items():
+                main.evaluation_episodes(env_states=v[0], render="offline", suffix=f"goal_{k}")
+                main.evaluation_episodes(env_states=v[:10], suffix=f"goal_{k}")
         elif train_parasite:
             main.train_parasite(timing)
         else:

@@ -62,7 +62,7 @@ predict_ampl_prop = 0.95
 
 epochs = 1000 
 batch_size = 24 
-tests = 12
+tests = 1
 evaluation_episodes = 24
 demo_episodes = 100
 demo_episodes_max_trials = 10000

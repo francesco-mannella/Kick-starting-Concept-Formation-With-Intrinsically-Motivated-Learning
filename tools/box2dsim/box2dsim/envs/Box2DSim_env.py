@@ -373,6 +373,8 @@ class Box2DSimOneArmEnv(gym.Env):
 
         verts = params["verts"]
         color = params["color"]
+        pos = params["pos"]
+        rot = params["rot"]
         world_dict = self.world_dict
 
         for bodyName in self.object_names:
@@ -385,7 +387,12 @@ class Box2DSimOneArmEnv(gym.Env):
                         "y"
                     ] = list(verts[1])
 
+                    world_dict["body"][i]["position"]["x"] = pos[0]
+                    world_dict["body"][i]["position"]["y"] = pos[1]
+
                     world_dict["body"][i]["color"] = list(color)
+                    world_dict["body"][i]["rot"] = rot
+                    return
 
     def prepare_world(
         self,
