@@ -62,10 +62,10 @@ predict_ampl_prop = 0.95
 
 epochs = 1000 
 batch_size = 24 
-tests = 1
+tests = 12
 evaluation_episodes = 24
-demo_episodes = 100
-demo_episodes_max_trials = 10000
+demo_episodes_max_single_goal = 2
+demo_episodes_max_trials = 100
 epochs_to_test = 100 
 load_weights = False
 shuffle_weights = False

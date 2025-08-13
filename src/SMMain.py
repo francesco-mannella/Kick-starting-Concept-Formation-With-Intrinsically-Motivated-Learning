@@ -1309,7 +1309,8 @@ class Main:
             goal_counts[(int(goal[0]), int(goal[1]))] += 1
 
         goal_frequency_map(goal_counts)
-        shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/goal_frequency_map{suffix}.png")
+        if suffix != "":
+            shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/goal_frequency_map{suffix}.png")
        
         # Reset policy noise
         controller.base_policy_noise = params.base_policy_noise
@@ -1403,7 +1404,7 @@ class Main:
             if ret_val[0].shape[0] < 1:
                 return ret_val
 
-            goal_p = (ret_val[0][0, 0], ret_val[0][0, 1])
+            goal_p = (int(ret_val[0][0, 0]), int(ret_val[0][0, 1]))
             # Count frequency of individual goals
             goals_env_states[goal_p].append(init_b2d_state)
             raise RepeatedGoalPrototypeException(f"Goal prototype {goal_p}")
@@ -1413,7 +1414,6 @@ class Main:
 
         for i in range(n_trials):
             context = (i % 3) + 1
-            i += 1
             env.b2d_env.prepare_world(context)
             state = env.reset(context)
             init_b2d_state = env.get_b2d_state()
@@ -1641,8 +1641,9 @@ if __name__ == "__main__":
             goal_frequency_map(goal_counts)
             shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/first_goal_frequency_map_monte_carlo.png")
             for k, v in goals_env_states.items():
-                main.evaluation_episodes(env_states=v[0], render="offline", suffix=f"goal_{k}")
-                main.evaluation_episodes(env_states=v[:10], suffix=f"goal_{k}")
+                print(f"Demo episodes for goal {k}")
+                main.evaluation_episodes(env_states=v[:1], render="offline", suffix=f"_goal_{k}")
+                main.evaluation_episodes(env_states=v[:params.demo_episodes_max_single_goal], suffix=f"_goal_{k}")
         elif train_parasite:
             main.train_parasite(timing)
         else:

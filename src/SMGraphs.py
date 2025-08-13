@@ -80,7 +80,7 @@ def remove_figs(epoch=0):
             else:
                 os.remove(f)
         for k in range(params.tests):
-            copyfile(f"{site_dir}/blank.gif", f"{site_dir}/episode%d.gif" % k)
+            copyfile(f"{site_dir}/blank.gif", f"{site_dir}/episode_{k}_demo.gif")
 
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/visual_map.png")
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/comp_map.png")
