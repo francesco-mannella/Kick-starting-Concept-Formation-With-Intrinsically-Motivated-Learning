@@ -21,7 +21,7 @@ from SMEnv import SMEnv, SMEnvParasite
 from SMAgent import SMAgent
 from box2dsim.envs.Simulator import TestPlotterVisualSalience
 from SMGraphs import comp_map, log, remove_figs, trajectories_map, visual_map, goal_frequency_map
-
+from tplot import TPlotManager
 
 matplotlib.use("Agg")
 np.set_printoptions(formatter={"float": "{:6.4f}".format})
@@ -1271,14 +1271,22 @@ class Main:
         match_value = np.zeros([n_episodes, params.stime])
         match_value_per_mod = np.zeros([n_episodes, params.stime, 4])
 
-        contexts = [(i % 3) + 1 for i in range(n_episodes)]
+        if env_states is not None:
+            contexts = [s["context"] for s in env_states]
+        else:
+            contexts = [(i % 3) + 1 for i in range(n_episodes)]
+
         envs = [None] * n_episodes
         states = [None] * n_episodes
        
         # ----- prepare episodes
         for episode in range(n_episodes):
             # Each environment in each epoch should have a different seed
-            env = SMEnv(self.seed + episode, params.action_steps,
+            if env_states is not None:
+                seed = env_states[episode]["seed"]
+            else:
+                seed = self.seed + episode
+            env = SMEnv(seed, params.action_steps,
                         rand_obj_params=self.random_obj_params)
             env.b2d_env.prepare_world(contexts[episode])
             states[episode] = env.reset(contexts[episode],
@@ -1304,14 +1312,29 @@ class Main:
             match_value,
             agent, controller, contexts,
             envs, states)
+
         goal_counts = defaultdict(int)
         for goal in g_p[policy_changed]:
             goal_counts[(int(goal[0]), int(goal[1]))] += 1
 
-        goal_frequency_map(goal_counts)
-        if suffix != "":
-            shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/goal_frequency_map{suffix}.png")
-       
+        ts = np.ones((n_episodes, params.stime))
+        steps = np.repeat([np.arange(params.stime)], n_episodes, axis=0)
+        ts[policy_changed] = -steps[policy_changed]
+        ts = ts.cumsum(axis=1)
+
+        batch_p_ = batch_p[:, params.drop_first_n_steps + params.policy_selection_steps:-1]
+        ts = ts[:, params.drop_first_n_steps + params.policy_selection_steps:-1]
+        g_p_ = g_p[:, params.drop_first_n_steps + params.policy_selection_steps:-1]
+        prototype_id = policy_changed[:, params.drop_first_n_steps + params.policy_selection_steps:-1].reshape(-1).cumsum()
+
+        trajectories = pd.DataFrame(batch_p_.reshape((-1, params.proprioception_size)))
+        trajectories.columns = [f"d{i}" for i in range(params.proprioception_size)]
+        trajectories["ts"] = ts.reshape(-1)
+        g_p_ = g_p_.reshape((-1, 2))
+        trajectories["prototype_x"] = g_p_[:, 0]
+        trajectories["prototype_y"] = g_p_[:, 1]
+        trajectories["prototype_id"] = prototype_id
+
         # Reset policy noise
         controller.base_policy_noise = params.base_policy_noise
         controller.max_policy_noise = params.max_policy_noise
@@ -1361,15 +1384,15 @@ class Main:
                         f'eval_episode_match_inc_ss{suffix}': episode_match_inc_ss,
                         f'eval_episode_match_inc_p{suffix}': episode_match_inc_p,
                         f'mean_episode_match_inc{suffix}': (episode_match_inc_ss + episode_match_inc_p) / 2, 
-                        f'eval_goal_frequency_map{suffix}': wandb.Image(f'{site_dir}/goal_frequency_map{suffix}.png')
                        }
             for f in glob.glob(f"{site_dir}/episode_*{suffix}.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
             wandb.log(log_data, step=epoch)
 
+        return goal_counts, trajectories
+
     def monte_carlo_episode_search(self, n_trials=params.demo_episodes_max_trials,
                                    controller=None):
-        env = self.env
         agent = self.agent
         if controller == None:
             controller = self.controller
@@ -1414,9 +1437,14 @@ class Main:
 
         for i in range(n_trials):
             context = (i % 3) + 1
+            seed = self.seed + i
+            env = SMEnv(seed, params.action_steps,
+                        rand_obj_params=self.random_obj_params)
             env.b2d_env.prepare_world(context)
             state = env.reset(context)
             init_b2d_state = env.get_b2d_state()
+            init_b2d_state["context"] = context
+            init_b2d_state["seed"] = seed
 
             envs = [env]
             states = [state]
@@ -1473,9 +1501,43 @@ class Main:
 
         return goals_env_states
 
+    def demo_episodes(self, epoch=0):
+        goals_env_states = main.monte_carlo_episode_search()
+        goal_counts = {k: len(v) for k, v in goals_env_states.items()}
+        goal_frequency_map(goal_counts)
+        shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/first_goal_frequency_map.png")
+
+        goal_counts = defaultdict(int)
+        trajectories = []
+        for i, (k, v) in enumerate(goals_env_states.items()):
+            print(f"Demo episodes for goal {k}")
+            _, tr = self.evaluation_episodes(env_states=v[:1], render="offline", suffix=f"_goal_{k}")
+            tr["prototype_id"] = tr["prototype_id"] + i*params.stime
+            trajectories.append(tr)
+            gc, _ = self.evaluation_episodes(env_states=v[:params.demo_episodes_max_single_goal], suffix=f"_goal_{k}")
+            for k1 in gc:
+                goal_counts[k1] += gc[k1]
+        trajectories = pd.concat(trajectories)
+
+        goal_frequency_map(goal_counts)
+        shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/all_goal_frequency_map.png")
+
+        tp = TPlotManager(plot_path=f"{site_dir}/trajectory_plots.png",
+                          n_prototypes=params.internal_size,
+                          max_ts=params.stime)
+        tp.plot_prototypes(trajectories)
+
+        if use_wandb:
+            log_data = {
+                        f'first_goal_frequency_map': wandb.Image(f'{site_dir}/first_goal_frequency_map.png'),
+                        f'all_goal_frequency_map': wandb.Image(f'{site_dir}/all_goal_frequency_map.png'),
+                        f'trajectory_plots': wandb.Image(f'{site_dir}/trajectory_plots.png')
+                       }
+            wandb.log(log_data, step=epoch)
+
+
     def get_context_from_visual(self):
         pass
-
 
 if __name__ == "__main__":
 
@@ -1636,14 +1698,7 @@ if __name__ == "__main__":
 
     try:
         if demo:
-            goals_env_states = main.monte_carlo_episode_search()
-            goal_counts = {k: len(v) for k, v in goals_env_states.items()}
-            goal_frequency_map(goal_counts)
-            shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/first_goal_frequency_map_monte_carlo.png")
-            for k, v in goals_env_states.items():
-                print(f"Demo episodes for goal {k}")
-                main.evaluation_episodes(env_states=v[:1], render="offline", suffix=f"_goal_{k}")
-                main.evaluation_episodes(env_states=v[:params.demo_episodes_max_single_goal], suffix=f"_goal_{k}")
+            main.demo_episodes()
         elif train_parasite:
             main.train_parasite(timing)
         else:
