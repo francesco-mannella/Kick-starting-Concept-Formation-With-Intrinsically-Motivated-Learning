@@ -1103,7 +1103,8 @@ class Main:
 
                 if self.plots and os.path.isfile("PLOT_SIMS"):
                     print("----> Test Sims ...", end=" ", flush=True)
-                    self.evaluation_episodes(n_episodes=params.tests, suffix="_demo_par", render="offline", controller=controller_par)
+                    self.evaluation_episodes(n_episodes=params.tests, suffix="_demo_par", render="offline",
+                                             controller=controller_par, save_stats=False)
                 
                 if use_wandb:
                     log_data = {
@@ -1193,7 +1194,8 @@ class Main:
 
         if os.path.isfile("PLOT_SIMS"):
             print("----> Test Sims ...", end=" ", flush=True)
-            self.evaluation_episodes(n_episodes=params.tests, render="offline", suffix="_demo")
+            self.evaluation_episodes(n_episodes=params.tests, render="offline", suffix="_demo",
+                                     save_stats=False)
 
         # if os.path.isfile("COMPUTE_TRAJECTORIES"):
         #     print(
@@ -1240,7 +1242,7 @@ class Main:
         pass
 
     def evaluation_episodes(self, n_episodes=params.evaluation_episodes, controller=None,
-                            epoch=0, suffix="", render=None, env_states=None):
+                            epoch=0, suffix="", render=None, env_states=None, save_stats=True):
         agent = self.agent
         if controller is None:
             controller = self.controller
@@ -1378,13 +1380,15 @@ class Main:
                 envs[i].close()
 
         if use_wandb:
-            log_data = {f'eval_mean_comp{suffix}': batch_log[policy_ended].mean(),
-                        f'eval_mean_cum_match{suffix}': cum_match[policy_ended].mean() / params.cum_match_stop_th,
-                        f'eval_episode_success_rate{suffix}': episode_success_rate,
-                        f'eval_episode_match_inc_ss{suffix}': episode_match_inc_ss,
-                        f'eval_episode_match_inc_p{suffix}': episode_match_inc_p,
-                        f'mean_episode_match_inc{suffix}': (episode_match_inc_ss + episode_match_inc_p) / 2, 
-                       }
+            log_data = {}
+            if save_stats:
+                log_data = {f'eval_mean_comp{suffix}': batch_log[policy_ended].mean(),
+                            f'eval_mean_cum_match{suffix}': cum_match[policy_ended].mean() / params.cum_match_stop_th,
+                            f'eval_episode_success_rate{suffix}': episode_success_rate,
+                            f'eval_episode_match_inc_ss{suffix}': episode_match_inc_ss,
+                            f'eval_episode_match_inc_p{suffix}': episode_match_inc_p,
+                            f'mean_episode_match_inc{suffix}': (episode_match_inc_ss + episode_match_inc_p) / 2, 
+                        }
             for f in glob.glob(f"{site_dir}/episode_*{suffix}.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
             wandb.log(log_data, step=epoch)
