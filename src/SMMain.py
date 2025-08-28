@@ -1517,14 +1517,16 @@ class Main:
         goal_frequency_map(goal_counts)
         shutil.copyfile(f"{site_dir}/goal_frequency_map.png", f"{site_dir}/first_goal_frequency_map.png")
 
+        visual_map()
+        
         goal_counts = defaultdict(int)
         trajectories = []
         for i, (k, v) in enumerate(goals_env_states.items()):
             print(f"Demo episodes for goal {k}")
-            _, tr = self.evaluation_episodes(env_states=v[:1], render="offline", suffix=f"_goal_{k}", save_stats=False, add_goal_suffix=True)
+            _, tr = self.evaluation_episodes(env_states=v[:1], render="offline", suffix=f"_demo", save_stats=False, add_goal_suffix=True)
             tr["prototype_id"] = tr["prototype_id"] + i*params.stime
             trajectories.append(tr)
-            gc, _ = self.evaluation_episodes(env_states=v[:params.demo_episodes_max_single_goal], suffix=f"_goal_{k}", save_stats=False)
+            gc, _ = self.evaluation_episodes(env_states=v[:params.demo_episodes_max_single_goal], suffix=f"_goal", save_stats=False)
             for k1 in gc:
                 goal_counts[k1] += gc[k1]
         trajectories = pd.concat(trajectories)
