@@ -1242,7 +1242,8 @@ class Main:
         pass
 
     def evaluation_episodes(self, n_episodes=params.evaluation_episodes, controller=None,
-                            epoch=0, suffix="", render=None, env_states=None, save_stats=True):
+                            epoch=0, suffix="", render=None, env_states=None, save_stats=True,
+                            add_goal_suffix=False):
         agent = self.agent
         if controller is None:
             controller = self.controller
@@ -1379,6 +1380,11 @@ class Main:
                 )
                 envs[i].close()
 
+                if add_goal_suffix:
+                    first_g_p = g_p[i, params.drop_first_n_steps + params.policy_selection_steps]
+                    shutil.copyfile(f"{site_dir}/episode_{i}{suffix}.gif",
+                                    f"{site_dir}/episode_{i}{suffix}_{int(first_g_p[0])}_{int(first_g_p[1])}.gif")
+
         if use_wandb:
             log_data = {}
             if save_stats:
@@ -1389,7 +1395,7 @@ class Main:
                             f'eval_episode_match_inc_p{suffix}': episode_match_inc_p,
                             f'mean_episode_match_inc{suffix}': (episode_match_inc_ss + episode_match_inc_p) / 2, 
                         }
-            for f in glob.glob(f"{site_dir}/episode_*{suffix}.gif"):
+            for f in glob.glob(f"{site_dir}/episode_*{suffix}*.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
             wandb.log(log_data, step=epoch)
 
@@ -1515,10 +1521,10 @@ class Main:
         trajectories = []
         for i, (k, v) in enumerate(goals_env_states.items()):
             print(f"Demo episodes for goal {k}")
-            _, tr = self.evaluation_episodes(env_states=v[:1], render="offline", suffix=f"_goal_{k}")
+            _, tr = self.evaluation_episodes(env_states=v[:1], render="offline", suffix=f"_goal_{k}", save_stats=False, add_goal_suffix=True)
             tr["prototype_id"] = tr["prototype_id"] + i*params.stime
             trajectories.append(tr)
-            gc, _ = self.evaluation_episodes(env_states=v[:params.demo_episodes_max_single_goal], suffix=f"_goal_{k}")
+            gc, _ = self.evaluation_episodes(env_states=v[:params.demo_episodes_max_single_goal], suffix=f"_goal_{k}", save_stats=False)
             for k1 in gc:
                 goal_counts[k1] += gc[k1]
         trajectories = pd.concat(trajectories)
