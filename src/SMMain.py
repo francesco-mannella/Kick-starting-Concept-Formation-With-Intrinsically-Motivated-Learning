@@ -1320,13 +1320,16 @@ class Main:
         for goal in g_p[policy_changed]:
             goal_counts[(int(goal[0]), int(goal[1]))] += 1
 
+        ###
+        policy_changed[0, 60] = 1
+
         # Limitation: only trajectory of the first episode from batch is collected
         trajectories = pd.DataFrame(batch_p[0])
         trajectories.columns = [f"d{i}" for i in range(params.proprioception_size)]
         trajectories["prototype_x"] = g_p[0, :, 0]
         trajectories["prototype_y"] = g_p[0, :, 1]
         trajectories["prototype_id"] = np.cumsum(policy_changed[0])
-        trajectories["ts"] = np.hstack(list(map(np.cumsum, np.split(np.ones(params.stime), np.argwhere(policy_changed[0])[0])))) - 1
+        trajectories["ts"] = np.hstack(list(map(np.cumsum, np.split(np.ones(params.stime), np.argwhere(policy_changed[0])[:, 0])))) - 1
         trajectories = trajectories.iloc[params.drop_first_n_steps + params.policy_selection_steps:-1]
 
         # Reset policy noise
