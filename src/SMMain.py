@@ -1332,6 +1332,9 @@ class Main:
         trajectories["ts"] = np.hstack(list(map(np.cumsum, np.split(np.ones(params.stime), np.argwhere(policy_changed[0])[:, 0])))) - 1
         trajectories = trajectories.iloc[params.drop_first_n_steps + params.policy_selection_steps:-1]
 
+        # TMP: remove empty records (when episode ends prematurely). Should be solved better in the future
+        trajectories.drop(trajectories[trajectories["d1"] == 0].index, inplace=True)
+
         # Reset policy noise
         controller.base_policy_noise = params.base_policy_noise
         controller.max_policy_noise = params.max_policy_noise
@@ -1505,7 +1508,7 @@ class Main:
 
         return goals_env_states
 
-    def demo_episodes(self, epoch=0):
+    def demo_episodes(self, epoch=0, render=None):
         goals_env_states = main.monte_carlo_episode_search()
         goal_counts = {k: len(v) for k, v in goals_env_states.items()}
         goal_frequency_map(goal_counts)
@@ -1517,7 +1520,7 @@ class Main:
         trajectories = []
         for i, (k, v) in enumerate(goals_env_states.items()):
             print(f"Demo episodes for goal {k}")
-            _, tr = self.evaluation_episodes(env_states=v[:1], render="offline", suffix=f"_demo", save_stats=False, add_goal_suffix=True)
+            _, tr = self.evaluation_episodes(env_states=v[:1], render=render, suffix=f"_demo", save_stats=False, add_goal_suffix=True)
             tr["prototype_id"] = tr["prototype_id"] + i*params.stime
             trajectories.append(tr)
             gc, _ = self.evaluation_episodes(env_states=v[:params.demo_episodes_max_single_goal], suffix=f"_goal", save_stats=False)
@@ -1704,6 +1707,7 @@ if __name__ == "__main__":
 
     try:
         if demo:
+            #main.demo_episodes(render="offline")
             main.demo_episodes()
         elif train_parasite:
             main.train_parasite(timing)
