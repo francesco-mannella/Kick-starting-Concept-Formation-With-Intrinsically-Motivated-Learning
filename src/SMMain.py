@@ -1324,8 +1324,8 @@ class Main:
         policy_changed[0, 60] = 1
 
         # Limitation: only trajectory of the first episode from batch is collected
-        trajectories = pd.DataFrame(batch_p[0])
-        trajectories.columns = [f"d{i}" for i in range(params.proprioception_size)]
+        trajectories = pd.DataFrame(batch_p[0, :, -2:])
+        trajectories.columns = ["d1", "d2"]
         trajectories["prototype_x"] = g_p[0, :, 0]
         trajectories["prototype_y"] = g_p[0, :, 1]
         trajectories["prototype_id"] = np.cumsum(policy_changed[0])
