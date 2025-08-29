@@ -59,7 +59,7 @@ class TPlotManager:
         self._fig.tight_layout(pad=0)
         self.plots = {}
 
-    def plot_prototype(self, data):
+    def plot_prototype(self, data, i):
         """Plots the posture trajectory for a prototype on the specified axis.
 
         Args:
@@ -69,7 +69,6 @@ class TPlotManager:
                 - y: Y-axis values.
                 - ts: Color scale values for dots.
         """
-        i = int(data["prototype_x"].iloc[0] + data["prototype_y"].iloc[0] * self._side)
         self.plots[i] = (
             so.Plot(data, x="x", y="y")
             .add(so.Path(color="black"))
@@ -102,8 +101,12 @@ class TPlotManager:
             ax.set_xlim(0, np.ptp(data.x))
             ax.set_ylim(0, np.ptp(data.y))
 
+        prototype_set = set()
         for i, prototype in data.groupby("prototype_id"):
-            self.plot_prototype(prototype)
+            i = int(data["prototype_x"].iloc[0] + data["prototype_y"].iloc[0] * self._side)
+            if i not in prototype_set:
+                self.plot_prototype(prototype, i)
+                prototype_set.add(i)
         plt.savefig(self.plot_path)
 
     def reduce_dimensions_with_pca(self, data):
