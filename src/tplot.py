@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import seaborn.objects as so
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 
 class TPlotManager:
@@ -103,7 +104,7 @@ class TPlotManager:
 
         prototype_set = set()
         for i, prototype in data.groupby("prototype_id"):
-            i = int(data["prototype_x"].iloc[0] + data["prototype_y"].iloc[0] * self._side)
+            i = int(prototype["prototype_x"].iloc[0] + prototype["prototype_y"].iloc[0] * self._side)
             if i not in prototype_set:
                 self.plot_prototype(prototype, i)
                 prototype_set.add(i)
@@ -125,8 +126,9 @@ class TPlotManager:
                 - ts (float): Color scale values for dots.
         """
         pca = PCA(n_components=2)
+        scaler = StandardScaler()
         dim_columns = [d for d in data.columns if "d" in d]
-        data[["x", "y"]] = pca.fit_transform(data[dim_columns])
+        data[["x", "y"]] = pca.fit_transform(scaler.fit_transform(data[dim_columns]))
         return data
 
 
