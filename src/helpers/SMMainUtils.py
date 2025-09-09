@@ -105,7 +105,7 @@ class MainUtils(Main):
         controller = self.controller
         
         
-        batch_v = np.zeros([params.stime, params.visual_size])
+        model_data['batch_v'] = np.zeros([params.stime, params.visual_size])
         batch_ss = np.zeros([params.stime, params.somatosensory_size])
         batch_p = np.zeros([params.stime, params.proprioception_size])
         batch_a = np.zeros([params.stime, params.policy_size])
@@ -201,7 +201,7 @@ class MainUtils(Main):
         agent.reset()
         agent.updatePolicy(policy)
                 
-        batch_v[0, :] = state["VISUAL_SENSORS"].ravel()
+        model_data['batch_v'][0, :] = state["VISUAL_SENSORS"].ravel()
         batch_ss[0, :] = state["TOUCH_SENSORS"]
         batch_p[0, :] = state["JOINT_POSITIONS"][:5]
         batch_a[0, :] = policy
@@ -213,7 +213,7 @@ class MainUtils(Main):
             state = smcycle.step(env, agent, state)
 
             poses[t] = state["JOINT_POSITIONS"][:5]
-            batch_v[t, :] = state["VISUAL_SENSORS"].ravel()
+            model_data['batch_v'][t, :] = state["VISUAL_SENSORS"].ravel()
             batch_ss[t, :] = state["TOUCH_SENSORS"]
             batch_p[t, :] = state["JOINT_POSITIONS"][:5]
             batch_a[t, :] = policy
@@ -224,7 +224,7 @@ class MainUtils(Main):
         # get all representations
         Rs, Rp = controller.spread(
             [
-                batch_v,
+                model_data['batch_v'],
                 batch_ss,
                 batch_p,
                 batch_a,

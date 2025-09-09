@@ -1,6 +1,7 @@
 import numpy as np
 import torch
-import params
+from params import Parameters 
+params = Parameters()
 
 
 class SMPredict:

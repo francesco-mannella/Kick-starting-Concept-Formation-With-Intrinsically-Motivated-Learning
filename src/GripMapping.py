@@ -5,10 +5,12 @@ from matplotlib import pyplot as plt
 import gymnasium as gym
 import box2dsim
 
-import params
+from params import Parameters
 from stm import STM
 
 from ArmAgent import ArmAgent
+
+params = Parameters()
 
 class Env:
 
