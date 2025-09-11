@@ -96,12 +96,6 @@ class SMController:
         self.goal_grid /= self.goal_grid.sum(axis=1)
         self.comp_grid = self.getCompetenceGrid()
 
-    def comp_fun(self, comp):
-        basecomp = np.tanh(self.params.predict_base_ampl * comp)
-        hypercomp = np.tanh(self.params.predict_ampl * comp)
-        prob = self.params.predict_ampl_prop
-        return (1 - prob) * basecomp + prob * hypercomp
-
     def update_reentrant_connections(self):
 
         a_radials = self.stm_a.get_radials()
@@ -166,62 +160,53 @@ class SMController:
 
         return noisy_vector
 
+    def getCompetenceGrid(self):
+        comp = self.predict.spread(self.goal_grid)
+        comp = 2 * (np.maximum(0.5, comp) - 0.5)
+        comp = np.tanh(self.params.decay * comp)
+        return comp
+
+    def processLocalCompetence(self, comp):
+        comp = 2 * (np.maximum(0.5, comp) - 0.5)
+        comp = np.tanh(self.params.local_decay * comp)
+        return comp
+
+    def get_global_local_competence(self, unprocessed_local_comp):
+        self.comp_grid = self.getCompetenceGrid()
+        global_comp = self.comp_grid.mean()
+        local_comp = self.processLocalCompetence(unprocessed_local_comp)
+        global_incompetence = 1 - global_comp
+        local_incompetence = global_incompetence * (1 - local_comp)
+        return {
+            "global_competence": global_comp,
+            "global_incompetence": global_incompetence,
+            "local_competence": local_comp,
+            "local_incompetence": local_incompetence,
+        }
+
     def getPoliciesFromPointsWithNoise(self, points):
         policies, representations = self.getPoliciesFromPoints(points)
         rcomp = self.predict.spread(representations)
-        # comp = self.comp_fun(rcomp)
-        comp = rcomp
+        goal_competence = rcomp
 
         # Modulating policy exploration noise according to local competence
-        global_comp = self.comp_grid.mean()
-        global_incompetence = 1 - np.tanh(self.params.decay * global_comp)
-        local_incompetence = global_incompetence * (
-            1 - np.tanh(self.params.local_decay * comp)
-        )
+        comp_dict = self.get_global_local_competence(goal_competence)
+
         noise_sigma = (
             self.base_policy_noise
             + (self.max_policy_noise - self.base_policy_noise)
-            * local_incompetence
+            * comp_dict["local_incompetence"]
         )
 
         noise = self.rng.randn(*policies.shape)
-        # policies = policies + self.params.policy_noise_sigma*(1-comp)*noise
         policies = policies + noise_sigma * noise
-        # policies = self.add_noise_to_vector_maintaining_norm(policies,
-        #                    noise_level=self.params.policy_noise_sigma*comp)
 
         return (
             policies,
-            comp,
-            rcomp,
+            goal_competence,
+            comp_dict["local_competence"],
             0 if len(noise_sigma) == 0 else noise_sigma.mean(),
         )
-
-    def getPoliciesFromRepresentationsWithNoise(self, representations):
-        policies = self.getPoliciesFromRepresentations(representations)
-        rcomp = self.predict.spread(representations)
-        # comp = self.comp_fun(rcomp)
-        comp = rcomp
-
-        # Modulating policy exploration noise according to local competence
-        global_comp = self.comp_grid.mean()
-        global_incompetence = 1 - np.tanh(self.params.decay * global_comp)
-        local_incompetence = global_incompetence * (
-            1 - np.tanh(self.params.local_decay * comp)
-        )
-        noise_sigma = (
-            self.base_policy_noise
-            + (self.max_policy_noise - self.base_policy_noise)
-            * local_incompetence
-        )
-
-        noise = self.rng.randn(*policies.shape)
-        # policies = policies + self.params.policy_noise_sigma*(1-comp)*noise
-        policies = policies + noise_sigma * noise
-        # policies = self.add_noise_to_vector_maintaining_norm(policies,
-        #                    noise_level=self.params.policy_noise_sigma*comp)
-
-        return policies, comp, rcomp, noise_sigma.mean()
 
     def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
         mods = np.stack([v_p, ss_p, p_p, a_p])
@@ -324,7 +309,7 @@ class SMController:
         )
 
         # update policies in successful episodes
-        (policies, competences, rcompetences, mean_policy_noise) = (
+        (policies, competences, local_competences, mean_policy_noise) = (
             self.getPoliciesFromPointsWithNoise(goals_p)
         )
 
@@ -333,14 +318,9 @@ class SMController:
             goals,
             policies,
             competences,
-            rcompetences,
+            local_competences,
             mean_policy_noise,
         )
-
-    def getCompetenceGrid(self):
-        comp = self.predict.spread(self.goal_grid)
-        return comp
-        # return self.comp_fun(comp)
 
     def spread(self, inps):
 
@@ -393,17 +373,18 @@ class SMController:
         n_items = sum(match_ind)
 
         # TODO: Do we need hard and soft attention filtering simultaneously?
-        # Furthermore, the soft part should be relative: normalized in relation to maximum value.
-        # In the supervised version match_value is binary (0 or 1), so there is not soft filtering effectively.
-        # For now, we simplify to hard filtering.
-        # modulate = cgoals[match_ind] * match_value[match_ind, None]
+        # Furthermore, the soft part should be relative: normalized in relation
+        # to maximum value.  In the supervised version match_value is binary (0
+        # or 1), so there is not soft filtering effectively.  For now, we
+        # simplify to hard filtering.  modulate = cgoals[match_ind] *
+        # match_value[match_ind, None]
         modulate_effect = cgoals[match_ind]
         mean_modulation = modulate_effect.mean()
 
         local_sigma_effect = local_sigma[match_ind]
 
-        # Condition modulation uses policy_selection_steps and competence statistics
-        # of the goal selected at timestep i.
+        # Condition modulation uses policy_selection_steps and competence
+        # statistics of the goal selected at timestep i.
         cond_ind = np.zeros(match_ind.shape, dtype=np.bool)
         local_sigma_cond = np.zeros(local_sigma.shape)
         cgoals_cond = np.zeros(cgoals.shape)
@@ -434,7 +415,8 @@ class SMController:
                 self.stm_a.update(policies[match_ind], modulate_effect).item(),
             )
 
-        # update predictor: predictor predicts cumulated matches for a particular goal
+        # update predictor: predictor predicts cumulated matches for a
+        # particular goal
         # goals = goals.reshape((self.params.batch_size, self.params.stime, -1))
         # match_distance = np.sqrt(np.log(match_value)/-self.params.match_sigma**-2)
         # match_distance = match_value.reshape((self.params.batch_size, self.params.stime, -1))

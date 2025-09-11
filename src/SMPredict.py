@@ -1,6 +1,9 @@
 import numpy as np
 import torch
-from params import Parameters 
+
+from params import Parameters
+
+
 params = Parameters()
 
 
@@ -35,15 +38,20 @@ class SMPredict:
             self.model.weight.copy_(torch.tensor(weights, dtype=torch.float))
 
     def spread(self, inp):
-        #assert len(inp.shape) == 2
-        #match = self.model(torch.tensor(inp, dtype=torch.float))
-        #comp = torch.exp(-(params.match_sigma**-2) * match**2).detach().cpu().numpy()
+        # assert len(inp.shape) == 2
+        # match = self.model(torch.tensor(inp, dtype=torch.float))
+        # comp = torch.exp(-(params.match_sigma**-2) * match**2).detach().cpu().numpy()
 
         # OLD: Competence based on successful timesteps
-        comp = torch.sigmoid(self.model(torch.tensor(inp, dtype=torch.float))).detach().cpu().numpy()
+        comp = (
+            torch.sigmoid(self.model(torch.tensor(inp, dtype=torch.float)))
+            .detach()
+            .cpu()
+            .numpy()
+        )
         # Rescale: competence is the fraction of max n_success
-        #comp = comp / params.cum_match_stop_th
-        #comp[comp > 1] = 1.0 # Maximum possible value is 1
+        # comp = comp / params.cum_match_stop_th
+        # comp[comp > 1] = 1.0 # Maximum possible value is 1
         return comp
 
 
@@ -55,12 +63,13 @@ if __name__ == "__main__":
     epochs = 150
 
     labels = np.zeros(patterns_size)
-    labels[int(patterns_size*0.25):] = 1
-    labels[int(patterns_size*0.5):] = 3
-    labels[int(patterns_size*0.75):] = 6
-    labels[int(patterns_size*0.9):] = 8
-    patterns = np.vstack([labels, 1-labels]).T \
-            + 0.01*np.random.randn(patterns_size, 2)
+    labels[int(patterns_size * 0.25) :] = 1
+    labels[int(patterns_size * 0.5) :] = 3
+    labels[int(patterns_size * 0.75) :] = 6
+    labels[int(patterns_size * 0.9) :] = 8
+    patterns = np.vstack([labels, 1 - labels]).T + 0.01 * np.random.randn(
+        patterns_size, 2
+    )
     labels = labels[:, None]
     predict = SMPredict(inp_num, out_num)
 

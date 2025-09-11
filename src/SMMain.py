@@ -300,6 +300,45 @@ class Main:
         episode_match_inc_ss = np.mean(corrs_coeffs_ss)
         return episode_match_inc_p, episode_match_inc_ss
 
+    def action_outcome_step(
+        self,
+        episode,
+        t,
+        smcycles,
+        agent,
+        envs,
+        states,
+    ):
+        # action-outcome step
+        if (
+            t >= self.params.drop_first_n_steps
+            and t < self.params.drop_first_n_steps + self.params.action_steps
+        ):
+            state = smcycles[episode].noisy_step(
+                envs[episode], agent, states[episode]
+            )
+        else:
+            state = smcycles[episode].step(
+                envs[episode], agent, states[episode]
+            )
+
+        return state
+
+    def manage_end_of_episode(self, episode, t, controller, state, states):
+        if self.is_object_out_of_taskspace(state):
+            states[episode] = None
+        else:
+            states[episode] = state
+            controller.model_data["batch_v"][episode, t - 1, :] = state[
+                "VISUAL_SENSORS"
+            ].ravel()
+            controller.model_data["batch_ss"][episode, t - 1, :] = state[
+                "TOUCH_SENSORS"
+            ]
+            controller.model_data["batch_p"][episode, t - 1, :] = state[
+                "JOINT_POSITIONS"
+            ][:5]
+
     def run_episodes(
         self,
         agent,
@@ -338,35 +377,27 @@ class Main:
                         controller.model_data["batch_a"][episode, t, :]
                     )
 
-                    if (
-                        t >= self.params.drop_first_n_steps
-                        and t
-                        < self.params.drop_first_n_steps
-                        + self.params.action_steps
-                    ):
-                        state = smcycles[episode].noisy_step(
-                            envs[episode], agent, states[episode]
-                        )
-                    else:
-                        state = smcycles[episode].step(
-                            envs[episode], agent, states[episode]
-                        )
+                    # action-outcome step
+                    state = self.action_outcome_step(
+                        episode,
+                        t,
+                        smcycles,
+                        agent,
+                        envs,
+                        states,
+                    )
 
                     # End the episode if object moves too far away
-                    if self.is_object_out_of_taskspace(state):
-                        states[episode] = None
-                    else:
-                        states[episode] = state
-                        controller.model_data["batch_v"][episode, t - 1, :] = (
-                            state["VISUAL_SENSORS"].ravel()
-                        )
-                        controller.model_data["batch_ss"][
-                            episode, t - 1, :
-                        ] = state["TOUCH_SENSORS"]
-                        controller.model_data["batch_p"][episode, t - 1, :] = (
-                            state["JOINT_POSITIONS"][:5]
-                        )
+                    self.manage_end_of_episode(
+                        episode,
+                        t,
+                        controller,
+                        state,
+                        states,
+                    )
 
+            # Store states and decide action after each params.action_steps
+            # interval
             if t % self.params.action_steps == 0 or t == self.params.stime:
                 # get Representations for the last N = self.params.action_steps
                 # steps
@@ -378,46 +409,32 @@ class Main:
                     self.params.base_internal_sigma, controller.curr_lr
                 )
 
-                # Use current sigma modulated by competence
-                # controller.updateParams(controller.curr_sigma,
-                # controller.curr_lr)
+                # Compute state representations
+                data_keys = [
+                    "batch_v",
+                    "batch_ss",
+                    "batch_p",
+                    "batch_a",
+                    "batch_g",
+                ]
+                reshaped_data = [
+                    controller.model_data[key][sa].reshape((bsize, -1))
+                    for key in data_keys
+                ]
+                Rs, Rp = controller.spread(reshaped_data)
 
-                Rs, Rp = controller.spread(
-                    [
-                        controller.model_data["batch_v"][sa].reshape(
-                            (bsize, -1)
-                        ),
-                        controller.model_data["batch_ss"][sa].reshape(
-                            (bsize, -1)
-                        ),
-                        controller.model_data["batch_p"][sa].reshape(
-                            (bsize, -1)
-                        ),
-                        controller.model_data["batch_a"][sa].reshape(
-                            (bsize, -1)
-                        ),
-                        controller.model_data["batch_g"][sa].reshape(
-                            (bsize, -1)
-                        ),
-                    ]
-                )
-                controller.model_data["v_r"][sa].flat = Rs[0].flat
-                controller.model_data["ss_r"][sa].flat = Rs[1].flat
-                controller.model_data["p_r"][sa].flat = Rs[2].flat
-                controller.model_data["a_r"][sa].flat = Rs[3].flat
+                # Store representation in history
+                result_keys_r = ["v_r", "ss_r", "p_r", "a_r"]
+                result_keys_p = ["v_p", "ss_p", "p_p", "a_p", "g_p"]
 
-                controller.model_data["v_p"][sa].flat = Rp[0].flat
-                controller.model_data["ss_p"][sa].flat = Rp[1].flat
-                controller.model_data["p_p"][sa].flat = Rp[2].flat
-                controller.model_data["a_p"][sa].flat = Rp[3].flat
-                controller.model_data["g_p"][sa].flat = Rp[4].flat
+                for i, key in enumerate(result_keys_r):
+                    controller.model_data[key][sa].flat = Rs[i].flat
+
+                for i, key in enumerate(result_keys_p):
+                    controller.model_data[key][sa].flat = Rp[i].flat
 
                 visual_activation[:, t0:t].flat = (
-                    controller.stm_v.get_activation(
-                        controller.model_data["batch_v"][sa].reshape(
-                            (bsize, -1)
-                        )
-                    )
+                    controller.stm_v.get_activation(reshaped_data[0])
                     .sum(axis=-1)
                     .flat
                 )
@@ -427,15 +444,16 @@ class Main:
                     continue
 
                 # calculate match value
+                data = controller.model_data
                 (
-                    controller.model_data["match_value"][:, t0:t],
-                    controller.model_data["match_value_per_mod"][sa],
+                    data["match_value"][:, t0:t],
+                    data["match_value_per_mod"][sa],
                 ) = controller.computeMatchSimple(
-                    controller.model_data["v_p"][sa],
-                    controller.model_data["ss_p"][sa],
-                    controller.model_data["p_p"][sa],
-                    controller.model_data["a_p"][sa],
-                    controller.model_data["g_p"][sa],
+                    data["v_p"][sa],
+                    data["ss_p"][sa],
+                    data["p_p"][sa],
+                    data["a_p"][sa],
+                    data["g_p"][sa],
                 )
 
                 # update cumulative match
@@ -443,14 +461,14 @@ class Main:
 
                     # ####### Dataset Filtering
                     # Select time steps when internal representation of touch
-                    # modality changes mmask =
-                    # (controller.model_data['ss_p'][:, i] !=
-                    # controller.model_data['ss_p'][:, i-1]).any(axis=-1) Select time
-                    # steps when match in touch modality increases
+                    # increases (touch onset event)
+                    touch_mod = 1
                     mmask = (
-                        controller.model_data["match_value_per_mod"][:, i, 1]
+                        controller.model_data["match_value_per_mod"][
+                            :, i, touch_mod
+                        ]
                         > controller.model_data["match_value_per_mod"][
-                            :, i - 1, 1
+                            :, i - 1, touch_mod
                         ]
                     )
 
@@ -461,6 +479,8 @@ class Main:
                         - max_match[:, i]
                         < self.params.match_incr_th
                     ] = 0
+
+                    # Select time steps when match in touch modality increases
                     max_match[mmask, i:] = controller.model_data[
                         "match_value"
                     ][mmask, i, None]
@@ -469,55 +489,57 @@ class Main:
                     # # use controller.model_data['match_value'] as it is
 
                     # ####### Competence - Option 2
-                    # # use change event mask
-                    #
-                    # controller.model_data['match_value'][:, i] = mmask
-
+                    # # use change event mask s computed in mmask
                     matches[:, i] = mmask
+
                     # Match is cumulated within a single policy and reset with
                     # policy change
                     cum_match[:, i] = (
                         cum_match[:, i - 1] * (1 - policy_changed[:, i])
                         + mmask
                     )
+
+                # Counts touch global increases up to threshold
                 success_mask = (
                     cum_match[:, t - 1] >= self.params.cum_match_stop_th
                 )
 
-                if (
+                within_action_interval = (
                     t < self.params.stime
                     and t
                     >= self.params.drop_first_n_steps
                     + self.params.policy_selection_steps
-                ):
+                )
+
+                action_interval_onset = (
+                    t < self.params.stime
+                    and t
+                    == self.params.drop_first_n_steps
+                    + self.params.policy_selection_steps
+                )
+
+                if within_action_interval:
 
                     # Set initial policy after warmup steps + action selection
                     # steps
-                    if (
-                        t
-                        == self.params.drop_first_n_steps
-                        + self.params.policy_selection_steps
-                    ):
+                    if action_interval_onset:
                         success_mask[:] = 1
 
                     # Register every change of policy (including setting the
                     # initial one)
                     policy_changed[success_mask, t] = 1
 
+                    data_slice = slice(
+                        t - self.params.policy_selection_steps, t
+                    )
                     v_rt = controller.model_data["v_r"][
-                        success_mask,
-                        t - self.params.policy_selection_steps : t,
-                        :,
+                        success_mask, data_slice, :
                     ]
                     ss_rt = controller.model_data["ss_r"][
-                        success_mask,
-                        t - self.params.policy_selection_steps : t,
-                        :,
+                        success_mask, data_slice, :
                     ]
                     p_rt = controller.model_data["p_r"][
-                        success_mask,
-                        t - self.params.policy_selection_steps : t,
-                        :,
+                        success_mask, data_slice, :
                     ]
 
                     goal_activation[success_mask, t:] = visual_activation[
@@ -525,31 +547,31 @@ class Main:
                         t - self.params.policy_selection_steps : t,
                     ].mean(axis=1)[:, None]
 
+                    # choose policy
+                    chosen_policy_results = controller.choose_policy(
+                        v_rt, ss_rt, p_rt, goal_activation, t
+                    )
+
                     (
                         goals_p,
                         goals,
                         policies,
                         competences,
-                        rcompetences,
+                        lcompetences,
                         mean_policy_noise,
-                    ) = controller.choose_policy(
-                        v_rt, ss_rt, p_rt, goal_activation, t
-                    )
+                    ) = chosen_policy_results
 
                     # fill successful batches with policies, goals, and
                     # competences (from the current timestep onward)
-                    controller.model_data["batch_a"][success_mask, t:, :] = (
-                        policies[:, None, :]
-                    )
-                    controller.model_data["batch_g"][success_mask, t:, :] = (
-                        goals[:, None, :]
-                    )
-                    controller.model_data["batch_c"][success_mask, t:, :] = (
-                        competences[:, None, :]
-                    )
-                    controller.model_data["batch_log"][success_mask, t:, :] = (
-                        rcompetences[:, None, :]
-                    )
+                    data = controller.model_data
+                    data["batch_a"][success_mask, t:, :] = policies[:, None, :]
+                    data["batch_g"][success_mask, t:, :] = goals[:, None, :]
+                    data["batch_c"][success_mask, t:, :] = competences[
+                        :, None, :
+                    ]
+                    data["batch_log"][success_mask, t:, :] = lcompetences[
+                        :, None, :
+                    ]
 
                     cum_match[success_mask, t] = 0
                     max_match[success_mask, t:] = 0
@@ -564,6 +586,8 @@ class Main:
         )
 
     def train(self, time_limits):
+
+        print(f">>> {self.epoch}")
 
         if self.epoch == 0:
             print("Training", flush=True)
@@ -662,19 +686,13 @@ class Main:
                 )
             )
 
-            # Grid competence as global competence
-            self.controller.comp_grid = self.controller.getCompetenceGrid()
-            comp = self.controller.comp_grid.mean()
-
             # Local competences based on predictor
-            global_incompetence = 1 - np.tanh(self.params.decay * comp)
-            local_incompetences = global_incompetence * (
-                1
-                - np.tanh(
-                    self.params.local_decay
-                    * self.controller.model_data["batch_c"]
-                )
+            comp_dict = self.controller.get_global_local_competence(
+                self.controller.model_data["batch_c"]
             )
+            global_competence = comp_dict["global_competence"]
+            global_incompetence = comp_dict["global_incompetence"]
+            local_incompetences = comp_dict["local_incompetence"]
 
             bsize = self.params.batch_size * self.params.stime
             local_incompetences = local_incompetences.reshape((bsize, -1))
@@ -848,7 +866,7 @@ class Main:
                         "mean_lr": local_lr.mean(),
                         "mean_cum_match": cum_match[policy_ended].mean()
                         / self.params.cum_match_stop_th,
-                        "grid_comp_mean": comp,
+                        "grid_comp_mean": global_competence,
                         "episode_success_rate": episode_success_rate,
                         "policy_weights_avg": np.abs(
                             self.controller.stm_a.get_weights()
@@ -1035,24 +1053,6 @@ class Main:
                 policy_changed_par,
                 goal_activation_par,
             ) = self.run_episodes(
-                self.controller_par.model_data["batch_v"],
-                self.self.controller_par.model_data["batch_ss"],
-                self.self.controller_par.model_data["batch_p"],
-                self.self.controller_par.model_data["batch_a"],
-                self.self.controller_par.model_data["batch_g"],
-                self.self.controller_par.model_data["batch_c"],
-                self.self.controller_par.model_data["batch_log"],
-                self.controller_par.model_data["v_r"],
-                self.controller_par.model_data["ss_r"],
-                self.controller_par.model_data["p_r"],
-                self.controller_par.model_data["a_r"],
-                self.controller_par.model_data["v_p"],
-                self.controller_par.model_data["ss_p"],
-                self.controller_par.model_data["p_p"],
-                self.controller_par.model_data["a_p"],
-                self.controller_par.model_data["g_p"],
-                self.controller_par.model_data["match_value_per_mod"],
-                self.controller_par.model_data["match_value"],
                 agent,
                 controller_par,
                 contexts,
@@ -1103,31 +1103,21 @@ class Main:
                 )
             )
 
-            # Grid competence as global competence
-            self.controller.comp_grid = self.controller.getCompetenceGrid()
-            comp = self.controller.comp_grid.mean()
-
-            controller_par.comp_grid = controller_par.getCompetenceGrid()
-            comp_par = controller_par.comp_grid.mean()
+            # Local competences based on predictor
+            comp_dict = self.controller.get_global_local_competence(
+                self.controller.model_data["batch_c"]
+            )
+            global_competence = comp_dict["global_competence"]
+            global_incompetence = comp_dict["global_incompetence"]
+            local_incompetences = comp_dict["local_incompetence"]
 
             # Local competences based on predictor
-            global_incompetence = 1 - np.tanh(self.params.decay * comp)
-            local_incompetences = global_incompetence * (
-                1
-                - np.tanh(
-                    self.params.local_decay
-                    * self.controller.model_data["batch_c"]
-                )
+            comp_dict = self.controller_par.get_global_local_competence(
+                self.controller.model_data["batch_c"]
             )
-
-            global_incompetence_par = 1 - np.tanh(self.params.decay * comp_par)
-            local_incompetences_par = global_incompetence_par * (
-                1
-                - np.tanh(
-                    self.params.local_decay
-                    * self.self.controller_par.model_data["batch_c"]
-                )
-            )
+            global_competence_par = comp_dict["global_competence"]
+            global_incompetence_par = comp_dict["global_incompetence"]
+            local_incompetences_par = comp_dict["local_incompetence"]
 
             bsize = self.params.batch_size * self.params.stime
             local_incompetences = local_incompetences.reshape((bsize, -1))
@@ -1422,7 +1412,7 @@ class Main:
                         "mean_lr": local_lr.mean(),
                         "mean_cum_match": cum_match[policy_ended].mean()
                         / self.params.cum_match_stop_th,
-                        "grid_comp_mean": comp,
+                        "grid_comp_mean": global_competence,
                         "episode_success_rate": episode_success_rate,
                         "policy_weights_avg": np.abs(
                             controller.stm_a.get_weights()
@@ -1456,7 +1446,7 @@ class Main:
                             policy_ended_par
                         ].mean()
                         / self.params.cum_match_stop_th,
-                        "grid_comp_mean_par": comp_par,
+                        "grid_comp_mean_par": global_competence_par,
                         "episode_success_rate_par": episode_success_rate_par,
                         "policy_weights_norm_par": np.linalg.norm(
                             controller_par.stm_a.get_weights(), axis=-1
@@ -1539,6 +1529,7 @@ class Main:
                 if self.plots and os.path.isfile("PLOT_SIMS"):
                     print("----> Test Sims ...", end=" ", flush=True)
                     self.evaluation_episodes(
+                        epoch=epoch,
                         n_episodes=self.params.tests,
                         suffix="_demo_par",
                         render="offline",
@@ -1614,6 +1605,7 @@ class Main:
         if os.path.isfile("PLOT_SIMS"):
             print("----> Test Sims ...", end=" ", flush=True)
             self.evaluation_episodes(
+                epoch=epoch,
                 n_episodes=self.params.tests,
                 render="offline",
                 suffix="_demo",
@@ -1980,6 +1972,7 @@ class Main:
         for i, (k, v) in enumerate(goals_env_states.items()):
             print(f"Demo episodes for goal {k}")
             _, tr = self.evaluation_episodes(
+                epoch=epoch,
                 env_states=v[:1],
                 render=render,
                 suffix="_demo",
@@ -1989,6 +1982,7 @@ class Main:
             tr["prototype_id"] = tr["prototype_id"] + i * self.params.stime
             trajectories.append(tr)
             gc, _ = self.evaluation_episodes(
+                epoch=epoch,
                 env_states=v[: self.params.demo_episodes_max_single_goal],
                 suffix="_goal",
                 save_stats=False,
