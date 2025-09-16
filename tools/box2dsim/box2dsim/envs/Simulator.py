@@ -352,6 +352,17 @@ class TestPlotter:
         f_gp,
         visual_map_path=None,
     ):
+
+        # def translate_data(x, side=10):
+        #     res = np.copy(x)
+        #     res = res[:, [1, 0]]
+        # 
+        #     return res
+        # 
+        # (f_vp, f_ssp, f_pp, f_ap, f_gp) = [
+        #     translate_data(x) for x in [f_vp, f_ssp, f_pp, f_ap, f_gp]
+        # ]
+
         # Make the rendered frames and info matching lengths
         if len(match_value) < len(self.vm.frames):
             self.vm.frames = self.vm.frames[: len(match_value)]
@@ -417,16 +428,16 @@ class TestPlotter:
             if self.ax is not None:
                 plt.delaxes(self.ax)
             self.ax = self.fig.add_subplot(111, aspect="equal")
-            self.ax.set_xlim(self.int_xlim)
+            self.ax.set_xlim(self.int_ylim)
             self.ax.set_ylim(self.int_ylim)
             self.ax.axis("off")
 
             if visual_map_path is not None:
                 im = plt.imread(visual_map_path)
-                im = np.rot90(im)
+                im = im
                 self.ax.imshow(
-                    im,
-                    alpha=0.3,
+                    np.rot90(im),
+                    alpha=1.0,
                     aspect="auto",
                     interpolation="nearest",
                     extent=(0, 10, 0, 10),
@@ -497,20 +508,23 @@ class TestPlotter:
                 self.ax.plot(
                     f_pp[t : t + 2, 0],
                     f_pp[t : t + 2, 1],
+                    lw=3,
                     color="c",
-                    alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
+                    # alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
                 )
                 self.ax.plot(
                     f_gp[t : t + 2, 0],
                     f_gp[t : t + 2, 1],
+                    lw=3,
                     color="r",
-                    alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
+                    # alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
                 )
                 self.ax.plot(
                     f_ap[t : t + 2, 0],
                     f_ap[t : t + 2, 1],
+                    lw=3,
                     color="m",
-                    alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
+                    # alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
                 )
 
             self.ax.legend(

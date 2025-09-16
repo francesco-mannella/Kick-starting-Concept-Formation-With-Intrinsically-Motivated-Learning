@@ -18,7 +18,8 @@ from params import Parameters
 from SMAgent import SMAgent
 from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
-from SMGraphs import comp_map, goal_frequency_map, log, remove_figs, visual_map
+from SMGraphs import (comp_map, goal_frequency_map, log, remove_figs,
+                      somatosensory_map, trajectories_map, visual_map, proprio_map)
 from tplot import TPlotManager
 
 
@@ -724,6 +725,7 @@ class Main:
                 self.params.internal_sigma,
                 local_incompetences,
             )
+
             local_lr = modulate_param(
                 self.params.base_lr,
                 self.params.max_lr,
@@ -734,7 +736,7 @@ class Main:
                 self.controller.curr_sigma, self.controller.curr_lr
             )
 
-            print(f"sigma: {local_sigma.mean()}")
+            print(f"sigma: {local_sigma.mean()} {self.params.internal_sigma}")
 
             # ---- end of an epoch: controller update
             (update_items, update_episodes, curr_loss, mean_modulation) = (
@@ -1674,6 +1676,7 @@ class Main:
                 self.params.action_steps,
                 rand_obj_params=self.random_obj_params,
             )
+            # env.b2d_env.renderer_figsize=(8, 8)
             env.b2d_env.prepare_world(contexts[episode])
             states[episode] = env.reset(
                 contexts[episode],
@@ -1737,11 +1740,11 @@ class Main:
                     tuple(
                         np.hstack(
                             [
-                                env_states[i]["verts"].reshape(-1).round(2),
-                                env_states[i]["pos"].reshape(-1).round(2),
-                                env_states[i]["color"].reshape(-1).round(2),
+                                env_states[i]["verts"].reshape(-1).round(5),
+                                env_states[i]["pos"].reshape(-1).round(5),
+                                env_states[i]["color"].reshape(-1).round(5),
                                 [env_states[i]["context"]],
-                                [np.round(env_states[i]["rot"], 2)],
+                                [np.round(env_states[i]["rot"], 5)],
                             ]
                         )
                     )
@@ -1911,7 +1914,7 @@ class Main:
                 self.params.action_steps,
                 rand_obj_params=self.random_obj_params,
             )
-            env.b2d_env.renderer_fig_size=(8, 8)
+            env.b2d_env.renderer_fig_size = (8, 8)
             env.b2d_env.prepare_world(context)
             state = env.reset(context)
             init_b2d_state = env.get_b2d_state()
@@ -1992,6 +1995,10 @@ class Main:
         return goals_env_states
 
     def demo_episodes(self, epoch=0, render=None):
+        visual_map()
+        somatosensory_map()
+        proprio_map()
+        
         goals_env_states = main.monte_carlo_episode_search()
         goal_counts = {k: len(v) for k, v in goals_env_states.items()}
         goal_frequency_map(goal_counts)
@@ -1999,8 +2006,6 @@ class Main:
             f"{site_dir}/goal_frequency_map.png",
             f"{site_dir}/first_goal_frequency_map.png",
         )
-
-        visual_map()
 
         goal_counts = defaultdict(int)
         trajectories = []
@@ -2102,7 +2107,8 @@ class Main:
                     f"{head.prototype_y:03.0f}_demo"
                 ),
                 save_stats=False,
-                add_goal_suffix=True,
+                add_goal_suffix=False,
+                n_episodes=1,
             )
 
         goal_frequency_map(goal_counts)
@@ -2255,7 +2261,9 @@ if __name__ == "__main__":
         else:
             Path("PLOT_SIMS").unlink(missing_ok=True)
 
+    print(AppendParamsAction.params_string)
     params.update(AppendParamsAction.params_string)
+    print(params)
 
     if use_wandb:
         config = {
