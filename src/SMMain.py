@@ -1637,6 +1637,8 @@ class Main:
         n_episodes=None,
     ):
 
+        print(f"------> {suffix}")
+
         n_episodes = n_episodes or self.params.evaluation_episodes
         agent = self.agent
         controller = SMController(self.params)
@@ -1717,39 +1719,62 @@ class Main:
 
         policy_changed[0, 60] = 1
 
-        # Limitation: only trajectory of the first episode from batch is
-        # collected
-        trajectories = pd.DataFrame(
-            controller.model_data["batch_p"][0, :, -2:]
-        )
-        trajectories.columns = ["d1", "d2"]
-        trajectories["prototype_x"] = controller.model_data["g_p"][0, :, 0]
-        trajectories["prototype_y"] = controller.model_data["g_p"][0, :, 1]
-        trajectories["prototype_id"] = np.cumsum(policy_changed[0])
-        trajectories["ts"] = (
-            np.hstack(
-                list(
-                    map(
-                        np.cumsum,
-                        np.split(
-                            np.ones(self.params.stime),
-                            np.argwhere(policy_changed[0])[:, 0],
-                        ),
+        all_trajectories = []
+        for i in range(n_episodes):
+            # only trajectory of the i-th episode from batch is
+            # collected
+            trajectories = pd.DataFrame(
+                controller.model_data["batch_p"][i, :, -2:]
+            )
+            trajectories.columns = ["d1", "d2"]
+            trajectories["prototype_x"] = controller.model_data["g_p"][i, :, 0]
+            trajectories["prototype_y"] = controller.model_data["g_p"][i, :, 1]
+            trajectories["goal_id"] = np.cumsum(policy_changed[i])
+            trajectories["tr_id"] = trajectories.goal_id + i * 100
+            trajectories["episode_id"] = i
+            trajectories["state"] = [
+                tuple(
+                    np.hstack(
+                        [
+                            env_states[i]["verts"].reshape(-1).round(2),
+                            env_states[i]["pos"].reshape(-1).round(2),
+                            env_states[i]["color"].reshape(-1).round(2),
+                            [env_states[i]["context"]],
+                            [np.round(env_states[i]["rot"], 2)],
+                        ]
                     )
                 )
-            )
-            - 1
-        )
-        trajectories = trajectories.iloc[
-            self.params.drop_first_n_steps
-            + self.params.policy_selection_steps : -1
-        ]
+                for x in trajectories.index
+            ]
 
-        # TMP: remove empty records (when episode ends prematurely). Should be
-        # solved better in the future
-        trajectories.drop(
-            trajectories[trajectories["d1"] == 0].index, inplace=True
-        )
+            trajectories["ts"] = (
+                np.hstack(
+                    list(
+                        map(
+                            np.cumsum,
+                            np.split(
+                                np.ones(self.params.stime),
+                                np.argwhere(policy_changed[i])[:, 0],
+                            ),
+                        )
+                    )
+                )
+                - 1
+            )
+            trajectories = trajectories.iloc[
+                self.params.drop_first_n_steps
+                + self.params.policy_selection_steps : -1
+            ]
+
+            # TMP: remove empty records (when episode ends prematurely). Should be
+            # solved better in the future
+            trajectories.drop(
+                trajectories[trajectories["d1"] == 0].index, inplace=True
+            )
+
+            all_trajectories.append(trajectories)
+
+        trajectories = pd.concat(all_trajectories)
 
         # Reset policy noise
         controller.base_policy_noise = self.params.base_policy_noise
@@ -1843,11 +1868,18 @@ class Main:
     def monte_carlo_episode_search(self, controller=None):
         n_trials = self.params.demo_episodes_max_trials
         agent = self.agent
+
         if controller is None:
-            controller = self.controller
+            controller = SMController(self.params)
+            controller.__setstate__(self.controller.__getstate__())
+        else:
+            copied = SMController(self.params)
+            copied.__setstate__(controller.__getstate__())
+            controller = copied
+
         controller.curr_sigma = 0.1
 
-        self.initialize_model_data(controller)
+        self.initialize_model_data(controller, 1)
 
         goals_env_states = defaultdict(list)
 
@@ -1869,6 +1901,7 @@ class Main:
         )
 
         for i in range(n_trials):
+            print(f"montecarlo_trial ---- {i: 4d}/{n_trials} ----")
             context = (i % 3) + 1
             seed = self.seed + i
             env = SMEnv(
@@ -1969,27 +2002,106 @@ class Main:
 
         goal_counts = defaultdict(int)
         trajectories = []
-        for i, (k, v) in enumerate(goals_env_states.items()):
-            print(f"Demo episodes for goal {k}")
-            _, tr = self.evaluation_episodes(
+        for i, (goal, states) in enumerate(goals_env_states.items()):
+            if len(states) > 1:
+                pass
+
+            # evaluate evironments
+            print(f"Evaluate {len(states)} environments for goal {goal}")
+            gc, tr = self.evaluation_episodes(
                 epoch=epoch,
-                env_states=v[:1],
-                render=render,
-                suffix="_demo",
-                save_stats=False,
-                add_goal_suffix=True,
-            )
-            tr["prototype_id"] = tr["prototype_id"] + i * self.params.stime
-            trajectories.append(tr)
-            gc, _ = self.evaluation_episodes(
-                epoch=epoch,
-                env_states=v[: self.params.demo_episodes_max_single_goal],
+                env_states=states,
                 suffix="_goal",
                 save_stats=False,
             )
+
+            tr.loc[:, "episode_id"] = tr.episode_id + i * 100
+            tr.loc[:, "tr_id"] = tr.tr_id + i * 10000
+            trajectories.append(tr)
+
+            # count goals
             for k1 in gc:
                 goal_counts[k1] += gc[k1]
+
         trajectories = pd.concat(trajectories)
+
+        # Find best state for goal
+        groups = ["prototype_x", "prototype_y", "state"]
+        state_freqs = (
+            trajectories.query("ts == 0")
+            .groupby(groups)
+            .size()
+            .reset_index(name="count")
+        )
+
+        groups = ["prototype_x", "prototype_y"]
+        state_bests = (
+            state_freqs.groupby(groups)
+            .apply(
+                lambda x: x.loc[x["count"].idxmax(), "state"],
+                include_groups=False,
+            )
+            .reset_index(name="state")
+        )
+        trajectories = trajectories.reset_index()
+        trajectories.loc[:, "idx"] = trajectories.index
+        trajectories.loc[:, "best"] = False
+        trajectories.loc[trajectories.merge(state_bests).idx, "best"] = True
+
+        trajectories = trajectories.reset_index()
+        print("Save trajectories dataset")
+        trajectories.to_csv(f"{site_dir}/trajectories.csv")
+
+        print("Select a dataset of  best trajectories for each prototype ")
+        prototype_trajectories = trajectories.query("best==True")
+
+        # Selects the first trajectory among the bests for each prototype
+        prototype_trajectories["best_tr"] = False
+        groups = ["prototype_x", "prototype_y"]
+        for idx, data in prototype_trajectories.groupby(groups):
+            groups = ["tr_id"]
+            for counter, (idx1, data1) in enumerate(data.groupby(groups)):
+                if counter == 0:
+                    tr_idx = prototype_trajectories.tr_id == (
+                        data1.tr_id.iloc[0]
+                    )
+                    prototype_trajectories.loc[tr_idx, "best_tr"] = True
+
+        prototype_trajectories = prototype_trajectories.query(
+            "best_tr == True"
+        )
+
+        prototype_trajectories.to_csv(f"{site_dir}/prototype_trajectories.csv")
+
+        print("Render the simulation for each prototype")
+        for prototype_idx, row in prototype_trajectories.groupby(
+            ["prototype_x", "prototype_y"]
+        ):
+
+            head = row.iloc[0, :]
+
+            state = np.array(head.state)
+
+            state = {
+                "verts": state[:-7].reshape(2, -1),
+                "pos": state[-7:-5],
+                "color": state[-5:-2],
+                "context": int(state[-2]),
+                "rot": state[-1],
+                "seed": 0,
+            }
+
+            self.evaluation_episodes(
+                epoch=0,
+                env_states=[state],
+                render=render,
+                suffix=(
+                    f"_{head.prototype_x:03.0f}_"
+                    f"{head.prototype_y:03.0f}_demo"
+                ),
+                save_stats=False,
+                add_goal_suffix=True,
+            )
 
         goal_frequency_map(goal_counts)
         shutil.copyfile(
@@ -1997,12 +2109,13 @@ class Main:
             f"{site_dir}/all_goal_frequency_map.png",
         )
 
+        print("Plot grid graph of trajectories")
         tp = TPlotManager(
             plot_path=f"{site_dir}/trajectory_plots.png",
             n_prototypes=self.params.internal_size,
             max_ts=self.params.stime,
         )
-        tp.plot_prototypes(trajectories)
+        tp.plot_prototypes(prototype_trajectories)
 
         if use_wandb:
             log_data = {
@@ -2152,6 +2265,7 @@ if __name__ == "__main__":
     if os.path.isfile("main.dump.npy"):
         main = np.load("main.dump.npy", allow_pickle="True")[0]
         main.plots = plots
+        main.params.update(AppendParamsAction.params_string)
     else:
         main = Main(seed=seed, params=params, plots=plots)
 
@@ -2162,7 +2276,9 @@ if __name__ == "__main__":
 
     try:
         if demo:
-            main.demo_episodes(unique_prototypes=True)
+            main.demo_episodes(
+                # render="offline",
+            )
         elif train_parasite:
             main.train_parasite(timing)
         else:
