@@ -9,8 +9,9 @@ import numpy as np
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap
 
-from params import Parameters
 from mkvideo import vidManager
+from params import Parameters
+
 
 params = Parameters()
 
@@ -50,7 +51,8 @@ def remove_figs(epoch=0):
                 f"{site_dir}/trajectories.png", f"{epoch_dir}/trajectories.png"
             )
             copyfile(
-                f"{site_dir}/goal_frequency_map.png", f"{epoch_dir}/goal_frequency_map.png"
+                f"{site_dir}/goal_frequency_map.png",
+                f"{epoch_dir}/goal_frequency_map.png",
             )
         except OSError:
             pass
@@ -81,7 +83,9 @@ def remove_figs(epoch=0):
             else:
                 os.remove(f)
         for k in range(params.tests):
-            copyfile(f"{site_dir}/blank.gif", f"{site_dir}/episode_{k}_demo.gif")
+            copyfile(
+                f"{site_dir}/blank.gif", f"{site_dir}/episode_{k}_demo.gif"
+            )
 
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/visual_map.png")
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/comp_map.png")
@@ -130,7 +134,9 @@ def visual_map(wfile=None):
         wfile = f"{site_dir}/visual_weights.npy"
     # visual map
     data_v = np.load(wfile, allow_pickle=True)
-    data_v = data_v.reshape(visual_side, visual_side, 3, internal_side, internal_side)
+    data_v = data_v.reshape(
+        visual_side, visual_side, 3, internal_side, internal_side
+    )
     data_v = data_v.transpose(3, 0, 4, 1, 2)
     data_v = data_v.reshape(
         visual_side * internal_side, visual_side * internal_side, 3
@@ -178,6 +184,7 @@ def comp_map(wfile=None):
     fig.savefig(f"{site_dir}/comp_map.png")
     plt.close("all")
 
+
 def goal_frequency_map(v_p_set):
 
     data = np.zeros((internal_side, internal_side))
@@ -194,6 +201,7 @@ def goal_frequency_map(v_p_set):
     fig.tight_layout(pad=0.0)
     fig.savefig(f"{site_dir}/goal_frequency_map.png")
     plt.close("all")
+
 
 def representations_movements(v_r, ss_r, p_r, a_r, name):
 
@@ -227,9 +235,6 @@ def blank_video():
     ax = fig.add_subplot(111, aspect="equal")
     vm = vidManager(fig, "blank", f"{site_dir}/blank", duration=50)
 
-    x = np.arange(internal_side)
-    grid = np.stack(np.meshgrid(x, x)).reshape(2, -1)
-
     ax.set_visible(False)
 
     for t in range(5):
@@ -252,6 +257,7 @@ def log(wfile=None):
     ax.plot(np.arange(stime), log[:, 1], c=[0.5, 0, 0])
     ax.set_xlim([-stime * 0.1, stime * 1.1])
     m = log.max()
-    ax.set_ylim([-m * 0.1, m * 1.1])
+    if m > 0:
+        ax.set_ylim([-m * 0.1, m * 1.1])
     fig.savefig(f"{site_dir}/log.png")
     plt.close("all")
