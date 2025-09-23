@@ -1910,6 +1910,7 @@ class Main:
                 self.params.action_steps,
                 rand_obj_params=self.random_obj_params,
             )
+            env.b2d_env.renderer_fig_size=(8, 8)
             env.b2d_env.prepare_world(context)
             state = env.reset(context)
             init_b2d_state = env.get_b2d_state()
@@ -2190,7 +2191,10 @@ def parse_arguments():
         default=None,
     )
     parser.add_argument(
-        "--demo", help="Only plot demo episodes", action="store_true"
+        "--demo", help="Generate demo episodes", action="store_true"
+    )
+    parser.add_argument(
+        "--render", help="Render generated demo episodes", action="store_true"
     )
     parser.add_argument(
         "-o",
@@ -2229,6 +2233,7 @@ if __name__ == "__main__":
     use_wandb = bool(args.wandb)
     train_parasite = bool(args.parasite)
     demo = bool(args.demo)
+    render = bool(args.render)
     simulation_name = args.name
     wdb_project = args.wdb_project
     wdb_entity = args.wdb_entity
@@ -2277,7 +2282,7 @@ if __name__ == "__main__":
     try:
         if demo:
             main.demo_episodes(
-                # render="offline",
+                render="offline" if render else None,
             )
         elif train_parasite:
             main.train_parasite(timing)
