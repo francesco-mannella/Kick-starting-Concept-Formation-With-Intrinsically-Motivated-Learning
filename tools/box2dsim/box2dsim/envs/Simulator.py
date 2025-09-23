@@ -1,3 +1,5 @@
+import io
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,9 +10,6 @@ from PIL import Image
 from . import JsonToPyBox2D as json2d
 from .mkvideo import vidManager
 from .PID import PID
-
-
-import io
 
 
 class ContactListener(b2ContactListener):
@@ -238,7 +237,7 @@ def merge_frames(frame1, frame2, alphacolor=(255, 255, 255, 255)):
 
 
 def concat_frames_h(im1, im2):
-    dst = Image.new('RGBA', (im1.width + im2.width, im1.height))
+    dst = Image.new("RGBA", (im1.width + im2.width, im1.height))
     dst.paste(im1, (0, 0))
     dst.paste(im2, (im1.width, 0))
     return dst
@@ -258,6 +257,7 @@ class TestPlotter:
         ylim=[-10, 30],
         int_xlim=[0, 10],
         int_ylim=[0, 10],
+        speed=200,
         figsize=None,
         offline=False,
     ):
@@ -280,7 +280,7 @@ class TestPlotter:
             self.fig = plt.figure(figsize=figsize)
 
         if self.offline:
-            self.vm = vidManager(self.fig, name="frame", duration=200)
+            self.vm = vidManager(self.fig, name="frame", duration=speed)
 
         self.ax = None
 
@@ -361,7 +361,7 @@ class TestPlotter:
         ax_r = None
         last_goal_reset = 0
         for i in range(n_steps):
-            if i > 0 and cum_match[i] - cum_match[i-1] < 0:
+            if i > 0 and cum_match[i] - cum_match[i - 1] < 0:
                 last_goal_reset = i
 
             # Plot match values
@@ -372,33 +372,45 @@ class TestPlotter:
             self.ax.set_ylim(self.ylim)
             self.ax.axis("off")
 
-            self.ax.text(self.xlim[0], 0.9*self.ylim[1], f"t={i}", fontsize="large")
+            self.ax.text(
+                self.xlim[0], 0.9 * self.ylim[1], f"t={i}", fontsize="large"
+            )
 
             # Current max match
-            #self.ax.bar(
+            # self.ax.bar(
             #        self.xlim[0] + 0.8*(self.xlim[1] - self.xlim[0]),
             #        max_match[i]*self.ylim[1],
             #        )
             # Current cummulative success
             self.ax.bar(
-                    self.xlim[0],
-                    self.ylim[0] + cum_match[i] * (self.ylim[1] - self.ylim[0]),
-                    bottom=self.ylim[0],
-                    width=2
-                    )
-            self.ax.text(self.xlim[0] - 0.3, self.ylim[0] + (self.ylim[1] - self.ylim[0])*0.5, "cumulated touch", rotation=90,
-                         fontsize="small", horizontalalignment="right",
-                         verticalalignment="center")
-            self.fig.subplots_adjust(left=0.15, bottom=0.25, right=0.85, top=0.9) 
+                self.xlim[0],
+                self.ylim[0] + cum_match[i] * (self.ylim[1] - self.ylim[0]),
+                bottom=self.ylim[0],
+                width=2,
+            )
+            self.ax.text(
+                self.xlim[0] - 0.3,
+                self.ylim[0] + (self.ylim[1] - self.ylim[0]) * 0.5,
+                "cumulated touch",
+                rotation=90,
+                fontsize="small",
+                horizontalalignment="right",
+                verticalalignment="center",
+            )
+            self.fig.subplots_adjust(
+                left=0.15, bottom=0.25, right=0.85, top=0.9
+            )
             self.fig.canvas.draw()
             imbuf = io.BytesIO()
             self.fig.savefig(imbuf, format="png")
             frame2 = Image.open(imbuf)
 
-            frame2 = Image.frombytes('RGBA', 
-                    self.fig.canvas.get_width_height(), 
-                    self.fig.canvas.buffer_rgba())
-            
+            frame2 = Image.frombytes(
+                "RGBA",
+                self.fig.canvas.get_width_height(),
+                self.fig.canvas.buffer_rgba(),
+            )
+
             merged_frame = merge_frames(self.vm.frames[i], frame2)
 
             # Plot internal representations
@@ -422,39 +434,101 @@ class TestPlotter:
 
             # Current match value
             self.ax.bar(
-                    self.int_xlim[0] + 0.1,
-                    self.int_ylim[0] + match_value[i] * (self.int_ylim[1] - self.int_ylim[0]),
-                    bottom=self.int_ylim[0],
-                    width=0.2
-                    )
-            self.ax.text(self.int_xlim[0] - 0.3, self.int_ylim[0] + (self.int_ylim[1] - self.int_ylim[0])*0.5, "match", rotation=90,
-                         fontsize="small", horizontalalignment="right",
-                         verticalalignment="center")
+                self.int_xlim[0] + 0.1,
+                self.int_ylim[0]
+                + match_value[i] * (self.int_ylim[1] - self.int_ylim[0]),
+                bottom=self.int_ylim[0],
+                width=0.2,
+            )
+            self.ax.text(
+                self.int_xlim[0] - 0.3,
+                self.int_ylim[0] + (self.int_ylim[1] - self.int_ylim[0]) * 0.5,
+                "match",
+                rotation=90,
+                fontsize="small",
+                horizontalalignment="right",
+                verticalalignment="center",
+            )
 
-            self.ax.scatter(f_gp[i, 0], f_gp[i, 1], marker="s", label="goal", color="r", s=80)
-            self.ax.scatter(f_vp[i, 0], f_vp[i, 1], marker="s", label="visual", color="b")
-            self.ax.scatter(f_ssp[i, 0], f_ssp[i, 1], marker="s", label="somatosensory", color="g")
-            self.ax.scatter(f_pp[i, 0], f_pp[i, 1], marker="s", label="proprioception", color="c")
-            self.ax.scatter(f_ap[i, 0], f_ap[i, 1], marker="s", label="action", color="m")
+            self.ax.scatter(
+                f_gp[i, 0],
+                f_gp[i, 1],
+                marker="s",
+                label="goal",
+                color="r",
+                s=80,
+            )
+            # self.ax.scatter(
+            #     f_vp[i, 0],
+            #     f_vp[i, 1],
+            #     marker="s",
+            #     label="visual",
+            #     color="b",
+            # )
+            self.ax.scatter(
+                f_ssp[i, 0],
+                f_ssp[i, 1],
+                marker="s",
+                label="somatosensory",
+                color="g",
+            )
+            self.ax.scatter(
+                f_pp[i, 0],
+                f_pp[i, 1],
+                marker="s",
+                label="proprioception",
+                color="c",
+            )
+            self.ax.scatter(
+                f_ap[i, 0], f_ap[i, 1], marker="s", label="action", color="m"
+            )
 
             max_trace = 25
             t0 = i - max_trace
             if t0 < last_goal_reset:
                 t0 = last_goal_reset
             for t in range(t0, i):
-                self.ax.plot(f_vp[t:t+2, 0], f_vp[t:t+2, 1], color="b", alpha=(1.0-((i-t)/max_trace))*0.5)
-                self.ax.plot(f_ssp[t:t+2, 0], f_ssp[t:t+2, 1], color="g", alpha=(1.0-((i-t)/max_trace))*0.5)
-                self.ax.plot(f_pp[t:t+2, 0], f_pp[t:t+2, 1], color="c", alpha=(1.0-((i-t)/max_trace))*0.5)
-                self.ax.plot(f_gp[t:t+2, 0], f_gp[t:t+2, 1], color="r", alpha=(1.0-((i-t)/max_trace))*0.5)
-                self.ax.plot(f_ap[t:t+2, 0], f_ap[t:t+2, 1], color="m", alpha=(1.0-((i-t)/max_trace))*0.5)
+                # self.ax.plot(
+                #     f_ssp[t : t + 2, 0],
+                #     f_ssp[t : t + 2, 1],
+                #     color="g",
+                #     alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
+                # )
+                self.ax.plot(
+                    f_pp[t : t + 2, 0],
+                    f_pp[t : t + 2, 1],
+                    color="c",
+                    alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
+                )
+                self.ax.plot(
+                    f_gp[t : t + 2, 0],
+                    f_gp[t : t + 2, 1],
+                    color="r",
+                    alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
+                )
+                self.ax.plot(
+                    f_ap[t : t + 2, 0],
+                    f_ap[t : t + 2, 1],
+                    color="m",
+                    alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
+                )
 
-            self.ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize="small")
-            self.fig.subplots_adjust(left=0.15, bottom=0.25, right=0.85, top=0.9) 
+            self.ax.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.01),
+                ncol=2,
+                fontsize="small",
+            )
+            self.fig.subplots_adjust(
+                left=0.15, bottom=0.25, right=0.85, top=0.9
+            )
             self.fig.canvas.draw()
 
-            frame2 = Image.frombytes('RGBA', 
-                    self.fig.canvas.get_width_height(), 
-                    self.fig.canvas.buffer_rgba())
+            frame2 = Image.frombytes(
+                "RGBA",
+                self.fig.canvas.get_width_height(),
+                self.fig.canvas.buffer_rgba(),
+            )
 
             merged_frame = concat_frames_h(merged_frame, frame2)
             self.vm.frames[i] = merged_frame

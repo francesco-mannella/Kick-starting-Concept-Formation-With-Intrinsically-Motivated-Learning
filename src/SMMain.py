@@ -1732,20 +1732,21 @@ class Main:
             trajectories["goal_id"] = np.cumsum(policy_changed[i])
             trajectories["tr_id"] = trajectories.goal_id + i * 100
             trajectories["episode_id"] = i
-            trajectories["state"] = [
-                tuple(
-                    np.hstack(
-                        [
-                            env_states[i]["verts"].reshape(-1).round(2),
-                            env_states[i]["pos"].reshape(-1).round(2),
-                            env_states[i]["color"].reshape(-1).round(2),
-                            [env_states[i]["context"]],
-                            [np.round(env_states[i]["rot"], 2)],
-                        ]
+            if env_states is not None:
+                trajectories["state"] = [
+                    tuple(
+                        np.hstack(
+                            [
+                                env_states[i]["verts"].reshape(-1).round(2),
+                                env_states[i]["pos"].reshape(-1).round(2),
+                                env_states[i]["color"].reshape(-1).round(2),
+                                [env_states[i]["context"]],
+                                [np.round(env_states[i]["rot"], 2)],
+                            ]
+                        )
                     )
-                )
-                for x in trajectories.index
-            ]
+                    for x in trajectories.index
+                ]
 
             trajectories["ts"] = (
                 np.hstack(

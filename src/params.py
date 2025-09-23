@@ -51,9 +51,6 @@ class Parameters(ParameterManager):
         cum_match_stop_th=3.0,
         predict_lr=0.05,
         reach_grip_prop=0.1,
-        predict_ampl=2,
-        predict_base_ampl=2,
-        predict_ampl_prop=0.95,
         epochs=1000,
         batch_size=24,
         tests=12,
@@ -64,11 +61,11 @@ class Parameters(ParameterManager):
         load_weights=False,
         shuffle_weights=False,
         action_steps=5,
-        obj_fix_prob=0.8,
-        obj_var_prob=0.2,
+        obj_fix_prob=1.0,
+        obj_var_prob=0.6,
         obj_rot_var=0.5 * 3.1415922653,
         obj_x=2,
-        obj_y=0.25,
+        obj_y=0,
         maximum_goal_activation=575.0,
     ):
 
@@ -125,9 +122,6 @@ class Parameters(ParameterManager):
         self.cum_match_stop_th = cum_match_stop_th
         self.predict_lr = predict_lr
         self.reach_grip_prop = reach_grip_prop
-        self.predict_ampl = predict_ampl
-        self.predict_base_ampl = predict_base_ampl
-        self.predict_ampl_prop = predict_ampl_prop
         self.epochs = epochs
         self.batch_size = batch_size
         self.tests = tests
