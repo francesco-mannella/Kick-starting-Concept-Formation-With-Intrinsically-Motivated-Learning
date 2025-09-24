@@ -64,8 +64,8 @@ class Parameters(ParameterManager):
         obj_fix_prob=2.0,
         obj_var_prob=0.6,
         obj_rot_var=0.5 * 3.1415922653,
-        obj_x=5,
-        obj_y=4,
+        obj_x=2,
+        obj_y=0.25,
         maximum_goal_activation=575.0,
     ):
 
