@@ -7,7 +7,7 @@ import params
 from bbo import BBO
 from esn import ESN
 import gym, box2dsim
-from mkvideo import vidManager
+from box2dsim.envs.mkvideo import vidManager
 from ArmActuator import Agent
 
 class Env:

@@ -239,8 +239,8 @@ class Parameters(ParameterManager):
         shuffle_weights=False,
         action_steps=5,
         obj_fix_prob=0.2,
-        obj_var_prob=1.6,
-        obj_rot_var=3.1415922653,
+        obj_stretch_conditions=1.6,
+        obj_rotation_conditions=3.1415922653,
         obj_x=4,
         obj_y=2,
         maximum_goal_activation=575.0,
@@ -310,8 +310,8 @@ class Parameters(ParameterManager):
         self.shuffle_weights = shuffle_weights
         self.action_steps = action_steps
         self.obj_fix_prob = obj_fix_prob
-        self.obj_var_prob = obj_var_prob
-        self.obj_rot_var = obj_rot_var
+        self.obj_stretch_conditions = obj_stretch_conditions
+        self.obj_rotation_conditions = obj_rotation_conditions
         self.obj_x = obj_x
         self.obj_y = obj_y
         self.maximum_goal_activation = maximum_goal_activation

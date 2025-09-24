@@ -91,9 +91,8 @@ class Main:
             remove_figs()
 
         self.random_obj_params = {
-            "fix_prop": self.params.obj_fix_prob,
-            "var_prop": self.params.obj_var_prob,
-            "rot_var": self.params.obj_rot_var,
+            "stretch_conditions": self.params.obj_stretch_conditions,
+            "rotation_conditions": self.params.obj_rotation_conditions,
             "pos": [self.params.obj_y, self.params.obj_x],
         }
 
@@ -138,9 +137,8 @@ class Main:
         self.rng.__setstate__(state["rng"])
 
         self.random_obj_params = {
-            "fix_prop": self.params.obj_fix_prob,
-            "var_prop": self.params.obj_var_prob,
-            "rot_var": self.params.obj_rot_var,
+            "stretch_conditions": self.params.obj_stretch_conditions,
+            "rotation_conditions": self.params.obj_rotation_conditions,
             "pos": [self.params.obj_y, self.params.obj_x],
         }
 

@@ -105,9 +105,8 @@ class Box2DSimOneArmEnv(gym.Env):
 
         if rand_obj_params is None:
             self.rand_obj_params = {
-                "fix_prop": 0.2,
-                "var_prop": 1.6,
-                "rot_var": np.pi,
+                "stretch_conditions": [1, 1.5, 2],
+                "rotation_conditions": np.pi * np.array([0, 0.25, 0.5]),
                 "pos": [4, 2],
             }
         else:
@@ -238,16 +237,24 @@ class Box2DSimOneArmEnv(gym.Env):
                         ]
                     )
 
-                    vmean = verts.mean()
+                    vcentroid = np.ptp(verts, -1)
+                    vcentroid = verts.min(-1) + vcentroid / 2
+                    verts -= vcentroid.reshape(-1, 1)
 
-                    verts = (verts - vmean) * (
-                        (0.9 * self.rand_obj_params["fix_prop"] 
-                         + (0.1) * self.rng.rand())
-                        + self.rand_obj_params["var_prop"]
-                        * self.rng.randn(*verts.shape)
-                    )
+                    stretch_conditions = self.rand_obj_params[
+                        "stretch_conditions"
+                    ]
+                    stretch = self.rng.choice(stretch_conditions)
 
-                    rot = self.rand_obj_params["rot_var"] * self.rng.randn()
+                    verts[0, :] *= stretch
+                    verts[1, :] /= stretch
+
+
+                    rotation_conditions = self.rand_obj_params[
+                        "rotation_conditions"
+                    ]
+                    rot = self.rng.choice(rotation_conditions)
+
                     verts = np.dot(
                         [
                             [np.cos(rot), -np.sin(rot)],
@@ -269,10 +276,10 @@ class Box2DSimOneArmEnv(gym.Env):
                     world_dict["body"][i]["position"]["x"] += pos[1]
                     world_dict["body"][i]["position"]["y"] += pos[0]
 
-                    color = 0.1 * self.rng.randn(3)
-                    color = color + world_dict["body"][i]["color"]
-                    color = np.maximum(0, np.minimum(1, color))
-                    world_dict["body"][i]["color"] = list(color)
+                    # color = 0.1 * self.rng.randn(3)
+                    # color = color + world_dict["body"][i]["color"]
+                    # color = np.maximum(0, np.minimum(1, color))
+                    # world_dict["body"][i]["color"] = list(color)
                     break
 
         return world_dict
@@ -432,6 +439,7 @@ class Box2DSimOneArmEnv(gym.Env):
                 self,
                 xlim=self.taskspace_xlim,
                 ylim=self.taskspace_ylim,
+                offline=False,
                 figsize=self.renderer_figsize,
             )
         elif mode == "offline":

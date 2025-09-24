@@ -1,6 +1,7 @@
 import copy
 
 import gymnasium as gym
+
 from params import Parameters
 
 
@@ -17,9 +18,16 @@ class SMEnv:
         self.params = params
         self.action_steps = action_steps
         self.store_observations = store_observations
-        self.rand_obj_params = rand_obj_params
+        if rand_obj_params is not None:
+            self.rand_obj_params = rand_obj_params
+        else:
+            self.rand_obj_params = {
+                "stretch_conditions": params.obj_stretch_conditions,
+                "rotation_conditions": params.obj_rotation_conditions,
+                "pos": [params.obj_x, params.obj_y],
+            }
         self.b2d_env = gym.make(
-            "Box2DSimOneArmOneEye-v0", rand_obj_params=rand_obj_params
+            "Box2DSimOneArmOneEye-v0", rand_obj_params=self.rand_obj_params
         )
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)

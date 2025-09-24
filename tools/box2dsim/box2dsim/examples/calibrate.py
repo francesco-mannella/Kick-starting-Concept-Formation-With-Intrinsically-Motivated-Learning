@@ -1,7 +1,7 @@
 import box2dsim
 import gymnasium as gym
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 _ = box2dsim
@@ -10,10 +10,9 @@ rng = np.random.RandomState(62)
 env = gym.make(
     "Box2DSimOneArmOneEye-v0",
     rand_obj_params={
-        "fix_prop": 1.0,
-        "var_prop": 0.6,
-        "rot_var": 1.41,
-        "pos": [2, 0],
+        "stretch_conditions": [1, 1.5, 2],
+        "rotation_conditions": np.pi * np.array([0, 0.25, 0.5]),
+        "pos": [2, 0.4],
     },
 ).unwrapped
 

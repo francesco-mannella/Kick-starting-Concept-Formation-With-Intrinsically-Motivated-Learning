@@ -55,14 +55,10 @@ class vidManager:
         """
         # Draw canvas
         self.fig.canvas.draw()
-        
-        frame = Image.frombytes('RGBA', 
-                                self.fig.canvas.get_width_height(), 
-                                self.fig.canvas.buffer_rgba())
 
-        #imbuf = io.BytesIO()
-        #self.fig.savefig(imbuf, format="png")
-        #frame = Image.open(imbuf)
+        imbuf = io.BytesIO()
+        self.fig.savefig(imbuf, format="png")
+        frame = Image.open(imbuf)
         self.frames.append(frame)
         self.t += 1
 

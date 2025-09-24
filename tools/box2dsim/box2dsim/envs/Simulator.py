@@ -356,9 +356,9 @@ class TestPlotter:
         # def translate_data(x, side=10):
         #     res = np.copy(x)
         #     res = res[:, [1, 0]]
-        # 
+        #
         #     return res
-        # 
+        #
         # (f_vp, f_ssp, f_pp, f_ap, f_gp) = [
         #     translate_data(x) for x in [f_vp, f_ssp, f_pp, f_ap, f_gp]
         # ]
@@ -413,14 +413,8 @@ class TestPlotter:
             )
             self.fig.canvas.draw()
             imbuf = io.BytesIO()
-            self.fig.savefig(imbuf, format="png")
+            self.fig.savefig(imbuf, format="png", transparent=True)
             frame2 = Image.open(imbuf)
-
-            frame2 = Image.frombytes(
-                "RGBA",
-                self.fig.canvas.get_width_height(),
-                self.fig.canvas.buffer_rgba(),
-            )
 
             merged_frame = merge_frames(self.vm.frames[i], frame2)
 
@@ -538,11 +532,9 @@ class TestPlotter:
             )
             self.fig.canvas.draw()
 
-            frame2 = Image.frombytes(
-                "RGBA",
-                self.fig.canvas.get_width_height(),
-                self.fig.canvas.buffer_rgba(),
-            )
+            imbuf = io.BytesIO()
+            self.fig.savefig(imbuf, format="png", transparent=True)
+            frame2 = Image.open(imbuf)
 
             merged_frame = concat_frames_h(merged_frame, frame2)
             self.vm.frames[i] = merged_frame

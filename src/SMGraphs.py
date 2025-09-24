@@ -10,7 +10,8 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap
 from shapely import LineString, MultiLineString
 
-from mkvideo import vidManager
+import gym, box2dsim
+from box2dsim.envs.mkvideo import vidManager
 from params import Parameters
 
 
