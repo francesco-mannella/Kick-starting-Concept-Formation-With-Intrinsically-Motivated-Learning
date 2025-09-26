@@ -1,7 +1,10 @@
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 
 from ArmAgent import ArmAgent
 from GripAgent import GripAgent
+from params import Parameters
 from SMEnv import SMEnv
 
 
@@ -37,11 +40,13 @@ class SMAgent:
         touch = state["TOUCH_SENSORS"]
         joints = state["JOINT_POSITIONS"][3:5]
         arm_state = state["EYE_POS"][::-1]
-        grip_state = np.hstack([pos, touch, joints])
+        grip_state = np.hstack([touch, joints, pos])
         arm_action = self.arm_agent.step(arm_state)
         grip_action = self.grip_agent.step(grip_state)
 
+        grip_action[:3] -= self.params.policy_base_arm
         grip_action[3:] += self.params.policy_base
+        arm_action[:3] *= 1 - self.params.reach_grip_prop
         grip_action[:3] *= self.params.reach_grip_prop
         action = np.hstack([arm_action + grip_action[:3], grip_action[3:]])
         return action
@@ -51,14 +56,24 @@ class SMAgent:
         self.grip_agent.reset()
 
     def updatePolicy(self, policyParams):
-        self.grip_agent.updatePolicy(self.params.explore_sigma * policyParams)
+        self.grip_agent.updatePolicy(
+            self.params.policy_params_amplitude * policyParams
+        )
 
 
 if __name__ == "__main__":
 
-    env = SMEnv(42)
-    env.render = "human"
-    state = env.reset(1)
+    matplotlib.use("qtagg")
+
+    plt.ion()
+
+    params = Parameters()
+    params.obj_x = 6
+    params.obj_y = 6
+    params.reach_grip_prop = 1.0
+    params.policy_base_arm = np.pi * 0.01
+    env = SMEnv(42, params)
+    state = env.reset(3, render="human")
     agent = SMAgent(env)
     for t in range(100):
         action = agent.step(state)
