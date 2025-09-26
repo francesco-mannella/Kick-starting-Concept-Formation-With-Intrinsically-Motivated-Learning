@@ -94,7 +94,9 @@ class TPlotManager:
                     measure.
                 ts (float): Color scale values for dots.
         """
-        data = self.reduce_dimensions_with_pca(data)
+        # data = self.reduce_dimensions_with_pca(data)
+
+        data[["x", "y"]] = data[["d1", "d2"]]
 
         data.loc[:, "x"] = (data.x - data.x.min()) / np.ptp(data.x)
         data.loc[:, "y"] = (data.y - data.y.min()) / np.ptp(data.y)
