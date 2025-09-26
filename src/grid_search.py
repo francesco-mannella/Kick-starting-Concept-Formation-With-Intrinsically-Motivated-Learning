@@ -3,6 +3,7 @@ import re
 import subprocess
 from itertools import product
 
+import numpy as np
 import slugify
 
 
@@ -37,15 +38,20 @@ def optimize_option_key(options_str):
 
 
 params = {
-    "cum_match_stop_th": [8.0],
-    "representation_sigma": [2],
-    "base_match_sigma": [8],
-    "match_sigma": [8],
-    "predict_rl": [0.02],
-    "epochs": [400],
+    "epochs": [1000],
+    "decay": [4.0, 4.5],
+    "local_decay": [2, 2.5, 3],
+    "obj_stretch_conditions": [[1, 2]],
+    "reach_grip_prop": [0.3],
+    "policy_base_arm": [0.0314],
+    "max_policy_noise": [100.0],
+    "internal_sigma": [8],
+    "obj_x": [2.0],
+    "obj_y": [0.5],
 }
+seeds = np.arange(3)
 
-base_name = "success"
+base_name = "battery"
 
 
 processes = []
@@ -54,24 +60,23 @@ MAX_PROCESSES = 4
 orig_path = os.path.dirname(os.path.realpath(__file__))
 
 for i, p in enumerate(get_combinations(params)):
-    #
-    # If MAX_PROCESSES reached, wait until all of them finish.
-    if len(processes) == MAX_PROCESSES:
-        for process in processes:
-            process.wait()
-        processes = []
-    #
-    options_str = ""
-    for k, v in p.items():
-        options_str += f" -o {k}={v}"
-    option_key = optimize_option_key(options_str)
+    for seed in seeds:
+        # If MAX_PROCESSES reached, wait until all of them finish.
+        if len(processes) == MAX_PROCESSES:
+            for process in processes:
+                process.wait()
+            processes = []
+        #
+        options_str = ""
+        for k, v in p.items():
+            options_str += f" -o '{k}={v}'"
+        option_key = optimize_option_key(options_str)
 
-    base_cmd_str = (
-        f"nohup python {orig_path}/SMMain.py "
-        f"-n {base_name}_{option_key} -s 1000 -t 55000 -x -g -w"
-    )
-    cmd_str = base_cmd_str + options_str
-    print(cmd_str)
+        base_cmd_str = (
+            f"nohup python {orig_path}/SMMain.py "
+            f"-n {base_name}_{option_key}_{seed:06d} -s {seed} -t 55000 -x -g -w"
+        )
+        cmd_str = base_cmd_str + options_str
 
-    print(f"Running: {cmd_str}")
-    processes.append(subprocess.Popen(cmd_str, shell=True))
+        print(f"Running: {cmd_str}")
+        processes.append(subprocess.Popen(cmd_str, shell=True))
