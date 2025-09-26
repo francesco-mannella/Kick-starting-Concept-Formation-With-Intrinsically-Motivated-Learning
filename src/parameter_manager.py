@@ -204,7 +204,7 @@ class Parameters(ParameterManager):
         ss_eradial_prop=0.1,
         p_eradial_prop=0.1,
         a_eradial_prop=0.1,
-        explore_sigma=8.0,
+        policy_params_amplitude=8.0,
         decay=3.0,
         local_decay=1.0,
         base_match_sigma=5,
@@ -274,7 +274,7 @@ class Parameters(ParameterManager):
         self.ss_eradial_prop = ss_eradial_prop
         self.p_eradial_prop = p_eradial_prop
         self.a_eradial_prop = a_eradial_prop
-        self.explore_sigma = explore_sigma
+        self.policy_params_amplitude = policy_params_amplitude
         self.decay = decay
         self.local_decay = local_decay
         self.base_match_sigma = base_match_sigma

@@ -30,7 +30,7 @@ class Parameters(ParameterManager):
         ss_eradial_prop=0.1,
         p_eradial_prop=0.1,
         a_eradial_prop=0.1,
-        explore_sigma=8.0,
+        policy_params_amplitude=8.0,
         decay=3.0,
         local_decay=1.0,
         base_match_sigma=5,
@@ -40,7 +40,9 @@ class Parameters(ParameterManager):
         base_lr=0.005,
         max_lr=2.0,
         stm_lr=0.1,
+        policy_base_arm=np.pi * 0.01,
         policy_base=np.pi * 0.25,
+        reach_grip_prop=0.3,
         base_policy_noise=0.02,
         max_policy_noise=0.6,
         policy_weights_sigma=2,
@@ -50,7 +52,6 @@ class Parameters(ParameterManager):
         match_incr_th=0.001,
         cum_match_stop_th=3.0,
         predict_lr=0.05,
-        reach_grip_prop=0.1,
         epochs=1000,
         batch_size=24,
         tests=12,
@@ -97,7 +98,7 @@ class Parameters(ParameterManager):
         self.ss_eradial_prop = ss_eradial_prop
         self.p_eradial_prop = p_eradial_prop
         self.a_eradial_prop = a_eradial_prop
-        self.explore_sigma = explore_sigma
+        self.policy_params_amplitude = policy_params_amplitude
         self.decay = decay
         self.local_decay = local_decay
         self.base_match_sigma = base_match_sigma
@@ -107,6 +108,7 @@ class Parameters(ParameterManager):
         self.base_lr = base_lr
         self.max_lr = max_lr
         self.stm_lr = stm_lr
+        self.policy_base_arm = policy_base_arm
         self.policy_base = policy_base
         self.base_policy_noise = base_policy_noise
         self.max_policy_noise = max_policy_noise

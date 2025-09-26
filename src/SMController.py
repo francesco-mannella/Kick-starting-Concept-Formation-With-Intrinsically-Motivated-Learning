@@ -475,7 +475,7 @@ class SMController:
         }
 
         np.save(
-            f"{epoch_dir}/weigths",
+            f"{epoch_dir}/weights",
             [weights],
             allow_pickle=True,
         )

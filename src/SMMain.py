@@ -18,8 +18,9 @@ from params import Parameters
 from SMAgent import SMAgent
 from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
-from SMGraphs import (comp_map, goal_frequency_map, log, remove_figs,
-                      somatosensory_map, trajectories_map, visual_map, proprio_map)
+from SMGraphs import (comp_map, goal_frequency_map, log, proprio_map,
+                      remove_figs, somatosensory_map, trajectories_map,
+                      update_weight_data, visual_map)
 from tplot import TPlotManager
 
 
@@ -1993,10 +1994,11 @@ class Main:
         return goals_env_states
 
     def demo_episodes(self, epoch=0, render=None):
+        update_weight_data()
         visual_map()
         somatosensory_map()
         proprio_map()
-        
+
         goals_env_states = main.monte_carlo_episode_search()
         goal_counts = {k: len(v) for k, v in goals_env_states.items()}
         goal_frequency_map(goal_counts)
@@ -2136,9 +2138,6 @@ class Main:
                 ),
             }
             wandb.log(log_data, step=epoch)
-
-    def get_context_from_visual(self):
-        pass
 
 
 def parse_arguments():

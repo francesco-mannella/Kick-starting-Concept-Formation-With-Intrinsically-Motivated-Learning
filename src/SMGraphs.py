@@ -1,17 +1,17 @@
 import glob
 import os
 import pathlib
+import sys
 from shutil import copyfile, rmtree
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from box2dsim.envs.mkvideo import vidManager
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap
 from shapely import LineString, MultiLineString
 
-import gym, box2dsim
-from box2dsim.envs.mkvideo import vidManager
 from params import Parameters
 
 
@@ -32,6 +32,7 @@ palette = matplotlib.colors.LinearSegmentedColormap.from_list(
 internal_side = int(np.sqrt(params.internal_size))
 visual_side = int(np.sqrt(params.visual_size / 3))
 
+simulations_dir = "simulations"
 storage_dir = "storage"
 site_dir = "www"
 
@@ -92,8 +93,18 @@ def remove_figs(epoch=0):
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/visual_map.png")
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/comp_map.png")
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/log.png")
-        copyfile(f"{site_dir}/blank.gif", f"{site_dir}/trajectories.png")
-        copyfile(f"{site_dir}/blank.gif", f"{site_dir}/goal_frequency_map.png")
+
+
+def update_weight_data():
+    storages = sorted(glob.glob(f"{storage_dir}/*"))
+    if len(storages) > 0:
+        storage = storages[-1]
+        weights_dict = np.load(
+            f"{storage}/weights.npy", allow_pickle=True
+        )[0]
+        for modality, weights in weights_dict.items():
+
+            np.save(f"{site_dir}/{modality}_weights", weights)
 
 
 def trajectories_map(wfile=None):
@@ -283,7 +294,7 @@ def generate_gripper(angles):
 
     segments = np.vstack([segments * [[[-1, 1]]], segments]) + [[[0.5, 0]]]
 
-    segments = [[[0, 1]]] - segments 
+    segments = [[[0, 1]]] - segments
 
     return segments
 
@@ -296,7 +307,7 @@ def proprio_map(wfile=None):
     ss_dim, _ = data.shape
     data = data.reshape(ss_dim, internal_side, internal_side)
     data = data.transpose(1, 2, 0)
-    data = data[::-1,::-1, -2:]
+    data = data[::-1, ::-1, -2:]
 
     grips = []
     for j in range(internal_side):
