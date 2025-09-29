@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 np.set_printoptions(precision=3, suppress=True)
 import params
 from bbo import BBO
-import gym, box2dsim
+import gymnasium as gym, box2dsim
 from box2dsim.envs.mkvideo import vidManager
 
 from ArmActuator  import ArmActuator, Agent
