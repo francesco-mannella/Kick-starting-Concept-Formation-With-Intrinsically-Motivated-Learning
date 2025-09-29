@@ -39,8 +39,8 @@ def optimize_option_key(options_str):
 
 params = {
     "epochs": [1000],
-    "decay": [4.0, 4.5],
-    "local_decay": [2, 2.5, 3],
+    "decay": [5.0, 5.5],
+    "local_decay": [2.0, 2.5, 3.0],
     "obj_stretch_conditions": [[1, 2]],
     "reach_grip_prop": [0.3],
     "policy_base_arm": [0.0314],
@@ -74,7 +74,10 @@ for i, p in enumerate(get_combinations(params)):
 
         base_cmd_str = (
             f"nohup python {orig_path}/SMMain.py "
-            f"-n {base_name}_{option_key}_{seed:06d} -s {seed} -t 55000 -x -g -w"
+            f"-n {base_name}_{option_key}_{seed:06d} "
+            f"-s {seed} -t 55000 -x -g -w "
+            "--wdb_project grasp-simulation "
+            "--wdb_entity francesco-mannella"
         )
         cmd_str = base_cmd_str + options_str
 
