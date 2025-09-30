@@ -17,7 +17,7 @@ class Parameters(ParameterManager):
         arm_input=2,
         arm_hidden=100,
         arm_output=3,
-        grip_input=44,
+        grip_input=47,
         grip_hidden=75,
         grip_output=5,
         internal_size=100,
@@ -39,9 +39,8 @@ class Parameters(ParameterManager):
         base_lr=0.005,
         max_lr=2.0,
         stm_lr=0.1,
-        policy_base_arm=np.pi * 0.01,
-        policy_base=np.pi * 0.25,
-        reach_grip_prop=0.3,
+        policy_base=0.8,
+        policy_base_arm=[x * np.pi for x in [0.2, -0.3, -0.4]],
         base_policy_noise=0.02,
         max_policy_noise=0.6,
         policy_weights_sigma=2,
@@ -122,7 +121,6 @@ class Parameters(ParameterManager):
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th
         self.predict_lr = predict_lr
-        self.reach_grip_prop = reach_grip_prop
         self.epochs = epochs
         self.batch_size = batch_size
         self.tests = tests

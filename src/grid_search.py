@@ -39,23 +39,22 @@ def optimize_option_key(options_str):
 
 params = {
     "epochs": [1000],
-    "decay": [5.0, 5.5],
-    "local_decay": [2.0, 2.5, 3.0],
+    "decay": [3.0, 4.0, 5.0],
+    "local_decay": [2.0, 3.0, 4.0],
     "obj_stretch_conditions": [[1, 2]],
-    "reach_grip_prop": [0.3],
-    "policy_base_arm": [0.0314],
-    "max_policy_noise": [100.0],
+    "max_policy_noise": [20.0],
     "internal_sigma": [8],
     "obj_x": [2.0],
     "obj_y": [0.5],
 }
-seeds = np.arange(3)
 
-base_name = "battery"
+seeds = np.random.randint(0, 1e5, 1)
+
+base_name = "no_arm_grid"
 
 
 processes = []
-MAX_PROCESSES = 4
+MAX_PROCESSES = 2
 
 orig_path = os.path.dirname(os.path.realpath(__file__))
 

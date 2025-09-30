@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from ArmAgent import ArmAgent
 from params import Parameters
 from SMEnv import SMEnv
 from stm import STM
@@ -25,14 +24,6 @@ def get_data(trials, stime, env, render):
     Returns:
         data: The collected data as a numpy array.
     """
-    agent = ArmAgent(
-        env=None,
-        num_inputs=2,
-        num_hidden=100,
-        num_outputs=3,
-        actuator_map_name="data/StoredArmActuatorMap",
-        actuator_weights_name="data/StoredArmActuatorWeights",
-    )
     data = np.zeros(
         [
             trials,
@@ -47,17 +38,15 @@ def get_data(trials, stime, env, render):
         chosen = np.random.choice(np.arange(1, 4))
         state = env.reset(world=chosen, render=render)
         cur_pos = state["EYE_POS"]
-        arm_action = agent.step(cur_pos)
+        arm_action = params.policy_base_arm
         grip_action = np.ones(2) * np.pi * 0.25
         action = np.hstack([arm_action, grip_action])
         print("pos epoch:", k)
         for t in range(stime):
             cur_pos = state["EYE_POS"] + np.random.randn(2) * 10
-            arm_action = agent.step(cur_pos)
             if t % 5 == 0:
                 grip_action += np.random.randn(2) * np.pi * 0.4
                 grip_action = np.clip(grip_action, 0, np.pi)
-            arm_action = agent.step(cur_pos)
             action = np.hstack([arm_action, grip_action])
             state = env.step(action)
             data[k, t] = np.hstack(
@@ -239,13 +228,6 @@ def generate_grip_mapping(
         pos_inp_shape, inner_domain_shape // 3, pos
     )()
 
-    # # get pos weights from arm learning
-    # try:
-    #     posWeights = np.load("data/StoredArmActuatorMap.npy")
-    # except IOError:
-    #     print("warning: ArmActuator map weights not found.")
-    #     posWeights = np.zeros([2, inner_domain_shape])
-    #
     subdomain_shape = inner_domain_shape // 3
     weights = np.zeros(
         [touch_inp_shape + posture_inp_shape + 2, inner_domain_shape]
