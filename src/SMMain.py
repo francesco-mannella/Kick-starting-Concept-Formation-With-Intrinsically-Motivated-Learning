@@ -1707,8 +1707,10 @@ if __name__ == "__main__":
 
     try:
         if demo:
-            #main.demo_episodes(render="offline")
-            main.demo_episodes()
+            if plots:
+                main.demo_episodes(render="offline")
+            else:
+                main.demo_episodes()
         elif train_parasite:
             main.train_parasite(timing)
         else:
