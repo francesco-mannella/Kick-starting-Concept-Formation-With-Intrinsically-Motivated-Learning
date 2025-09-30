@@ -24,7 +24,6 @@ class Parameters(ParameterManager):
         visual_size=300,
         somatosensory_size=40,
         proprioception_size=5,
-        policy_size=100 * 5,
         num_objects=4,
         v_eradial_prop=0.1,
         ss_eradial_prop=0.1,
@@ -92,7 +91,7 @@ class Parameters(ParameterManager):
         self.visual_size = visual_size
         self.somatosensory_size = somatosensory_size
         self.proprioception_size = proprioception_size
-        self.policy_size = policy_size
+        self.policy_size = grip_hidden * grip_output
         self.num_objects = num_objects
         self.v_eradial_prop = v_eradial_prop
         self.ss_eradial_prop = ss_eradial_prop
