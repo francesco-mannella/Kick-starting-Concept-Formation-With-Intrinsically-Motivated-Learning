@@ -1,94 +1,124 @@
+import box2dsim
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from matplotlib import pyplot as plt
-
-import gymnasium as gym
-import box2dsim
-
-from params import Parameters
-from stm import STM
 
 from ArmAgent import ArmAgent
+from params import Parameters
+from SMEnv import SMEnv
+from stm import STM
 
+
+_ = box2dsim
 params = Parameters()
 
-class Env:
 
-    def __init__(self, box2d_env, **kargs):
-        self.b2d_env = box2d_env
-        self.b2d_env.set_taskspace(**params.task_space)
-        self.render = None
-        self.reset()
+def get_data(trials, stime, env, render):
+    """Collects data from the environment.
 
-    def step(self, action):
-        observation, *_ = self.b2d_env.step(action)
-        if self.render is not None:
-            self.b2d_env.render(self.render)
-        return observation
+    Args:
+        trials: Number of trials to collect data for.
+        stime: Simulation time for each trial.
+        env: The environment instance to collect data from.
+        render: The rendering mode of the environment
 
-    def reset(self, world=None):
-        if world is None:
-            world = np.random.randint(4)
-        observation = self.b2d_env.reset()
-        if self.render is not None:
-            self.b2d_env.render_init(self.render)
-        return observation
-
-
-class OnlineEnv:
-
-    def __init__(self, box2d_env, **kargs):
-        plt.ion()
-        self.b2d_env = box2d_env
-        self.b2d_env.set_taskspace(**params.task_space)
-        self.fig = plt.figure()
-        self.ax = self.fig.add_subplot(111, aspect="equal")
-        self.im = self.ax.imshow(np.zeros([10, 10]))
-        self.reset()
-
-    def step(self, action):
-        observation, *_ = self.b2d_env.step(action)
-        self.b2d_env.render("human")
-        self.im.set_array(self.b2d_env.bground_img)
-        return observation
-
-    def reset(self, world=None):
-        if world is None:
-            world = np.random.randint(4)
-        self.b2d_env.set_world(world)
-        observation = self.b2d_env.reset()
-        self.b2d_env.render("human")
-        self.im.set_array(self.b2d_env.bground_img)
-        self.fig.canvas.draw()
-        return observation
-
-
-def get_data(trials, stime, env):
-    agent = ArmAgent(env=None, num_inputs=2, num_hidden=100, num_outputs=3,
-                     actuator_map_name="data/StoredArmActuatorMap",
-                     actuator_weights_name="data/StoredArmActuatorWeights")
-    data = np.zeros([trials, stime, params.visual_size + params.somatosensory_size + params.proprioception_size])
+    Returns:
+        data: The collected data as a numpy array.
+    """
+    agent = ArmAgent(
+        env=None,
+        num_inputs=2,
+        num_hidden=100,
+        num_outputs=3,
+        actuator_map_name="data/StoredArmActuatorMap",
+        actuator_weights_name="data/StoredArmActuatorWeights",
+    )
+    data = np.zeros(
+        [
+            trials,
+            stime,
+            params.visual_size
+            + params.somatosensory_size
+            + params.proprioception_size
+            + 2,
+        ]
+    )
     for k in range(trials):
-        env.reset()
-        arm_action = agent.step(env.b2d_env.handPosInSpace())
-        grip_action = np.random.uniform([0, np.pi/2])
+        chosen = np.random.choice(np.arange(1, 4))
+        state = env.reset(world=chosen, render=render)
+        cur_pos = state["EYE_POS"]
+        arm_action = agent.step(cur_pos)
+        grip_action = np.ones(2) * np.pi * 0.25
         action = np.hstack([arm_action, grip_action])
         print("pos epoch:", k)
         for t in range(stime):
-            d = env.step(action)
-            data[k, t] = np.hstack([
-                d["VISUAL_SENSORS"].ravel(),
-                d["TOUCH_SENSORS"],
-                d["JOINT_POSITIONS"][:params.proprioception_size]])
-    data = data.reshape(trials*stime, -1)
+            cur_pos = state["EYE_POS"] + np.random.randn(2) * 10
+            arm_action = agent.step(cur_pos)
+            if t % 5 == 0:
+                grip_action += np.random.randn(2) * np.pi * 0.4
+                grip_action = np.clip(grip_action, 0, np.pi)
+            arm_action = agent.step(cur_pos)
+            action = np.hstack([arm_action, grip_action])
+            state = env.step(action)
+            data[k, t] = np.hstack(
+                [
+                    state["VISUAL_SENSORS"].ravel(),
+                    state["TOUCH_SENSORS"],
+                    state["JOINT_POSITIONS"][: params.proprioception_size],
+                    cur_pos,
+                ]
+            )
+            if render is not None and render == "human":
+                plt.pause(0.1)
+    data = data.reshape(trials * stime, -1)
     np.save("data/StoredGripGenerateData", data)
     return data
 
 
 class PrototypeGenerator:
+    """Generates prototypes using Self-Organizing Maps (SOM).
 
-    def __init__(self, inp_num, out_num, data, batch_size=50,
-                 min_sigma=0.7, initial_lr=2.0, epochs=100):
+    This class is responsible for training a SOM to generate prototypes from
+    input data.
+
+    Attributes:
+        data: The input data for training.
+        items: Number of data items.
+        batch_size: Size of each training batch.
+        batch_num: Number of batches.
+        idcs: Indices for data shuffling.
+        out_num: Number of output neurons.
+        inp_num: Number of input features.
+        initial_sigma: Initial neighborhood size.
+        min_sigma: Minimum neighborhood size.
+        lr: learning rate.
+        initial_modulation: Initial loss modulation.
+        epochs: Number of training epochs.
+        decay_window: Window for decay of learning rate and sigma.
+    """
+
+    def __init__(
+        self,
+        inp_num,
+        out_num,
+        data,
+        batch_size=50,
+        min_sigma=0.7,
+        lr=0.01,
+        initial_modulation=2.0,
+        epochs=100,
+    ):
+        """Initializes the prototype generator.
+
+        Args:
+            inp_num: Number of input features.
+            out_num: Number of output neurons.
+            data: The input data for training.
+            batch_size: Size of each training batch.
+            min_sigma: Minimum neighborhood size.
+            initial_lr: Initial learning rate.
+            epochs: Number of training epochs.
+        """
         self.data = data
         self.items = data.shape[0]
         self.batch_size = batch_size
@@ -96,13 +126,19 @@ class PrototypeGenerator:
         self.idcs = np.arange(self.items)
         self.out_num = out_num
         self.inp_num = inp_num
-        self.initial_sigma = out_num/2
+        self.initial_sigma = out_num / 2
         self.min_sigma = min_sigma
-        self.initial_lr = initial_lr
+        self.lr = lr
+        self.initial_modulation = initial_modulation
         self.epochs = epochs
-        self.decay_window = epochs/10
+        self.decay_window = epochs / 10
 
     def __call__(self):
+        """Trains the SOM and returns the learned weights.
+
+        Returns:
+            weights: The learned weights of the SOM.
+        """
         # parameters
         data = self.data
         batch_size = self.batch_size
@@ -112,34 +148,39 @@ class PrototypeGenerator:
         inp_num = self.inp_num
         initial_sigma = self.initial_sigma
         min_sigma = self.min_sigma
-        initial_lr = self.initial_lr
+        lr = self.lr
         epochs = self.epochs
         decay_window = self.decay_window
 
         # Setting the model
         som_layer = STM(inp_num, out_num, initial_sigma)
-        optimizer = torch.optim.Adam(som_layer.parameters(), lr=initial_lr)
+        optimizer = torch.optim.Adam(som_layer.parameters(), lr=lr)
 
         # training
         loss = []
         for epoch in range(epochs):
             # learning rate and sigma annealing
-            curr_sigma = min_sigma + initial_sigma*np.exp(-epoch/decay_window)
-            curr_rl = initial_lr*np.exp(-epoch/decay_window)
+            curr_sigma = min_sigma + initial_sigma * np.exp(
+                -epoch / decay_window
+            )
+            curr_modulation = self.initial_modulation * np.exp(
+                -epoch / decay_window
+            )
 
             # update learning rate and sigma in the graph
             som_layer.sigma = curr_sigma
-            optimizer.param_groups[0]['lr'] = curr_rl
 
             # iterate batches
             np.random.shuffle(idcs)
             curr_loss = []
             for batch in range(batch_num):
-                batch_range = idcs[np.arange(batch_size*batch, batch_size*(1 + batch))]
+                batch_range = idcs[
+                    np.arange(batch_size * batch, batch_size * (1 + batch))
+                ]
                 curr_data = torch.tensor(data[batch_range])
                 optimizer.zero_grad()
                 output = som_layer(curr_data)
-                loss_ = som_layer.loss(output)
+                loss_ = curr_modulation * som_layer.loss(output)
                 loss_.backward()
                 optimizer.step()
                 curr_loss.append(loss_.detach().numpy())
@@ -150,49 +191,80 @@ class PrototypeGenerator:
         return weights
 
 
-def generate_grip_mapping(inner_domain_shape, env, trials=1000, stime=50):
-    """ Generate a topological mapping"""
-    # build dataset
-    try:
-        data = np.load("data/StoredGripGenerateData.npy")
-        print("data acquired")
-    except IOError:
-        data = get_data(trials, stime, env)
+def generate_grip_mapping(
+    inner_domain_shape, env, trials=1000, stime=50, render=None
+):
+    """Generates a topological mapping for grip.
 
-    # train touch SOM and get weights
+    Args:
+        inner_domain_shape: Shape of the inner domain for mapping.
+        env: The environment instance.
+        trials: Number of trials for data collection.
+        stime: Simulation time for each trial.
+        render: The rendering mode of the environment
+
+    Returns:
+        weights: The generated topological mapping weights.
+    """
+    data = get_data(trials, stime, env, render)
+
     visual_inp_shape = params.visual_size
     touch_inp_shape = params.somatosensory_size
-    start = visual_inp_shape
-    touch = data[:, start:(start + touch_inp_shape)]
+    posture_inp_shape = 5
+    pos_inp_shape = 2
 
-    print(visual_inp_shape)
-    print(touch_inp_shape)
-    print(data.shape)
+    print("touch mapping")
+    # train touch SOM and get weights
+    start = visual_inp_shape
+    touch = data[:, start : (start + touch_inp_shape)]
 
     touch = touch[touch.sum(1) > 0, :]
-    touchWeights = PrototypeGenerator(touch_inp_shape, inner_domain_shape, touch)()
+    touchWeights = PrototypeGenerator(
+        touch_inp_shape, inner_domain_shape // 3, touch
+    )()
 
     # train posture SOM and get weights
-    posture_inp_shape = 2
-    start = visual_inp_shape + touch_inp_shape + params.proprioception_size - posture_inp_shape
-    posture = data[:, start:(start + posture_inp_shape)]
-    postureWeights = PrototypeGenerator(posture_inp_shape, inner_domain_shape, posture)()
+    print("posture mapping")
+    start = visual_inp_shape + touch_inp_shape
+    posture = data[:, start : (start + posture_inp_shape)]
+    postureWeights = PrototypeGenerator(
+        posture_inp_shape, inner_domain_shape // 3, posture
+    )()
 
-    # get pos weights from arm learning
-    try:
-        posWeights = np.load("data/StoredArmActuatorMap.npy")
-    except IOError:
-        print("warning: ArmActuator map weights not found.")
-        posWeights = np.zeros([2, inner_domain_shape])
+    print("pos mapping")
+    pos_inp_shape = 2
+    start = visual_inp_shape + touch_inp_shape + posture_inp_shape
+    pos = data[:, start : (start + pos_inp_shape)]
+    posWeights = PrototypeGenerator(
+        pos_inp_shape, inner_domain_shape // 3, pos
+    )()
 
-    weights = np.vstack([touchWeights, postureWeights, posWeights])/3
+    # # get pos weights from arm learning
+    # try:
+    #     posWeights = np.load("data/StoredArmActuatorMap.npy")
+    # except IOError:
+    #     print("warning: ArmActuator map weights not found.")
+    #     posWeights = np.zeros([2, inner_domain_shape])
+    #
+    subdomain_shape = inner_domain_shape // 3
+    weights = np.zeros(
+        [touch_inp_shape + posture_inp_shape + 2, inner_domain_shape]
+    )
+    weights[:touch_inp_shape, :subdomain_shape] = touchWeights
+    weights[
+        touch_inp_shape : touch_inp_shape + posture_inp_shape,
+        subdomain_shape : 2 * subdomain_shape,
+    ] = postureWeights
+    weights[touch_inp_shape + posture_inp_shape :, 2 * subdomain_shape :] = (
+        posWeights
+    )
 
     return weights
 
 
 if __name__ == "__main__":
-    b2d_env = gym.make('Box2DSimOneArmOneEye-v0')
-    env = Env(b2d_env)
-    num_hidden = 100
-    m = generate_grip_mapping(num_hidden, env)
-    np.save("/tmp/StoredGripActuatorMap", m)
+    num_hidden = 25 * 3
+    params.internal_size = num_hidden
+    env = SMEnv(0, params)
+    weights = generate_grip_mapping(num_hidden, env, trials=1000)
+    np.save("/tmp/StoredGripActuatorMap", weights)

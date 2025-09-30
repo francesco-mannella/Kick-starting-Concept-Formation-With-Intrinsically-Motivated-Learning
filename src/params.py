@@ -18,7 +18,7 @@ class Parameters(ParameterManager):
         arm_hidden=100,
         arm_output=3,
         grip_input=44,
-        grip_hidden=100,
+        grip_hidden=75,
         grip_output=5,
         internal_size=100,
         visual_size=300,
