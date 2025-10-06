@@ -950,7 +950,7 @@ class Main:
         epoch_start = time.perf_counter()
         contexts = (np.arange(self.params.batch_size) % 3) + 1
 
-        controller_par = SMController(
+        self.controller_par = SMController(
             self.params,
             self.rng,
             load=self.params.load_weights,
@@ -976,7 +976,7 @@ class Main:
         while epoch < self.params.epochs:
 
             self.reset_model_data(self.controller)
-            self.reset_model_data(controller_par)
+            self.reset_model_data(self.controller_par)
             total_time_elapsed = time.perf_counter() - self.start
             if total_time_elapsed >= time_limits:
                 if self.epoch > 0:
@@ -1038,10 +1038,10 @@ class Main:
                 self.controller_par.model_data["batch_v"][episode, 0, :] = (
                     state_par["VISUAL_SENSORS"].ravel()
                 )
-                self.controller.self.controller_par.model_data["batch_ss"][
+                self.controller_par.model_data["batch_ss"][
                     episode, 0, :
                 ] = state_par["TOUCH_SENSORS"]
-                self.controller.self.controller_par.model_data["batch_p"][
+                self.controller_par.model_data["batch_p"][
                     episode, 0, :
                 ] = state_par["JOINT_POSITIONS"][:5]
 
@@ -1054,7 +1054,7 @@ class Main:
                 goal_activation_par,
             ) = self.run_episodes(
                 agent,
-                controller_par,
+                self.controller_par,
                 contexts,
                 envs_par,
                 states_par,
@@ -1113,7 +1113,7 @@ class Main:
 
             # Local competences based on predictor
             comp_dict = self.controller_par.get_global_local_competence(
-                self.controller.model_data["batch_c"]
+                self.controller_par.model_data["batch_c"]
             )
             global_competence_par = comp_dict["global_competence"]
             global_incompetence_par = comp_dict["global_incompetence"]
@@ -1182,8 +1182,8 @@ class Main:
                 self.params.max_lr,
                 local_incompetences_par,
             )
-            controller_par.updateParams(
-                controller_par.curr_sigma, controller_par.curr_lr
+            self.controller_par.updateParams(
+                self.controller_par.curr_sigma, self.controller_par.curr_lr
             )
 
             print(f"sigma: {local_sigma.mean()}")
@@ -1213,18 +1213,18 @@ class Main:
                 update_episodes_par,
                 curr_loss_par,
                 mean_modulation_par,
-            ) = controller_par.update(
+            ) = self.controller_par.update(
                 self.controller_par.model_data["batch_v"].reshape((bsize, -1)),
-                self.self.controller_par.model_data["batch_ss"].reshape(
+                self.controller_par.model_data["batch_ss"].reshape(
                     (bsize, -1)
                 ),
-                self.self.controller_par.model_data["batch_p"].reshape(
+                self.controller_par.model_data["batch_p"].reshape(
                     (bsize, -1)
                 ),
-                self.self.controller_par.model_data["batch_a"].reshape(
+                self.controller_par.model_data["batch_a"].reshape(
                     (bsize, -1)
                 ),
-                self.self.controller_par.model_data["batch_g"].reshape(
+                self.controller_par.model_data["batch_g"].reshape(
                     (bsize, -1)
                 ),
                 self.controller_par.model_data["match_value"].reshape(-1),
@@ -1313,29 +1313,29 @@ class Main:
                         (-1, 2)
                     )[:, 0]
                     * 10
-                    + self.controller.model_data["v_p"].reshape((-1, 2))[:, 1],
+                    + self.controller_par.model_data["v_p"].reshape((-1, 2))[:, 1],
                     "ss_p": self.controller_par.model_data["ss_p"].reshape(
                         (-1, 2)
                     )[:, 0]
                     * 10
-                    + self.controller.model_data["ss_p"].reshape((-1, 2))[
+                    + self.controller_par.model_data["ss_p"].reshape((-1, 2))[
                         :, 1
                     ],
                     "p_p": self.controller_par.model_data["p_p"].reshape(
                         (-1, 2)
                     )[:, 0]
                     * 10
-                    + self.controller.model_data["p_p"].reshape((-1, 2))[:, 1],
+                    + self.controller_par.model_data["p_p"].reshape((-1, 2))[:, 1],
                     "a_p": self.controller_par.model_data["a_p"].reshape(
                         (-1, 2)
                     )[:, 0]
                     * 10
-                    + self.controller.model_data["a_p"].reshape((-1, 2))[:, 1],
+                    + self.controller_par.model_data["a_p"].reshape((-1, 2))[:, 1],
                     "g_p": self.controller_par.model_data["g_p"].reshape(
                         (-1, 2)
                     )[:, 0]
                     * 10
-                    + self.controller.model_data["g_p"].reshape((-1, 2))[:, 1],
+                    + self.controller_par.model_data["g_p"].reshape((-1, 2))[:, 1],
                     "match_value_v": mvpm_par[:, 0].copy(),
                     "match_value_ss": mvpm_par[:, 1].copy(),
                     "match_value_p": mvpm_par[:, 2].copy(),
@@ -1368,13 +1368,13 @@ class Main:
                 self.controller.model_data["batch_log"][policy_ended].max(),
             ]
             logs_par[epoch] = [
-                self.controller.self.controller_par.model_data["batch_log"][
+                self.controller_par.model_data["batch_log"][
                     policy_ended_par
                 ].min(),
-                self.controller.self.controller_par.model_data["batch_log"][
+                self.controller_par.model_data["batch_log"][
                     policy_ended_par
                 ].mean(),
-                self.controller.self.controller_par.model_data["batch_log"][
+                self.controller_par.model_data["batch_log"][
                     policy_ended_par
                 ].max(),
             ]
@@ -1449,7 +1449,7 @@ class Main:
                         "grid_comp_mean_par": global_competence_par,
                         "episode_success_rate_par": episode_success_rate_par,
                         "policy_weights_norm_par": np.linalg.norm(
-                            controller_par.stm_a.get_weights(), axis=-1
+                            self.controller_par.stm_a.get_weights(), axis=-1
                         ).mean(),
                         "match_value_v_par": self.controller_par.model_data[
                             "match_value_per_mod"
@@ -1519,10 +1519,10 @@ class Main:
                 epoch_start = time.perf_counter()
 
                 self.evaluation_episodes(
-                    orig_controller=controller_par, epoch=epoch, suffix="_par"
+                    orig_controller=self.controller_par, epoch=epoch, suffix="_par"
                 )
 
-                controller_par.save(epoch, tag="parasite")
+                self.controller_par.save(epoch, tag="parasite")
                 visual_map(wfile=f"{site_dir}/visual_weights-parasite.npy")
                 comp_map(wfile=f"{site_dir}/comp_grid-parasite.npy")
 
@@ -1533,7 +1533,7 @@ class Main:
                         n_episodes=self.params.tests,
                         suffix="_demo_par",
                         render="offline",
-                        controller=controller_par,
+                        orig_controller=self.controller_par,
                         save_stats=False,
                     )
 
@@ -1645,7 +1645,7 @@ class Main:
         if orig_controller is None:
             controller.__setstate__(self.controller.__getstate__())
         else:
-            controller.__setstate__(self.orig_controller.__getstate__())
+            controller.__setstate__(orig_controller.__getstate__())
 
         # controller.curr_sigma = 0.1
 
