@@ -33,7 +33,7 @@ class TPlotManager:
         n_prototypes=100,
         figsize=(5, 4),
         max_ts=100,
-        plot_path="trajectory_plots.png"
+        plot_path="trajectory_plots.png",
     ):
         """Initializes the TPlotManager with given parameters.
 
@@ -75,7 +75,8 @@ class TPlotManager:
             .add(so.Path(color="black"))
             .add(so.Dot(), color="ts", legend=False)
             .scale(color="YlOrBr")
-            .on(self._axes[i]).plot()
+            .on(self._axes[i])
+            .plot()
         )
         self._axes[i].set_xticks([])
         self._axes[i].set_yticks([])
@@ -93,18 +94,23 @@ class TPlotManager:
                     measure.
                 ts (float): Color scale values for dots.
         """
-        data = self.reduce_dimensions_with_pca(data)
+        # data = self.reduce_dimensions_with_pca(data)
 
-        data.x = (data.x - data.x.min()) / np.ptp(data.x)
-        data.y = (data.y - data.y.min()) / np.ptp(data.y)
+        data[["x", "y"]] = data[["d1", "d2"]]
+
+        data.loc[:, "x"] = (data.x - data.x.min()) / np.ptp(data.x)
+        data.loc[:, "y"] = (data.y - data.y.min()) / np.ptp(data.y)
 
         for ax in self._axes:
             ax.set_xlim(0, np.ptp(data.x))
             ax.set_ylim(0, np.ptp(data.y))
 
         prototype_set = set()
-        for i, prototype in data.groupby("prototype_id"):
-            i = int(prototype["prototype_x"].iloc[0] + prototype["prototype_y"].iloc[0] * self._side)
+        for i, prototype in data.groupby("tr_id"):
+            i = int(
+                prototype["prototype_x"].iloc[0]
+                + prototype["prototype_y"].iloc[0] * self._side
+            )
             if i not in prototype_set:
                 self.plot_prototype(prototype, i)
                 prototype_set.add(i)
@@ -128,7 +134,9 @@ class TPlotManager:
         pca = PCA(n_components=2)
         scaler = StandardScaler()
         dim_columns = [d for d in data.columns if "d" in d]
-        data[["x", "y"]] = pca.fit_transform(scaler.fit_transform(data[dim_columns]))
+        data.loc[:, ["x", "y"]] = pca.fit_transform(
+            scaler.fit_transform(data[dim_columns])
+        )
         return data
 
 
@@ -148,7 +156,7 @@ def generate_demo_prototype_data(n_ts, n_prototypes):
             )
             ts = np.arange(n_ts)
             data = pd.DataFrame(
-                {"d1": x, "d2": y, "d3": z, "ts": ts, "prototype_id": i}
+                {"d1": x, "d2": y, "d3": z, "ts": ts, "goal_id": i}
             )
             df.append(data)
     return pd.concat(df)
@@ -156,7 +164,7 @@ def generate_demo_prototype_data(n_ts, n_prototypes):
 
 if __name__ == "__main__":
     n_ts = 10
-    n_prototypes = 100 
+    n_prototypes = 100
 
     tp = TPlotManager(n_prototypes=n_prototypes)
 

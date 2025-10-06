@@ -1,17 +1,21 @@
 import glob
 import os
 import pathlib
+import sys
 from shutil import copyfile, rmtree
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from box2dsim.envs.mkvideo import vidManager
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap
+from shapely import LineString, MultiLineString
 
-import params
-from mkvideo import vidManager
+from params import Parameters
 
+
+params = Parameters()
 
 c = [0, 0.5, 1]
 colors = np.vstack([x.ravel() for x in np.meshgrid(c, c, c)]).T
@@ -28,6 +32,7 @@ palette = matplotlib.colors.LinearSegmentedColormap.from_list(
 internal_side = int(np.sqrt(params.internal_size))
 visual_side = int(np.sqrt(params.visual_size / 3))
 
+simulations_dir = "simulations"
 storage_dir = "storage"
 site_dir = "www"
 
@@ -49,7 +54,8 @@ def remove_figs(epoch=0):
                 f"{site_dir}/trajectories.png", f"{epoch_dir}/trajectories.png"
             )
             copyfile(
-                f"{site_dir}/goal_frequency_map.png", f"{epoch_dir}/goal_frequency_map.png"
+                f"{site_dir}/goal_frequency_map.png",
+                f"{epoch_dir}/goal_frequency_map.png",
             )
         except OSError:
             pass
@@ -80,13 +86,25 @@ def remove_figs(epoch=0):
             else:
                 os.remove(f)
         for k in range(params.tests):
-            copyfile(f"{site_dir}/blank.gif", f"{site_dir}/episode_{k}_demo.gif")
+            copyfile(
+                f"{site_dir}/blank.gif", f"{site_dir}/episode_{k}_demo.gif"
+            )
 
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/visual_map.png")
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/comp_map.png")
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/log.png")
-        copyfile(f"{site_dir}/blank.gif", f"{site_dir}/trajectories.png")
-        copyfile(f"{site_dir}/blank.gif", f"{site_dir}/goal_frequency_map.png")
+
+
+def update_weight_data():
+    storages = sorted(glob.glob(f"{storage_dir}/*"))
+    if len(storages) > 0:
+        storage = storages[-1]
+        weights_dict = np.load(
+            f"{storage}/weights.npy", allow_pickle=True
+        )[0]
+        for modality, weights in weights_dict.items():
+
+            np.save(f"{site_dir}/{modality}_weights", weights)
 
 
 def trajectories_map(wfile=None):
@@ -129,7 +147,9 @@ def visual_map(wfile=None):
         wfile = f"{site_dir}/visual_weights.npy"
     # visual map
     data_v = np.load(wfile, allow_pickle=True)
-    data_v = data_v.reshape(visual_side, visual_side, 3, internal_side, internal_side)
+    data_v = data_v.reshape(
+        visual_side, visual_side, 3, internal_side, internal_side
+    )
     data_v = data_v.transpose(3, 0, 4, 1, 2)
     data_v = data_v.reshape(
         visual_side * internal_side, visual_side * internal_side, 3
@@ -144,18 +164,82 @@ def visual_map(wfile=None):
     plt.close("all")
 
 
+def generate_sensor_points(n_sensors):
+    a = 0.707
+    opoints = np.array(
+        [
+            [0, 0],
+            [-a, 1 - a],
+            [-a, 1 - a],
+            [-1, 1],
+            [-1, 1],
+            [-a, 1 - a],
+            [-a, 1 - a],
+            [0, 0],
+        ]
+    )
+    opoints[4:] *= [[0.9, 1]]
+    opoints[4:] += [[0, 0.2]]
+
+    opoints = np.vstack([opoints, opoints[::-1] * [-1, 1]])
+    opoints = opoints.reshape(8, 2, 2)
+
+    line = MultiLineString(
+        [LineString(opoints[i]) for i in range(8)],
+    )
+    points = [
+        [i.x, i.y]
+        for i in line.interpolate(np.linspace(0, line.length, n_sensors))
+    ]
+    points = np.array(points)
+
+    def normalize_array(arr):
+        norm_arr = (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
+        return norm_arr
+
+    points[:, 0] = normalize_array(points[:, 0])
+    points[:, 1] = normalize_array(points[:, 1])
+
+    points *= 0.8
+    points += 0.1
+    return points
+
+
+def generate_sensor_grid(side, n_sensors):
+    grid = []
+    for i in range(side):
+        for j in range(side):
+            points = generate_sensor_points(n_sensors)
+            grid.append(points + [j, i])
+    grid = np.array(grid)
+    grid.reshape(side * side, n_sensors, 2)
+
+    return grid
+
+
 def somatosensory_map(wfile=None):
     if wfile is None:
         wfile = f"{site_dir}/ssensory_weights.npy"
-    # visual map
-    data_v = np.load(wfile, allow_pickle=True)
-    data_v = data_v.reshape(4, internal_side, internal_side)
-    data_v = data_v.transpose(1, 2, 0)
-    data_v = data_v.reshape(internal_side, internal_side * 4)
 
-    fig = plt.figure(figsize=(8, 8))
-    ax = fig.add_subplot(111, aspect="equal")
-    ax.imshow((data_v - data_v.min()) / (data_v.max() - data_v.min()))
+    data = np.load(wfile, allow_pickle=True)
+    ss_dim, _ = data.shape
+    data = data.reshape(ss_dim, internal_side, internal_side)
+    data = data.transpose(1, 2, 0)
+    data = data.reshape(internal_side * internal_side, ss_dim)
+
+    grid = generate_sensor_grid(internal_side, ss_dim)
+    fig, ax = plt.subplots(1, 1)
+    for i in range(internal_side * internal_side):
+        ax.scatter(
+            *np.array(grid[i]).T,
+            c="grey",
+            s=0.2,
+        )
+        ax.scatter(
+            *np.array(grid[i]).T,
+            c="black",
+            s=30 * data[i],
+        )
     ax.set_axis_off()
     fig.tight_layout(pad=0.0)
     fig.savefig(f"{site_dir}/ssensory_map.png")
@@ -177,6 +261,7 @@ def comp_map(wfile=None):
     fig.savefig(f"{site_dir}/comp_map.png")
     plt.close("all")
 
+
 def goal_frequency_map(v_p_set):
 
     data = np.zeros((internal_side, internal_side))
@@ -193,6 +278,52 @@ def goal_frequency_map(v_p_set):
     fig.tight_layout(pad=0.0)
     fig.savefig(f"{site_dir}/goal_frequency_map.png")
     plt.close("all")
+
+
+def generate_gripper(angles):
+
+    gsegment = 0.25
+    segments = np.ones([4, 2, 2]) * [[[0, 0.25]]]
+
+    for i, angle in enumerate(np.cumsum(angles)):
+        segments[i][1] = segments[i][0] + gsegment * np.array(
+            [np.cos(angle), np.sin(angle)]
+        )
+        if i == 0:
+            segments[i + 1][0] = np.copy(segments[i][1])
+
+    segments = np.vstack([segments * [[[-1, 1]]], segments]) + [[[0.5, 0]]]
+
+    segments = [[[0, 1]]] - segments
+
+    return segments
+
+
+def proprio_map(wfile=None):
+    if wfile is None:
+        wfile = f"{site_dir}/proprio_weights.npy"
+
+    data = np.load(wfile, allow_pickle=True)
+    ss_dim, _ = data.shape
+    data = data.reshape(ss_dim, internal_side, internal_side)
+    data = data.transpose(1, 2, 0)
+    data = data[::-1, ::-1, -2:]
+
+    grips = []
+    for j in range(internal_side):
+        for i in range(internal_side):
+            grip = generate_gripper(data[j, i])
+            grips.append(grip + [[[j, i]]])
+    grips = np.stack(grips)
+    fig, ax = plt.subplots()
+    for grip in grips:
+        for j in grip:
+            ax.plot(*j.T, c="black")
+    ax.set_axis_off()
+    fig.tight_layout(pad=0.0)
+    fig.savefig(f"{site_dir}/proprio_map.png")
+    plt.close("all")
+
 
 def representations_movements(v_r, ss_r, p_r, a_r, name):
 
@@ -226,9 +357,6 @@ def blank_video():
     ax = fig.add_subplot(111, aspect="equal")
     vm = vidManager(fig, "blank", f"{site_dir}/blank", duration=50)
 
-    x = np.arange(internal_side)
-    grid = np.stack(np.meshgrid(x, x)).reshape(2, -1)
-
     ax.set_visible(False)
 
     for t in range(5):
@@ -251,6 +379,7 @@ def log(wfile=None):
     ax.plot(np.arange(stime), log[:, 1], c=[0.5, 0, 0])
     ax.set_xlim([-stime * 0.1, stime * 1.1])
     m = log.max()
-    ax.set_ylim([-m * 0.1, m * 1.1])
+    if m > 0:
+        ax.set_ylim([-m * 0.1, m * 1.1])
     fig.savefig(f"{site_dir}/log.png")
     plt.close("all")

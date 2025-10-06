@@ -3,6 +3,7 @@ import re
 import subprocess
 from itertools import product
 
+import numpy as np
 import slugify
 
 
@@ -36,57 +37,48 @@ def optimize_option_key(options_str):
     return slugify.slugify(cleaned_str)
 
 
-# params = {
-#     "obj_fix_prob": [0.2, 0.4, 0.6, 0.8, 1.2],
-#     "obj_var_prob": [1.2, 1.6],
-#     "obj_x": [2],
-#     "obj_y": [2],
-#     "epochs": [1000],
-# }
-#
-# base_name = "obj_params"
-
-
 params = {
-    "cum_match_stop_th": [8.0],
-    "representation_sigma": [2],
-    "base_match_sigma": [8],
-    "match_sigma": [8],
-    "predict_rl": [0.02],
-    "obj_fix_prob": [0.8],
-    "obj_var_prob": [0.7, 1.2],
-    "obj_x": [2],
-    "obj_y": [2],
-    "epochs": [400],
+    "epochs": [1000],
+    "decay": [3.0, 4.0, 5.0],
+    "local_decay": [2.0, 3.0, 4.0],
+    "obj_stretch_conditions": [[1, 2]],
+    "max_policy_noise": [20.0],
+    "internal_sigma": [8],
+    "obj_x": [2.0],
+    "obj_y": [0.5],
 }
 
-base_name = "success"
+seeds = np.random.randint(0, 1e5, 1)
+
+base_name = "no_arm_grid"
 
 
 processes = []
-MAX_PROCESSES = 4
+MAX_PROCESSES = 2
 
 orig_path = os.path.dirname(os.path.realpath(__file__))
 
 for i, p in enumerate(get_combinations(params)):
-    #
-    # If MAX_PROCESSES reached, wait until all of them finish.
-    if len(processes) == MAX_PROCESSES:
-        for process in processes:
-            process.wait()
-        processes = []
-    #
-    options_str = ""
-    for k, v in p.items():
-        options_str += f" -o {k}={v}"
-    option_key = optimize_option_key(options_str)
+    for seed in seeds:
+        # If MAX_PROCESSES reached, wait until all of them finish.
+        if len(processes) == MAX_PROCESSES:
+            for process in processes:
+                process.wait()
+            processes = []
+        #
+        options_str = ""
+        for k, v in p.items():
+            options_str += f" -o '{k}={v}'"
+        option_key = optimize_option_key(options_str)
 
-    base_cmd_str = (
-        f"nohup python {orig_path}/SMMain.py "
-        f"-n {base_name}_{option_key} -s 1000 -t 55000 -x -g -w"
-    )
-    cmd_str = base_cmd_str + options_str
-    print(cmd_str)
+        base_cmd_str = (
+            f"nohup python {orig_path}/SMMain.py "
+            f"-n {base_name}_{option_key}_{seed:06d} "
+            f"-s {seed} -t 55000 -x -g -w "
+            "--wdb_project grasp-simulation "
+            "--wdb_entity francesco-mannella"
+        )
+        cmd_str = base_cmd_str + options_str
 
-    print(f"Running: {cmd_str}")
-    processes.append(subprocess.Popen(cmd_str, shell=True))
+        print(f"Running: {cmd_str}")
+        processes.append(subprocess.Popen(cmd_str, shell=True))

@@ -1,20 +1,39 @@
 import copy
+
 import gymnasium as gym
 
-import params
+from params import Parameters
 
 
 class SMEnv:
-    def __init__(self, seed, action_steps=5, store_observations=False, rand_obj_params=None):
+    def __init__(
+        self,
+        seed,
+        params,
+        action_steps=5,
+        store_observations=False,
+        rand_obj_params=None,
+    ):
+
+        self.params = params
         self.action_steps = action_steps
-        self.store_observations=store_observations
-        self.rand_obj_params=rand_obj_params
-        self.b2d_env = gym.make("Box2DSimOneArmOneEye-v0", rand_obj_params=rand_obj_params)
+        self.store_observations = store_observations
+        if rand_obj_params is not None:
+            self.rand_obj_params = rand_obj_params
+        else:
+            self.rand_obj_params = {
+                "stretch_conditions": params.obj_stretch_conditions,
+                "rotation_conditions": params.obj_rotation_conditions,
+                "pos": [params.obj_x, params.obj_y],
+            }
+        self.b2d_env = gym.make(
+            "Box2DSimOneArmOneEye-v0", rand_obj_params=self.rand_obj_params
+        )
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)
         self.b2d_env.action_steps = action_steps
 
-        self.b2d_env.set_taskspace(**params.task_space)
+        self.b2d_env.set_taskspace(**self.params.task_space)
         self.render = None
         self.world = 0
         self.stored_observations = None
@@ -32,6 +51,7 @@ class SMEnv:
     def __setstate__(self, state):
         self.__init__(
             seed=0,
+            params=Parameters(),
             action_steps=state["action_steps"],
             store_observations=state["store_observations"],
             rand_obj_params=state["rand_obj_params"],
@@ -96,8 +116,10 @@ class SMEnv:
 
 class SMEnvParasite(SMEnv):
 
-    def __init__(self, seed, observations, rand_obj_params=None):
-        super(SMEnvParasite, self).__init__(seed, rand_obj_params=rand_obj_params)
+    def __init__(self, seed, params, observations, rand_obj_params=None):
+        super(SMEnvParasite, self).__init__(
+            seed, params, rand_obj_params=rand_obj_params
+        )
         self.stored_observations = observations
         self.i = 0
 
@@ -108,5 +130,3 @@ class SMEnvParasite(SMEnv):
     def reset(self):
         self.i = 0
         return self.stored_observations[self.i]
-
-

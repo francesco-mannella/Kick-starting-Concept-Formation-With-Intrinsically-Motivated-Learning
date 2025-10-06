@@ -6,8 +6,9 @@ np.set_printoptions(precision=3, suppress=True)
 import params
 from bbo import BBO
 from esn import ESN
-import gym, box2dsim
-from mkvideo import vidManager
+import gymnasium as gym, box2dsim
+from box2dsim.envs.mkvideo import vidManager
+
 from GripMapping import Env as GripEnv
 from GripAgent import GripAgent
 from ArmAgent import ArmAgent
