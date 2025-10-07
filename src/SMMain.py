@@ -2287,7 +2287,8 @@ if __name__ == "__main__":
         main = Main(seed=seed, params=params, plots=plots)
 
     if args.load_weights is not None:
-        main.controller.load(weights=args.load_weights)
+        weights = np.load(args.load_weights, allow_pickle=True)[0]
+        main.controller.load(weights=weights)
 
     print(main.epoch)
 
