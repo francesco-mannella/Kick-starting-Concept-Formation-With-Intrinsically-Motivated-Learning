@@ -2169,6 +2169,12 @@ def parse_arguments():
         default=None,
     )
     parser.add_argument(
+        "--group",
+        help="Simulation group name (to organize wandb runs)",
+        action="store",
+        default=None,
+    )
+    parser.add_argument(
         "-p",
         "--parasite",
         help="Train a parasite model alongside" " the normal one",
@@ -2269,6 +2275,7 @@ if __name__ == "__main__":
             project=wdb_project or "kickstarting_concept",
             entity=wdb_entity or "hill_uw",
             name=args.name,
+            group=args.group if args.group else None,
             config=config,
         )
 
