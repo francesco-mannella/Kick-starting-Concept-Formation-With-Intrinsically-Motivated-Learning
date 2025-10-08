@@ -96,15 +96,20 @@ def remove_figs(epoch=0):
 
 
 def update_weight_data():
+
     storages = sorted(glob.glob(f"{storage_dir}/*"))
+
     if len(storages) > 0:
+
         storage = storages[-1]
-        weights_dict = np.load(
-            f"{storage}/weights.npy", allow_pickle=True
-        )[0]
+        weights_dict = np.load(f"{storage}/weights.npy", allow_pickle=True)[0]
         for modality, weights in weights_dict.items():
 
             np.save(f"{site_dir}/{modality}_weights", weights)
+            print(f"---> saved {site_dir}/{modality}_weights")
+    else:
+        print(f"No storage in {os.path.realpath(os.curdir)}")
+        sys.exit()
 
 
 def trajectories_map(wfile=None):
