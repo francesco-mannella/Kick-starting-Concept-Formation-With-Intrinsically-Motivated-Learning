@@ -162,12 +162,12 @@ class SMController:
 
     def getCompetenceGrid(self):
         comp = self.predict.spread(self.goal_grid)
-        comp = 2 * (np.maximum(0.5, comp) - 0.5)
+        # comp = 2 * (np.maximum(0.5, comp) - 0.5)
         comp = np.tanh(self.params.decay * comp)
         return comp
 
     def processLocalCompetence(self, comp):
-        comp = 2 * (np.maximum(0.5, comp) - 0.5)
+        # comp = 2 * (np.maximum(0.5, comp) - 0.5)
         comp = np.tanh(self.params.local_decay * comp)
         return comp
 
