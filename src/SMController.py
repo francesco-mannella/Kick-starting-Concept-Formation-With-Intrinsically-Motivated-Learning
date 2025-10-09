@@ -5,7 +5,7 @@ import pathlib
 import numpy as np
 
 from params import Parameters
-from SMPredict import SMPredict
+from SMPredict import SMPredict, SMPredictKDE
 from stm import SMSTM
 
 
@@ -60,9 +60,13 @@ class SMController:
         if load is True:
             self.load(tag=tag, shuffle=shuffle)
 
-        self.predict = SMPredict(
-            self.params.internal_size, 1, lr=self.params.predict_lr
+        # self.predict = SMPredict(
+        #      self.params.internal_size, 1, lr=self.params.predict_lr
+        # )
+        self.predict = SMPredictKDE(
+            self.params.internal_size, lr=self.params.predict_lr
         )
+
 
         weights_path = (
             pathlib.Path(__file__).parent.resolve()
@@ -162,12 +166,12 @@ class SMController:
 
     def getCompetenceGrid(self):
         comp = self.predict.spread(self.goal_grid)
-        comp = 2 * (np.maximum(0.5, comp) - 0.5)
+        # comp = 2 * (np.maximum(0.5, comp) - 0.5)
         comp = np.tanh(self.params.decay * comp)
         return comp
 
     def processLocalCompetence(self, comp):
-        comp = 2 * (np.maximum(0.5, comp) - 0.5)
+        # comp = 2 * (np.maximum(0.5, comp) - 0.5)
         comp = np.tanh(self.params.local_decay * comp)
         return comp
 

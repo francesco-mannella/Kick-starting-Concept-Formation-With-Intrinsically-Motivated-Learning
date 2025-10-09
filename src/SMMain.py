@@ -1993,10 +1993,10 @@ class Main:
         return goals_env_states
 
     def demo_episodes(self, epoch=0, render=None):
-        update_weight_data()
-        visual_map()
-        somatosensory_map()
-        proprio_map()
+        #update_weight_data()
+        #visual_map()
+        #somatosensory_map()
+        #proprio_map()
 
         goals_env_states = main.monte_carlo_episode_search()
         goal_counts = {k: len(v) for k, v in goals_env_states.items()}
