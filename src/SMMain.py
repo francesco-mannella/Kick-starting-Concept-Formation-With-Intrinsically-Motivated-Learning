@@ -5,6 +5,7 @@ import shutil
 import sys
 import time
 import types
+from itertools import cycle, repeat, chain
 from collections import defaultdict
 from pathlib import Path
 
@@ -97,6 +98,15 @@ class Main:
             "pos": [self.params.obj_y, self.params.obj_x],
         }
 
+        self.obj_params_space = [
+            {"stretch_conditions": [stretch],
+             "rotation_conditions": [rotation],
+             "pos": [self.params.obj_y, self.params.obj_x],
+             }
+            for stretch in self.params.obj_stretch_conditions
+            for rotation in self.params.obj_rotation_conditions
+        ]
+
         self.env = SMEnv(
             seed,
             self.params,
@@ -142,6 +152,15 @@ class Main:
             "rotation_conditions": self.params.obj_rotation_conditions,
             "pos": [self.params.obj_y, self.params.obj_x],
         }
+
+        self.obj_params_space = [
+            {"stretch_conditions": [stretch],
+             "rotation_conditions": [rotation],
+             "pos": [self.params.obj_y, self.params.obj_x],
+             }
+            for stretch in self.params.obj_stretch_conditions
+            for rotation in self.params.obj_rotation_conditions
+        ]
 
         nlogs = len(self.logs)
         if self.params.epochs > nlogs:
@@ -600,6 +619,8 @@ class Main:
         epoch = self.epoch
         epoch_start = time.perf_counter()
         contexts = (np.arange(self.params.batch_size) % 3) + 1
+        gen = cycle(chain.from_iterable(repeat(x, 3) for x in range(len(self.obj_params_space))))
+        params_ind = np.array([next(gen) for _ in range(self.params.batch_size)])
 
         self.initialize_model_data(self.controller)
 
@@ -628,9 +649,9 @@ class Main:
                     self.seed + episode + epoch,
                     self.params,
                     self.params.action_steps,
-                    rand_obj_params=self.random_obj_params,
+                    rand_obj_params=self.obj_params_space[params_ind[episode]],
                 )
-                env.b2d_env.prepare_world(contexts[episode])
+                # env.b2d_env.prepare_world(contexts[episode])
                 states[episode] = env.reset(contexts[episode])
                 envs[episode] = env
                 state = states[episode]
@@ -949,6 +970,8 @@ class Main:
         epoch = self.epoch
         epoch_start = time.perf_counter()
         contexts = (np.arange(self.params.batch_size) % 3) + 1
+        gen = cycle(chain.from_iterable(repeat(x, 3) for x in range(len(self.obj_params_space))))
+        params_ind = np.array([next(gen) for _ in range(self.params.batch_size)])
 
         self.controller_par = SMController(
             self.params,
@@ -992,9 +1015,9 @@ class Main:
                     self.params,
                     self.params.action_steps,
                     store_observations=True,
-                    rand_obj_params=self.random_obj_params,
+                    rand_obj_params=self.obj_params_space[params_ind[episode]],
                 )
-                env.b2d_env.prepare_world(contexts[episode])
+                #env.b2d_env.prepare_world(contexts[episode])
                 states[episode] = env.reset(contexts[episode])
                 envs[episode] = env
                 state = states[episode]
@@ -1030,9 +1053,9 @@ class Main:
                     self.seed + episode + epoch,
                     self.params,
                     envs[episode].stored_observations,
-                    rand_obj_params=self.random_obj_params,
+                    rand_obj_params=self.obj_params_space[params_ind[episode]],
                 )
-                states_par[episode] = env.reset()
+                states_par[episode] = env.reset(context[episode])
                 envs_par[episode] = env
                 state_par = states_par[episode]
                 self.controller_par.model_data["batch_v"][episode, 0, :] = (
@@ -1652,6 +1675,9 @@ class Main:
         if env_states is not None:
             n_episodes = len(env_states)
 
+        gen = cycle(chain.from_iterable(repeat(x, 3) for x in range(len(self.obj_params_space))))
+        params_ind = np.array([next(gen) for _ in range(n_episodes)])
+        
         self.initialize_model_data(controller, n_episodes)
         if env_states is not None:
             contexts = [s["context"] for s in env_states]
@@ -1672,10 +1698,10 @@ class Main:
                 seed,
                 self.params,
                 self.params.action_steps,
-                rand_obj_params=self.random_obj_params,
+                rand_obj_params=self.obj_params_space[params_ind[episode]],
             )
             # env.b2d_env.renderer_figsize=(8, 8)
-            env.b2d_env.prepare_world(contexts[episode])
+            # env.b2d_env.prepare_world(contexts[episode])
             states[episode] = env.reset(
                 contexts[episode],
                 plot=f"{site_dir}/episode_{episode}{suffix}",
