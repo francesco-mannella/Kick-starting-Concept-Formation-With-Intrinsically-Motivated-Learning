@@ -8,7 +8,7 @@ class Parameters(ParameterManager):
         self,
         task_space=None,  # {"xlim": [-10, 50], "ylim": [-10, 50]}
         stime=200,
-        drop_first_n_steps=10,
+        drop_first_n_steps=25,
         policy_selection_steps=25,
         env_reset_freq=2,
         esn_tau=5.0,
