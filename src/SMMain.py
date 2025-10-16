@@ -1725,9 +1725,11 @@ class Main:
                 "JOINT_POSITIONS"
             ][:5]
 
+        # Notice: For some reason without noise eval results are much worse 
+        # than with normal noise.
         # Do not introduce noise to policy search
-        controller.base_policy_noise = 0.0
-        controller.max_policy_noise = 0.0
+        # controller.base_policy_noise = 0.0
+        # controller.max_policy_noise = 0.0
 
         (
             matches,
