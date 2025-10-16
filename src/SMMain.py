@@ -424,8 +424,12 @@ class Main:
                 sa = np.s_[:, t0:t, :]
 
                 # Use minimal sigma for building within-episode representations
+                #controller.updateParams(
+                #    self.params.base_internal_sigma, controller.curr_lr
+                #)
+                # Use representation sigma for building within-episode representations
                 controller.updateParams(
-                    self.params.base_internal_sigma, controller.curr_lr
+                    self.params.representation_sigma, controller.curr_lr
                 )
 
                 # Compute state representations

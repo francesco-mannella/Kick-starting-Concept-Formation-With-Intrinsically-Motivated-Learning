@@ -43,9 +43,9 @@ class Parameters(ParameterManager):
         policy_base_arm=[x * np.pi for x in [0.2, -0.3, -0.4]],
         base_policy_noise=0.02,
         max_policy_noise=20.0,
-        policy_weights_sigma=2,
+        policy_weights_sigma=2.0,
         motor_noise=1.0,
-        representation_sigma=2,
+        representation_sigma=2.0,
         modalities_weights=None,  # [1.0, 1.0, 1.0, 1.0]
         match_incr_th=0.001,
         cum_match_stop_th=3.0,

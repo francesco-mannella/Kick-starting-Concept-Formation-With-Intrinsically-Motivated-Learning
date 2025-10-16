@@ -78,7 +78,8 @@ class SMController:
         self.match_sigma = self.params.match_sigma
         self.sigma = self.params.internal_sigma
         self.curr_sigma = self.sigma
-        self.comp_sigma = self.params.base_internal_sigma
+        #self.comp_sigma = self.params.base_internal_sigma
+        self.comp_sigma = self.params.representation_sigma
         self.curr_lr = None
 
         self.base_policy_noise = self.params.base_policy_noise
