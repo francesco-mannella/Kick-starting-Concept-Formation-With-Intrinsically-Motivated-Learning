@@ -53,7 +53,7 @@ class Parameters(ParameterManager):
         epochs=1000,
         batch_size=18,
         tests=18,
-        evaluation_episodes=18,
+        evaluation_episodes=180,
         demo_episodes_max_single_goal=5,
         demo_episodes_max_trials=100,
         epochs_to_test=100,

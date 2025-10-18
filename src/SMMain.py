@@ -1640,6 +1640,7 @@ class Main:
                 render="offline",
                 suffix="_demo",
                 save_stats=False,
+                zero_noise=True
             )
 
         if use_wandb:
@@ -1665,6 +1666,7 @@ class Main:
         save_stats=True,
         add_goal_suffix=False,
         n_episodes=None,
+        zero_noise=False,
     ):
 
         print(f"------> {suffix}")
@@ -1728,9 +1730,10 @@ class Main:
 
         # Notice: For some reason without noise eval results are much worse 
         # than with normal noise.
-        # Do not introduce noise to policy search
-        controller.base_policy_noise = 0.0
-        controller.max_policy_noise = 0.0
+        if zero_noise:
+            # Do not introduce noise to policy search
+            controller.base_policy_noise = 0.0
+            controller.max_policy_noise = 0.0
 
         (
             matches,
