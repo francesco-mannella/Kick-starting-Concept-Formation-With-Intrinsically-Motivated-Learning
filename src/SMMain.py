@@ -479,47 +479,52 @@ class Main:
                     data["g_p"][sa],
                 )
 
-                # update cumulative match
-                for i in range(t0, t):
+                # update cumulative match only after the first policy was selected
+                if (t0 >= self.params.drop_first_n_steps
+                    + self.params.policy_selection_steps):
+                    for i in range(t0, t):
+                        # When the policy changes, max_match is set to the current value
+                        max_match[policy_changed[:, i], i:] =\
+                            controller.model_data["match_value"][policy_changed[:, i], i:]
 
-                    # ####### Dataset Filtering
-                    # Select time steps when match in internal representation of touch
-                    # increases (touch onset event)
-                    touch_mod = 1
-                    mmask = (
-                        controller.model_data["match_value_per_mod"][
-                            :, i, touch_mod
-                        ]
-                        > controller.model_data["match_value_per_mod"][
-                            :, i - 1, touch_mod
-                        ]
-                    )
+                        # ####### Dataset Filtering
+                        # Select time steps when match in internal representation of touch
+                        # increases (touch onset event)
+                        touch_mod = 1
+                        mmask = (
+                            controller.model_data["match_value_per_mod"][
+                                :, i, touch_mod
+                            ]
+                            > controller.model_data["match_value_per_mod"][
+                                :, i - 1, touch_mod
+                            ]
+                        )
 
-                    # Select only timesteps where match increases *globally*
-                    # over a certain threshold
-                    mmask[
-                        controller.model_data["match_value"][:, i]
-                        - max_match[:, i]
-                        < self.params.match_incr_th
-                    ] = 0
+                        # Select only timesteps where match increases *globally*
+                        # over a certain threshold
+                        mmask[
+                            controller.model_data["match_value"][:, i]
+                            - max_match[:, i]
+                            < self.params.match_incr_th
+                        ] = 0
 
-                    max_match[mmask, i:] = controller.model_data[
-                        "match_value"
-                    ][mmask, i, None]
+                        max_match[mmask, i:] = controller.model_data[
+                            "match_value"
+                        ][mmask, i, None]
 
-                    # ####### Competence - Option 1
-                    # # use controller.model_data['match_value'] as it is
+                        # ####### Competence - Option 1
+                        # # use controller.model_data['match_value'] as it is
 
-                    # ####### Competence - Option 2
-                    # # use change event mask s computed in mmask
-                    matches[:, i] = mmask
+                        # ####### Competence - Option 2
+                        # # use change event mask s computed in mmask
+                        matches[:, i] = mmask
 
-                    # Match is cumulated within a single policy and reset with
-                    # policy change
-                    cum_match[:, i] = (
-                        cum_match[:, i - 1] * (1 - policy_changed[:, i])
-                        + mmask
-                    )
+                        # Match is cumulated within a single policy and reset with
+                        # policy change
+                        cum_match[:, i] = (
+                            cum_match[:, i - 1] * (1 - policy_changed[:, i])
+                            + mmask
+                        )
 
                 # Counts touch global increases up to threshold
                 success_mask = (
@@ -594,9 +599,6 @@ class Main:
                     data["batch_log"][success_mask, t:, :] = lcompetences[
                         :, None, :
                     ]
-
-                    cum_match[success_mask, t] = 0
-                    max_match[success_mask, t:] = 0
 
         return (
             matches,
