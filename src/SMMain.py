@@ -875,65 +875,66 @@ class Main:
                 ),
                 end="",
             )
-            print(f"  {np.mean(curr_loss):#8.7f}")
-            print(logs[epoch][1])
 
-            if use_wandb:
-                wandb.log(
-                    {
-                        "min_comp": logs[epoch][0],
-                        "mean_comp": logs[epoch][1],
-                        "max_comp": logs[epoch][2],
-                        "stm_loss": np.mean(curr_loss),
-                        "stm_v_loss": curr_loss[0],
-                        "stm_ss_loss": curr_loss[1],
-                        "stm_p_loss": curr_loss[2],
-                        "stm_a_loss": curr_loss[3],
-                        "mean_sigma": local_sigma.mean(),
-                        "mean_lr": local_lr.mean(),
-                        "mean_cum_match": cum_match[policy_ended].mean()
-                        / self.params.cum_match_stop_th,
-                        "grid_comp_mean": global_competence,
-                        "episode_success_rate": episode_success_rate,
-                        "policy_weights_avg": np.abs(
-                            self.controller.stm_a.get_weights()
-                        ).mean(),
-                        "policy_weights_norm": np.linalg.norm(
-                            self.controller.stm_a.get_weights(), axis=-1
-                        ).mean(),
-                        "match_value_v": self.controller.model_data[
-                            "match_value_per_mod"
-                        ][matches, 0].mean(),
-                        "match_value_ss": self.controller.model_data[
-                            "match_value_per_mod"
-                        ][matches, 1].mean(),
-                        "match_value_p": self.controller.model_data[
-                            "match_value_per_mod"
-                        ][matches, 2].mean(),
-                        "match_value_a": self.controller.model_data[
-                            "match_value_per_mod"
-                        ][matches, 3].mean(),
-                        "goal_activation": goal_activation[
-                            policy_ended
-                        ].mean(),
-                        "goal_activation_blue": goal_activation[
-                            contexts == 1, :
-                        ][policy_ended[contexts == 1, :]].mean(),
-                        "goal_activation_red": goal_activation[
-                            contexts == 2, :
-                        ][policy_ended[contexts == 2, :]].mean(),
-                        "goal_activation_green": goal_activation[
-                            contexts == 3, :
-                        ][policy_ended[contexts == 3, :]].mean(),
-                        "mean_episode_match_inc": (
-                            episode_match_inc_ss + episode_match_inc_p
-                        )
-                        / 2,
-                        "episode_match_inc_ss": episode_match_inc_ss,
-                        "episode_match_inc_p": episode_match_inc_p,
-                    },
-                    step=epoch,
-                )
+            # Do not update statistics if there are no successful timesteps
+            if matches.sum() > 0: 
+                print(f"  {np.mean(curr_loss):#8.7f}")
+                if use_wandb:
+                    wandb.log(
+                        {
+                            "min_comp": logs[epoch][0],
+                            "mean_comp": logs[epoch][1],
+                            "max_comp": logs[epoch][2],
+                            "stm_loss": np.mean(curr_loss),
+                            "stm_v_loss": curr_loss[0],
+                            "stm_ss_loss": curr_loss[1],
+                            "stm_p_loss": curr_loss[2],
+                            "stm_a_loss": curr_loss[3],
+                            "mean_sigma": local_sigma.mean(),
+                            "mean_lr": local_lr.mean(),
+                            "mean_cum_match": cum_match[policy_ended].mean()
+                            / self.params.cum_match_stop_th,
+                            "grid_comp_mean": global_competence,
+                            "episode_success_rate": episode_success_rate,
+                            "policy_weights_avg": np.abs(
+                                self.controller.stm_a.get_weights()
+                            ).mean(),
+                            "policy_weights_norm": np.linalg.norm(
+                                self.controller.stm_a.get_weights(), axis=-1
+                            ).mean(),
+                            "match_value_v": self.controller.model_data[
+                                "match_value_per_mod"
+                            ][matches, 0].mean(),
+                            "match_value_ss": self.controller.model_data[
+                                "match_value_per_mod"
+                            ][matches, 1].mean(),
+                            "match_value_p": self.controller.model_data[
+                                "match_value_per_mod"
+                            ][matches, 2].mean(),
+                            "match_value_a": self.controller.model_data[
+                                "match_value_per_mod"
+                            ][matches, 3].mean(),
+                            "goal_activation": goal_activation[
+                                policy_ended
+                            ].mean(),
+                            "goal_activation_blue": goal_activation[
+                                contexts == 1, :
+                            ][policy_ended[contexts == 1, :]].mean(),
+                            "goal_activation_red": goal_activation[
+                                contexts == 2, :
+                            ][policy_ended[contexts == 2, :]].mean(),
+                            "goal_activation_green": goal_activation[
+                                contexts == 3, :
+                            ][policy_ended[contexts == 3, :]].mean(),
+                            "mean_episode_match_inc": (
+                                episode_match_inc_ss + episode_match_inc_p
+                            )
+                            / 2,
+                            "episode_match_inc_ss": episode_match_inc_ss,
+                            "episode_match_inc_p": episode_match_inc_p,
+                        },
+                        step=epoch,
+                    )
 
             # diagnose
             if (epoch % self.params.epochs_to_test == 0) or epoch == (
