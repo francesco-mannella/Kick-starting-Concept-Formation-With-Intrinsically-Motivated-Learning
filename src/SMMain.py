@@ -685,7 +685,7 @@ class Main:
                 envs,
                 states,
             )
-
+        
             # Episode success rate: in how many episodes policy ever changes
             # after the initial one?
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
@@ -782,7 +782,7 @@ class Main:
                     local_sigma,
                 )
             )
-
+            
             # Store trajectory data
             mvpm = self.controller.model_data["match_value_per_mod"].reshape(
                 -1, 4
@@ -1687,7 +1687,7 @@ class Main:
         if env_states is not None:
             contexts = [s["context"] for s in env_states]
         else:
-            contexts = [(i % 3) + 1 for i in range(n_episodes)]
+            contexts = (np.arange(n_episodes) % 3) + 1
 
         envs = [None] * n_episodes
         states = [None] * n_episodes
@@ -1729,8 +1729,8 @@ class Main:
         # Notice: For some reason without noise eval results are much worse 
         # than with normal noise.
         # Do not introduce noise to policy search
-        # controller.base_policy_noise = 0.0
-        # controller.max_policy_noise = 0.0
+        controller.base_policy_noise = 0.0
+        controller.max_policy_noise = 0.0
 
         (
             matches,
