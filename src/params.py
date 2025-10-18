@@ -32,9 +32,9 @@ class Parameters(ParameterManager):
         policy_params_amplitude=8.0,
         decay=5.0,
         local_decay=3.0,
-        base_match_sigma=5,
-        match_sigma=5,
-        base_internal_sigma=0.5 * np.sqrt(2),
+        base_match_sigma=3,
+        match_sigma=3,
+        base_internal_sigma=0.1,
         internal_sigma=8.0,
         base_lr=0.005,
         max_lr=2.0,
@@ -46,7 +46,7 @@ class Parameters(ParameterManager):
         policy_weights_sigma=2.0,
         motor_noise=1.0,
         representation_sigma=2.0,
-        modalities_weights=None,  # [1.0, 1.0, 1.0, 1.0]
+        modalities_weights=[0.0, 1.0, 1.0, 0.0], # use only touch and proprioception
         match_incr_th=0.001,
         cum_match_stop_th=1.0,
         predict_lr=0.05,
