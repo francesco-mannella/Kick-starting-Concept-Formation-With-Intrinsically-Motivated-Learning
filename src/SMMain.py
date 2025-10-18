@@ -1677,8 +1677,6 @@ class Main:
         else:
             controller.__setstate__(orig_controller.__getstate__())
 
-        # controller.curr_sigma = 0.1
-
         if env_states is not None:
             n_episodes = len(env_states)
 
@@ -1753,8 +1751,6 @@ class Main:
         for goal in controller.model_data["g_p"][policy_changed]:
             goal_counts[(int(goal[0]), int(goal[1]))] += 1
 
-        policy_changed[0, 60] = 1
-
         all_trajectories = []
         for i in range(n_episodes):
             # only trajectory of the i-th episode from batch is
@@ -1812,10 +1808,6 @@ class Main:
             all_trajectories.append(trajectories)
 
         trajectories = pd.concat(all_trajectories)
-
-        # Reset policy noise
-        controller.base_policy_noise = self.params.base_policy_noise
-        controller.max_policy_noise = self.params.max_policy_noise
 
         # Episode success rate: in how many episodes policy ever changes?
         episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
