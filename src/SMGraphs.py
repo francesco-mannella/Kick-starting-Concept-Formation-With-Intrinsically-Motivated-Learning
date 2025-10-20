@@ -103,7 +103,6 @@ def update_weight_data():
             f"{storage}/weights.npy", allow_pickle=True
         )[0]
         for modality, weights in weights_dict.items():
-
             np.save(f"{site_dir}/{modality}_weights", weights)
 
 

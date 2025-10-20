@@ -2028,6 +2028,61 @@ class Main:
         somatosensory_map()
         proprio_map()
 
+        goal_counts, trajectories = self.evaluation_episodes(
+            epoch=epoch,
+            suffix="_goal",
+            save_stats=False,
+            render=render,
+            n_episodes=self.params.tests,
+            zero_noise=True
+        )
+
+        action_onset = self.params.drop_first_n_steps + self.params.policy_selection_steps
+
+        first_goal_counts = defaultdict(int)
+        for _, row in trajectories[trajectories.index == action_onset].iterrows():
+            first_goal_counts[(int(row["prototype_x"]), int(row["prototype_y"]))] += 1
+
+        goal_frequency_map(first_goal_counts)
+        shutil.copyfile(
+            f"{site_dir}/goal_frequency_map.png",
+            f"{site_dir}/first_goal_frequency_map.png",
+        )
+
+        goal_frequency_map(goal_counts)
+        shutil.copyfile(
+            f"{site_dir}/goal_frequency_map.png",
+            f"{site_dir}/all_goal_frequency_map.png",
+        )
+
+        print("Plot grid graph of trajectories")
+        tp = TPlotManager(
+            plot_path=f"{site_dir}/trajectory_plots.png",
+            n_prototypes=self.params.internal_size,
+            max_ts=self.params.stime,
+        )
+        tp.plot_prototypes(trajectories)
+
+        if use_wandb:
+            log_data = {
+                "first_goal_frequency_map": wandb.Image(
+                    f"{site_dir}/first_goal_frequency_map.png"
+                ),
+                "all_goal_frequency_map": wandb.Image(
+                    f"{site_dir}/all_goal_frequency_map.png"
+                ),
+                "trajectory_plots": wandb.Image(
+                    f"{site_dir}/trajectory_plots.png"
+                ),
+            }
+            wandb.log(log_data, step=epoch)
+
+    def demo_episodes_monte_carlo(self, epoch=0, render=None):
+        update_weight_data()
+        visual_map()
+        somatosensory_map()
+        proprio_map()
+
         goals_env_states = main.monte_carlo_episode_search()
         goal_counts = {k: len(v) for k, v in goals_env_states.items()}
         goal_frequency_map(goal_counts)
