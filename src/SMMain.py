@@ -1062,7 +1062,7 @@ class Main:
                     envs[episode].stored_observations,
                     rand_obj_params=self.obj_params_space[params_ind[episode]],
                 )
-                states_par[episode] = env.reset(context[episode])
+                states_par[episode] = env.reset()
                 envs_par[episode] = env
                 state_par = states_par[episode]
                 self.controller_par.model_data["batch_v"][episode, 0, :] = (
