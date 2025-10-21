@@ -95,15 +95,26 @@ def remove_figs(epoch=0):
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/log.png")
 
 
-def update_weight_data():
-    storages = sorted(glob.glob(f"{storage_dir}/*"))
-    if len(storages) > 0:
-        storage = storages[-1]
-        weights_dict = np.load(
-            f"{storage}/weights.npy", allow_pickle=True
-        )[0]
-        for modality, weights in weights_dict.items():
-            np.save(f"{site_dir}/{modality}_weights", weights)
+def update_weight_data(weights=None, tag=None, epoch=None):
+
+    if weights is None:
+        storage_dir = f"storage{'-' if tag is not None else '' }{tag if tag is not None else ''}"
+        if os.path.isdir(storage_dir):
+            if epoch is None:
+                epochs = sorted(glob.glob(f"{storage_dir}/*"))
+                epoch_dir = f"{epochs[-1]}"
+            else:
+                epoch_dir = f"{storage_dir}/{epoch:06d}"
+
+            weights = np.load(
+                f"{epoch_dir}/weights.npy",
+                allow_pickle=True,
+            )[0]
+        else:
+            raise Exception(f"{storage_dir} does not exist!")
+
+    for modality, modality_weights in weights.items():
+        np.save(f"{site_dir}/{modality}_weights", modality_weights)
 
 
 def trajectories_map(wfile=None):
