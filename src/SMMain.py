@@ -2385,6 +2385,12 @@ if __name__ == "__main__":
         weights = np.load(args.load_weights, allow_pickle=True)[0]
         main.controller.load(weights=weights)
 
+        epoch_dir = f"{storage_dir}/{main.epoch:06d}"
+        os.makedirs(epoch_dir, exist_ok=True)
+        os.makedirs(site_dir, exist_ok=True)
+
+        main.controller.save(main.epoch)
+
     print(main.epoch)
 
     try:
