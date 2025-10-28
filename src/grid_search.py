@@ -12,10 +12,11 @@ import slugify
 # ------------------------------------------------------------------------
 # ------------------------------------------------------------------------
 
-SEEDS = [93581]
+SEEDS = None # [93581]
 WANDB = True
 N_SEEDS = 5
 MAX_PROCESSES = 2
+base_name = "f1"
 
 params = dict(
     base_match_sigma=2,
@@ -65,9 +66,6 @@ def optimize_option_key(options_str):
 
 seeds = SEEDS or np.random.randint(0, 1e5, 5)
 wandb = "-w" if WANDB else ""
-
-
-base_name = "animation"
 
 
 processes = []
