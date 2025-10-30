@@ -420,16 +420,21 @@ class SMController:
                 self.stm_a.update(policies[match_ind], modulate_effect).item(),
             )
 
-        # update predictor: predictor predicts cumulated matches for a
-        # particular goal
-        # goals = goals.reshape((self.params.batch_size, self.params.stime, -1))
-        # match_distance = np.sqrt(np.log(match_value)/-self.params.match_sigma**-2)
-        # match_distance = match_value.reshape((self.params.batch_size, self.params.stime, -1))
+#####
+        # Update predictor: predictor predicts cumulated matches for a
+        # particular goal.
+        # Calculate match distance using the match value and match sigma.
+        # match_distance = np.sqrt(np.log(match_value) /
+        #                          -self.params.match_sigma**-2)
+        # Reshape match distance to match batch size and time steps.
+        # match_distance = match_value.reshape((self.params.batch_size,
+        #                                       self.params.stime, -1))
 
         # Predictor is updated based on the max_match achieved for each goal.
-        # If no timesteps where selected for a given goal (i.e. max_match = 0),
+        # If no timesteps were selected for a given goal (i.e., max_match = 0),
         # this goal is not used for update.
         predictor_update_steps = policy_ended & (max_match > 0)
+#####
 
         self.predict.update(
             goals[predictor_update_steps],
