@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
+from sklearn.metrics import mutual_info_score
 
 from params import Parameters
 from SMAgent import SMAgent
@@ -318,6 +319,22 @@ class Main:
         episode_match_inc_p = np.mean(corrs_coeffs_p)
         episode_match_inc_ss = np.mean(corrs_coeffs_ss)
         return episode_match_inc_p, episode_match_inc_ss
+
+    def calc_obj_conf_gripper_mi(self, contexts, params_ind, controller, policy_ended):
+        """
+        Calculate mutual information between object configuration
+        and gripper end position.
+        """
+        n_bins = 20
+        g_pos = controller.model_data["batch_p"][policy_ended, -2:]
+        g_pos = g_pos.reshape(-1, 2)
+        bins = np.linspace(-0.5*np.pi, 0.5*np.pi, n_bins)
+        g_pos = np.digitize(g_pos[:, 0], bins) * 100 + np.digitize(g_pos[:, 1], bins)
+        obj_config = np.repeat((contexts * 10 + params_ind)[:, None],
+                                self.params.stime, axis=1)[policy_ended]
+        mi_score = mutual_info_score(g_pos, obj_config)
+
+        return mi_score 
 
     def action_outcome_step(
         self,
@@ -712,6 +729,12 @@ class Main:
                 )
             )
 
+            # Calculate mutual information between object configuration
+            # and gripper end position.
+            mi_score = self.calc_obj_conf_gripper_mi(contexts, params_ind,
+                                                     self.controller,
+                                                     policy_ended)
+
             # Local competences based on predictor
             comp_dict = self.controller.get_global_local_competence(
                 self.controller.model_data["batch_c"]
@@ -801,7 +824,7 @@ class Main:
                         c for c in contexts for _ in range(self.params.stime)
                     ],
                     "params_index": [
-                        i for i in param_ind for _ in range(self.params.stime)
+                        i for i in params_ind for _ in range(self.params.stime)
                     ],
                     "timestep": list(range(self.params.stime))
                     * self.params.batch_size,
@@ -935,6 +958,7 @@ class Main:
                             / 2,
                             "episode_match_inc_ss": episode_match_inc_ss,
                             "episode_match_inc_p": episode_match_inc_p,
+                            "mi_score": mi_score
                         },
                         step=epoch,
                     )
@@ -1135,6 +1159,15 @@ class Main:
                     self.controller_par,
                 )
             )
+
+            # Calculate mutual information between object configuration
+            # and gripper end position.
+            mi_score = self.calc_obj_conf_gripper_mi(contexts, params_ind,
+                                                     self.controller,
+                                                     policy_ended)
+            mi_score_par = self.calc_obj_conf_gripper_mi(contexts, params_ind,
+                                                     self.controller_par,
+                                                     policy_ended_par)
 
             # Local competences based on predictor
             comp_dict = self.controller.get_global_local_competence(
@@ -1465,7 +1498,15 @@ class Main:
                             ][matches, 2].mean(),
                             "match_value_a": self.controller.model_data[
                                 "match_value_per_mod"
-                            ][matches, 3].mean()
+                            ][matches, 3].mean(),
+                            "mi_score": mi_score,
+                            "episode_match_inc_ss": episode_match_inc_ss,
+                            "episode_match_inc_p": episode_match_inc_p,
+                            "mean_episode_match_inc": (
+                                episode_match_inc_ss + episode_match_inc_p
+                            )
+                            / 2,
+
                         },
                         step=epoch
                     )
@@ -1519,7 +1560,7 @@ class Main:
                                 contexts == 3, :
                             ][policy_ended[contexts == 3, :]].mean(),
                             "goal_activation_par": goal_activation_par[
-                                policy_ended
+                                policy_ended_par
                             ].mean(),
                             "goal_activation_blue_par": goal_activation_par[
                                 contexts == 1, :
@@ -1530,18 +1571,13 @@ class Main:
                             "goal_activation_green_par": goal_activation_par[
                                 contexts == 3, :
                             ][policy_ended_par[contexts == 3, :]].mean(),
-                            "episode_match_inc_ss": episode_match_inc_ss,
-                            "episode_match_inc_p": episode_match_inc_p,
                             "episode_match_inc_ss_par": episode_match_inc_ss_par,
                             "episode_match_inc_p_par": episode_match_inc_p_par,
-                            "mean_episode_match_inc": (
-                                episode_match_inc_ss + episode_match_inc_p
-                            )
-                            / 2,
                             "mean_episode_match_inc_par": (
                                 episode_match_inc_ss_par + episode_match_inc_p_par
                             )
                             / 2,
+                            "mi_score_par": mi_score
                         },
                         step=epoch,
                     )
@@ -1844,6 +1880,12 @@ class Main:
             self.calc_match_inc_within_goal(policy_ended, controller)
         )
 
+        # Calculate mutual information between object configuration
+        # and gripper end position.
+        mi_score = self.calc_obj_conf_gripper_mi(contexts, params_ind,
+                                                 controller,
+                                                 policy_ended)
+
         if render is not None:
             for i in range(n_episodes):
                 episode_len = episodes_len[i]
@@ -1903,6 +1945,7 @@ class Main:
                         episode_match_inc_ss + episode_match_inc_p
                     )
                     / 2,
+                    f"eval_mi_score{suffix}": mi_score
                 }
             for f in glob.glob(f"{site_dir}/episode_*{suffix}*.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
