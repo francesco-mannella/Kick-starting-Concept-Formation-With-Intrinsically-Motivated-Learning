@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from sklearn.metrics import mutual_info_score
+from sklearn.metrics import adjusted_mutual_info_score
 
 from params import Parameters
 from SMAgent import SMAgent
@@ -332,7 +332,7 @@ class Main:
         g_pos = np.digitize(g_pos[:, 0], bins) * 100 + np.digitize(g_pos[:, 1], bins)
         obj_config = np.repeat((contexts * 10 + params_ind)[:, None],
                                 self.params.stime, axis=1)[policy_ended]
-        mi_score = mutual_info_score(g_pos, obj_config)
+        mi_score = adjusted_mutual_info_score(g_pos, obj_config)
 
         return mi_score 
 
