@@ -800,6 +800,9 @@ class Main:
                     "context": [
                         c for c in contexts for _ in range(self.params.stime)
                     ],
+                    "params_index": [
+                        i for i in param_ind for _ in range(self.params.stime)
+                    ],
                     "timestep": list(range(self.params.stime))
                     * self.params.batch_size,
                     "v_p": self.controller.model_data["v_p"].reshape((-1, 2))[
