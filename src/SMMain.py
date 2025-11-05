@@ -15,6 +15,7 @@ import pandas as pd
 import torch
 import wandb
 from sklearn.metrics import adjusted_mutual_info_score
+from sklearn.cluster import KMeans
 
 from params import Parameters
 from SMAgent import SMAgent
@@ -320,7 +321,17 @@ class Main:
         episode_match_inc_ss = np.mean(corrs_coeffs_ss)
         return episode_match_inc_p, episode_match_inc_ss
 
-    def calc_obj_conf_gripper_mi(self, contexts, params_ind, controller, policy_ended):
+    def calc_context_policy_mi(self, contexts, params_ind, controller, policy_ended):
+        mask = np.ones(policy_ended.shape, dtype=bool)
+        mask[:, :self.params.drop_first_n_steps + self.params.policy_selection_steps] = 0
+
+        policies = controller.model_data["batch_a"][:, 0]
+        policies_ind = KMeans(n_clusters=5).fit_predict(policies)
+
+        mi_score = adjusted_mutual_info_score(contexts, policies_ind)
+        return mi_score
+
+    def calc_context_touch_mi(self, contexts, params_ind, controller, policy_ended):
         """
         Calculate mutual information between object configuration and touch sensors.
         """
@@ -358,7 +369,6 @@ class Main:
         #                      columns="obj_config", aggfunc="sum"))
 
         mi_score = adjusted_mutual_info_score(obj_config, discrete_touch)
-        print(f"MI: {mi_score}")
         return mi_score 
 
     def action_outcome_step(
@@ -756,9 +766,9 @@ class Main:
 
             # Calculate mutual information between object configuration
             # and gripper end position.
-            mi_score = self.calc_obj_conf_gripper_mi(contexts, params_ind,
-                                                     self.controller,
-                                                     policy_ended)
+            mi_score = self.calc_context_touch_mi(contexts, params_ind,
+                                                  self.controller,
+                                                  policy_ended)
 
             # Local competences based on predictor
             comp_dict = self.controller.get_global_local_competence(
@@ -1187,10 +1197,10 @@ class Main:
 
             # Calculate mutual information between object configuration
             # and gripper end position.
-            mi_score = self.calc_obj_conf_gripper_mi(contexts, params_ind,
+            mi_score = self.calc_context_touch_mi(contexts, params_ind,
                                                      self.controller,
                                                      policy_ended)
-            mi_score_par = self.calc_obj_conf_gripper_mi(contexts, params_ind,
+            mi_score_par = self.calc_context_touch_mi(contexts, params_ind,
                                                      self.controller_par,
                                                      policy_ended_par)
 
@@ -1909,12 +1919,16 @@ class Main:
             self.calc_match_inc_within_goal(policy_ended, controller)
         )
 
-        # Calculate mutual information between object configuration
-        # and gripper end position.
-        mi_score = self.calc_obj_conf_gripper_mi(contexts, params_ind,
-                                                 controller,
-                                                 #policy_ended)
-                                                 policy_changed)
+        mi_score_context_touch = self.calc_context_touch_mi(contexts, params_ind,
+                                                            controller,
+                                                            policy_ended)
+
+        mi_score_context_policy = self.calc_context_policy_mi(contexts, params_ind,
+                                                              controller,
+                                                              policy_ended)
+
+        print(f"MI context-touch {mi_score_context_touch}")
+        print(f"MI context-policy {mi_score_context_policy}")
 
         if render is not None:
             for i in range(n_episodes):
@@ -1975,7 +1989,8 @@ class Main:
                         episode_match_inc_ss + episode_match_inc_p
                     )
                     / 2,
-                    f"eval_mi_score{suffix}": mi_score
+                    f"eval_mi_score_context_touch{suffix}": mi_score_context_touch,
+                    f"eval_mi_score_context_policy{suffix}": mi_score_context_policy,
                 }
             for f in glob.glob(f"{site_dir}/episode_*{suffix}*.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
