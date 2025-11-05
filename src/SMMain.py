@@ -322,18 +322,43 @@ class Main:
 
     def calc_obj_conf_gripper_mi(self, contexts, params_ind, controller, policy_ended):
         """
-        Calculate mutual information between object configuration
-        and gripper end position.
+        Calculate mutual information between object configuration and touch sensors.
         """
-        n_bins = 20
-        g_pos = controller.model_data["batch_p"][policy_ended, -2:]
-        g_pos = g_pos.reshape(-1, 2)
-        bins = np.linspace(-0.5*np.pi, 0.5*np.pi, n_bins)
-        g_pos = np.digitize(g_pos[:, 0], bins) * 100 + np.digitize(g_pos[:, 1], bins)
-        obj_config = np.repeat((contexts * 10 + params_ind)[:, None],
-                                self.params.stime, axis=1)[policy_ended]
-        mi_score = adjusted_mutual_info_score(g_pos, obj_config)
+        touch = controller.model_data["batch_ss"]
 
+        mask = np.ones(policy_ended.shape, dtype=bool)
+        mask[:, :self.params.drop_first_n_steps + self.params.policy_selection_steps] = 0
+
+        touch = touch[mask]
+
+        # Discretize touch into 4 regions corresponding to gripper edges
+        bins = np.arange(touch.shape[-1], step=10)
+        discrete_touch = np.digitize(touch.argmax(axis=-1), bins)
+        discrete_touch[touch.sum(axis=-1) == 0] = 0
+        discrete_touch = discrete_touch.reshape(-1)
+
+        # n_bins = 5
+        # g_pos = controller.model_data["batch_p"][:, :, -2:]
+        # # g_pos = controller.model_data["batch_p"][policy_ended, -2:]
+        # g_pos = g_pos.reshape(-1, 2)
+        # bins = np.linspace(-0.5*np.pi, 0.5*np.pi, n_bins)
+        # g_pos = np.digitize(g_pos[:, 0], bins) * 100 + np.digitize(g_pos[:, 1], bins)
+        
+        #print(pd.Series(g_pos).value_counts())
+        # obj_config = np.repeat((contexts * 10 + params_ind)[:, None],
+        #                          self.params.stime, axis=1).reshape(-1)
+        #obj_config = np.repeat((contexts * 10 + params_ind)[:, None],
+        #                       self.params.stime, axis=1)[mask].reshape(-1)
+        obj_config = np.repeat(contexts[:, None],
+                               self.params.stime, axis=1)[mask].reshape(-1)
+
+        # d = pd.DataFrame({"obj_config": obj_config, "discrete_touch": discrete_touch})
+        # d["val"] = 1.0
+        # print(pd.pivot_table(d, values="val", index="discrete_touch",
+        #                      columns="obj_config", aggfunc="sum"))
+
+        mi_score = adjusted_mutual_info_score(obj_config, discrete_touch)
+        print(f"MI: {mi_score}")
         return mi_score 
 
     def action_outcome_step(
@@ -1577,7 +1602,7 @@ class Main:
                                 episode_match_inc_ss_par + episode_match_inc_p_par
                             )
                             / 2,
-                            "mi_score_par": mi_score
+                            "mi_score_par": mi_score_par
                         },
                         step=epoch,
                     )
@@ -1715,7 +1740,7 @@ class Main:
         save_stats=True,
         add_goal_suffix=False,
         n_episodes=None,
-        zero_noise=False,
+        zero_noise=True,
     ):
 
         print(f"------> {suffix}")
@@ -1783,6 +1808,10 @@ class Main:
             # Do not introduce noise to policy search
             controller.base_policy_noise = 0.0
             controller.max_policy_noise = 0.0
+        else:
+            # Use minimal noise in policy search (for better metrics estimation)
+            controller.max_policy_noise = controller.base_policy_noise
+
 
         (
             matches,
@@ -1884,7 +1913,8 @@ class Main:
         # and gripper end position.
         mi_score = self.calc_obj_conf_gripper_mi(contexts, params_ind,
                                                  controller,
-                                                 policy_ended)
+                                                 #policy_ended)
+                                                 policy_changed)
 
         if render is not None:
             for i in range(n_episodes):
