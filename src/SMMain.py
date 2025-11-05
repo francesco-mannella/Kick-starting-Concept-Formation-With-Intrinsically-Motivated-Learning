@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from sklearn.metrics import adjusted_mutual_info_score
+from sklearn.metrics import adjusted_mutual_info_score, mutual_info_score
 from sklearn.cluster import KMeans
 
 from params import Parameters
@@ -321,32 +321,44 @@ class Main:
         episode_match_inc_ss = np.mean(corrs_coeffs_ss)
         return episode_match_inc_p, episode_match_inc_ss
 
-    def calc_context_policy_mi(self, contexts, params_ind, controller, policy_ended):
-        mask = np.ones(policy_ended.shape, dtype=bool)
-        mask[:, :self.params.drop_first_n_steps + self.params.policy_selection_steps] = 0
-
-        policies = controller.model_data["batch_a"][:, 0]
-        policies_ind = KMeans(n_clusters=5).fit_predict(policies)
-
-        mi_score = adjusted_mutual_info_score(contexts, policies_ind)
-        return mi_score
-
-    def calc_context_touch_mi(self, contexts, params_ind, controller, policy_ended):
+    def calc_mi_metrics(self, contexts, params_ind, controller, policy_ended):
         """
         Calculate mutual information between object configuration and touch sensors.
         """
-        touch = controller.model_data["batch_ss"]
-
         mask = np.ones(policy_ended.shape, dtype=bool)
         mask[:, :self.params.drop_first_n_steps + self.params.policy_selection_steps] = 0
 
-        touch = touch[mask]
+        policies = controller.model_data["batch_a"][mask]
+        unique_policies = controller.model_data["batch_a"][policy_ended].reshape(-1, policies.shape[-1])
+        policies = policies.reshape(-1, policies.shape[-1])
+        policies_ind = KMeans(n_clusters=5).fit(unique_policies).predict(policies)
 
+        g_angles = controller.model_data["batch_p"][mask]
+        g_angles = g_angles.reshape(-1, g_angles.shape[-1])
+        g_angles_ind = KMeans(n_clusters=10).fit_predict(g_angles)
+
+        touch = controller.model_data["batch_ss"][mask]
         # Discretize touch into 4 regions corresponding to gripper edges
         bins = np.arange(touch.shape[-1], step=10)
         discrete_touch = np.digitize(touch.argmax(axis=-1), bins)
+        # No touch is a 5-th category
         discrete_touch[touch.sum(axis=-1) == 0] = 0
         discrete_touch = discrete_touch.reshape(-1)
+
+        contexts = np.repeat(contexts[:, None],
+                             self.params.stime, axis=1)[mask].reshape(-1)
+        
+        # mi_score_context_touch = adjusted_mutual_info_score(contexts, discrete_touch)
+        # mi_score_context_policy = adjusted_mutual_info_score(contexts, policies_ind)
+        # mi_score_policy_touch = adjusted_mutual_info_score(policies_ind, discrete_touch)
+        # mi_score_context_gripper = adjusted_mutual_info_score(contexts, g_angles_ind)
+        # mi_score_policy_gripper = adjusted_mutual_info_score(policies_ind, g_angles_ind)
+
+        mi_score_context_touch = mutual_info_score(contexts, discrete_touch)
+        mi_score_context_policy = mutual_info_score(contexts, policies_ind)
+        mi_score_policy_touch = mutual_info_score(policies_ind, discrete_touch)
+        mi_score_context_gripper = mutual_info_score(contexts, g_angles_ind)
+        mi_score_policy_gripper = mutual_info_score(policies_ind, g_angles_ind)
 
         # n_bins = 5
         # g_pos = controller.model_data["batch_p"][:, :, -2:]
@@ -360,16 +372,13 @@ class Main:
         #                          self.params.stime, axis=1).reshape(-1)
         #obj_config = np.repeat((contexts * 10 + params_ind)[:, None],
         #                       self.params.stime, axis=1)[mask].reshape(-1)
-        obj_config = np.repeat(contexts[:, None],
-                               self.params.stime, axis=1)[mask].reshape(-1)
 
         # d = pd.DataFrame({"obj_config": obj_config, "discrete_touch": discrete_touch})
         # d["val"] = 1.0
         # print(pd.pivot_table(d, values="val", index="discrete_touch",
         #                      columns="obj_config", aggfunc="sum"))
 
-        mi_score = adjusted_mutual_info_score(obj_config, discrete_touch)
-        return mi_score 
+        return mi_score_context_touch, mi_score_context_policy, mi_score_policy_touch, mi_score_context_gripper, mi_score_policy_gripper
 
     def action_outcome_step(
         self,
@@ -764,11 +773,14 @@ class Main:
                 )
             )
 
-            # Calculate mutual information between object configuration
-            # and gripper end position.
-            mi_score = self.calc_context_touch_mi(contexts, params_ind,
-                                                  self.controller,
-                                                  policy_ended)
+            (mi_score_context_touch,
+             mi_score_context_policy,
+             mi_score_policy_touch,
+             mi_score_context_gripper,
+             mi_score_policy_gripper
+            ) = self.calc_mi_metrics(contexts, params_ind,
+                                     self.controller,
+                                     policy_ended)
 
             # Local competences based on predictor
             comp_dict = self.controller.get_global_local_competence(
@@ -1195,14 +1207,23 @@ class Main:
                 )
             )
 
-            # Calculate mutual information between object configuration
-            # and gripper end position.
-            mi_score = self.calc_context_touch_mi(contexts, params_ind,
-                                                     self.controller,
-                                                     policy_ended)
-            mi_score_par = self.calc_context_touch_mi(contexts, params_ind,
-                                                     self.controller_par,
-                                                     policy_ended_par)
+            (mi_score_context_touch,
+             mi_score_context_policy,
+             mi_score_policy_touch,
+             mi_score_context_gripper,
+             mi_score_policy_gripper,
+            ) = self.calc_mi_metrics(contexts, params_ind,
+                                     self.controller,
+                                     policy_ended)
+
+            (mi_score_context_touch_par,
+             mi_score_context_policy_par,
+             mi_score_policy_touch_par,
+             mi_score_context_gripper_par,
+             mi_score_policy_gripper_par,
+            ) = self.calc_mi_metrics(contexts, params_ind,
+                                     self.controller_par,
+                                     policy_ended_par)
 
             # Local competences based on predictor
             comp_dict = self.controller.get_global_local_competence(
@@ -1534,7 +1555,11 @@ class Main:
                             "match_value_a": self.controller.model_data[
                                 "match_value_per_mod"
                             ][matches, 3].mean(),
-                            "mi_score": mi_score,
+                            "mi_score_context_touch": mi_score_context_touch,
+                            "mi_score_context_policy": mi_score_context_policy,
+                            "mi_score_policy_touch": mi_score_policy_touch,
+                            "mi_score_policy_gripper": mi_score_policy_gripper,
+                            "mi_score_context_gripper": mi_score_context_gripper,
                             "episode_match_inc_ss": episode_match_inc_ss,
                             "episode_match_inc_p": episode_match_inc_p,
                             "mean_episode_match_inc": (
@@ -1612,7 +1637,11 @@ class Main:
                                 episode_match_inc_ss_par + episode_match_inc_p_par
                             )
                             / 2,
-                            "mi_score_par": mi_score_par
+                            "mi_score_context_touch_par": mi_score_context_touch_par,
+                            "mi_score_context_policy_par": mi_score_context_policy_par,
+                            "mi_score_policy_touch_par": mi_score_policy_touch_par,
+                            "mi_score_policy_gripper_par": mi_score_policy_gripper_par,
+                            "mi_score_context_gripper_par": mi_score_context_gripper_par,
                         },
                         step=epoch,
                     )
@@ -1919,16 +1948,14 @@ class Main:
             self.calc_match_inc_within_goal(policy_ended, controller)
         )
 
-        mi_score_context_touch = self.calc_context_touch_mi(contexts, params_ind,
-                                                            controller,
-                                                            policy_ended)
-
-        mi_score_context_policy = self.calc_context_policy_mi(contexts, params_ind,
-                                                              controller,
-                                                              policy_ended)
-
-        print(f"MI context-touch {mi_score_context_touch}")
-        print(f"MI context-policy {mi_score_context_policy}")
+        (mi_score_context_touch,
+         mi_score_context_policy,
+         mi_score_policy_touch,
+         mi_score_context_gripper,
+         mi_score_policy_gripper
+        ) = self.calc_mi_metrics(contexts, params_ind,
+                                 controller,
+                                 policy_ended)
 
         if render is not None:
             for i in range(n_episodes):
@@ -1991,6 +2018,10 @@ class Main:
                     / 2,
                     f"eval_mi_score_context_touch{suffix}": mi_score_context_touch,
                     f"eval_mi_score_context_policy{suffix}": mi_score_context_policy,
+                    f"eval_mi_score_policy_touch{suffix}": mi_score_policy_touch,
+                    f"eval_mi_score_context_gripper{suffix}": mi_score_context_gripper,
+                    f"eval_mi_score_policy_gripper{suffix}": mi_score_policy_gripper,
+
                 }
             for f in glob.glob(f"{site_dir}/episode_*{suffix}*.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
