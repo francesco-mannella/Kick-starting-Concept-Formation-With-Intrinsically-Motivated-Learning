@@ -1847,10 +1847,6 @@ class Main:
             # Do not introduce noise to policy search
             controller.base_policy_noise = 0.0
             controller.max_policy_noise = 0.0
-        else:
-            # Use minimal noise in policy search (for better metrics estimation)
-            controller.max_policy_noise = controller.base_policy_noise
-
 
         (
             matches,
