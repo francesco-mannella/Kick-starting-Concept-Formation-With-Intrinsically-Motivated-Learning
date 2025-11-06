@@ -1736,7 +1736,6 @@ class Main:
                 render="offline",
                 suffix="_demo",
                 save_stats=False,
-                zero_noise=True
             )
 
         if use_wandb:
@@ -1763,7 +1762,6 @@ class Main:
         add_goal_suffix=False,
         n_episodes=None,
         zero_noise=False,
-        #zero_noise=True,
     ):
 
         print(f"------> {suffix}")
@@ -2170,7 +2168,6 @@ class Main:
             save_stats=False,
             render=render,
             n_episodes=self.params.tests,
-            zero_noise=True
         )
 
         action_onset = self.params.drop_first_n_steps + self.params.policy_selection_steps
