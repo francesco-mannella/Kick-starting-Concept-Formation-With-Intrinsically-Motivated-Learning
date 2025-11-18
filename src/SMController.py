@@ -191,8 +191,7 @@ class SMController:
 
     def getPoliciesFromPointsWithNoise(self, points):
         policies, representations = self.getPoliciesFromPoints(points)
-        rcomp = self.predict.spread(representations)
-        goal_competence = rcomp
+        goal_competence = self.predict.spread(representations)
 
         # Modulating policy exploration noise according to local competence
         comp_dict = self.get_global_local_competence(goal_competence)

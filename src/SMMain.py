@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
+from sklearn.metrics import adjusted_mutual_info_score, mutual_info_score, silhouette_score
+from sklearn.cluster import KMeans
 
 from params import Parameters
 from SMAgent import SMAgent
@@ -319,6 +321,60 @@ class Main:
         episode_match_inc_ss = np.mean(corrs_coeffs_ss)
         return episode_match_inc_p, episode_match_inc_ss
 
+    def calc_mi_metrics(self, contexts, params_ind, controller, policy_ended):
+        """
+        Calculate mutual information between object configuration and touch sensors.
+        """
+        mask = np.ones(policy_ended.shape, dtype=bool)
+        mask[:, :self.params.drop_first_n_steps + self.params.policy_selection_steps] = 0
+
+        policies = controller.model_data["batch_a"][mask]
+        unique_policies = controller.model_data["batch_a"][policy_ended].reshape(-1, policies.shape[-1])
+        policies = policies.reshape(-1, policies.shape[-1])
+        km = KMeans(n_clusters=10)
+        unique_policies_ind = km.fit_predict(unique_policies)
+        policies_ind = km.predict(policies)
+        #policies_sscore = silhouette_score(unique_policies, unique_policies_ind)
+        policies_dispersion = (((unique_policies - unique_policies.mean(axis=0))**2).sum(axis=1)).mean()
+        policies_inertia_norm = km.inertia_ / unique_policies.shape[0] / policies_dispersion
+
+        gripper = controller.model_data["batch_p"][mask]
+        gripper = gripper.reshape(-1, gripper.shape[-1])
+        km = KMeans(n_clusters=10)
+        gripper_ind = km.fit_predict(gripper)
+        #gripper_sscore = silhouette_score(gripper, gripper_ind)
+        gripper_dispersion = (((gripper - gripper.mean(axis=0))**2).sum(axis=1)).mean()
+        gripper_inertia_norm = km.inertia_ / gripper.shape[0] / gripper_dispersion
+
+        touch = controller.model_data["batch_ss"][mask]
+        # Discretize touch into 4 regions corresponding to gripper edges
+        bins = np.arange(touch.shape[-1], step=10)
+        discrete_touch = np.digitize(touch.argmax(axis=-1), bins)
+        # No touch is a 5-th category
+        discrete_touch[touch.sum(axis=-1) == 0] = 0
+        discrete_touch = discrete_touch.reshape(-1)
+
+        contexts = np.repeat(contexts[:, None],
+                             self.params.stime, axis=1)[mask].reshape(-1)
+        
+        # mi_score_context_touch = adjusted_mutual_info_score(contexts, discrete_touch)
+        # mi_score_context_policy = adjusted_mutual_info_score(contexts, policies_ind)
+        # mi_score_policy_touch = adjusted_mutual_info_score(policies_ind, discrete_touch)
+        # mi_score_context_gripper = adjusted_mutual_info_score(contexts, gripper_ind)
+        # mi_score_policy_gripper = adjusted_mutual_info_score(policies_ind, gripper_ind)
+
+        res = {
+            "mi_score_context_touch": mutual_info_score(contexts, discrete_touch),
+            "mi_score_context_policy": mutual_info_score(contexts, policies_ind),
+            "mi_score_policy_touch": mutual_info_score(policies_ind, discrete_touch),
+            "mi_score_context_gripper": mutual_info_score(contexts, gripper_ind),
+            "mi_score_policy_gripper": mutual_info_score(policies_ind, gripper_ind),
+            "policies_inertia_norm": policies_inertia_norm,
+            "gripper_inertia_norm": gripper_inertia_norm,
+        }
+
+        return res 
+
     def action_outcome_step(
         self,
         episode,
@@ -391,7 +447,7 @@ class Main:
                         continue
                     episode_len[episode] = t
 
-                    # set correct policy
+                    # set correct policy/
                     agent.updatePolicy(
                         controller.model_data["batch_a"][episode, t, :]
                     )
@@ -671,6 +727,13 @@ class Main:
                     "JOINT_POSITIONS"
                 ][:5]
 
+            n_episodes = self.params.batch_size
+            # print(pd.Series(contexts).value_counts() / n_episodes)
+            # print(pd.Series(params_ind).value_counts() / n_episodes)
+            # d = pd.DataFrame({"contexts": contexts, "params_ind": params_ind})
+            # d["v"] = 1
+            # print(d.pivot_table(values="v", index="params_ind", columns="contexts", aggfunc="sum") / n_episodes)
+
             (
                 matches,
                 max_match,
@@ -689,7 +752,11 @@ class Main:
             # Episode success rate: in how many episodes policy ever changes
             # after the initial one?
             episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
+            print(f"success rate {episode_success_rate}")
 
+            # How many timesteps involve touching the object?
+            touch_freq = (self.controller.model_data["batch_ss"].sum(axis=-1) > 0).mean()
+            
             # Mark end of each policy
             policy_ended = np.zeros(policy_changed.shape, dtype=bool)
             policy_ended[:, -1] = (
@@ -704,13 +771,22 @@ class Main:
                 - 1,
             ] = 0
 
-            # Calculate within-episode match increase
-            episode_match_inc_p, episode_match_inc_ss = (
-                self.calc_match_inc_within_goal(
-                    policy_ended,
-                    self.controller,
-                )
-            )
+            # # Calculate within-episode match increase
+            # episode_match_inc_p, episode_match_inc_ss = (
+            #     self.calc_match_inc_within_goal(
+            #         policy_ended,
+            #         self.controller,
+            #     )
+            # )
+            #
+            # (mi_score_context_touch,
+            #  mi_score_context_policy,
+            #  mi_score_policy_touch,
+            #  mi_score_context_gripper,
+            #  mi_score_policy_gripper
+            # ) = self.calc_mi_metrics(contexts, params_ind,
+            #                          self.controller,
+            #                          policy_ended)
 
             # Local competences based on predictor
             comp_dict = self.controller.get_global_local_competence(
@@ -799,6 +875,9 @@ class Main:
                     ],
                     "context": [
                         c for c in contexts for _ in range(self.params.stime)
+                    ],
+                    "params_index": [
+                        i for i in params_ind for _ in range(self.params.stime)
                     ],
                     "timestep": list(range(self.params.stime))
                     * self.params.batch_size,
@@ -926,12 +1005,7 @@ class Main:
                             "goal_activation_green": goal_activation[
                                 contexts == 3, :
                             ][policy_ended[contexts == 3, :]].mean(),
-                            "mean_episode_match_inc": (
-                                episode_match_inc_ss + episode_match_inc_p
-                            )
-                            / 2,
-                            "episode_match_inc_ss": episode_match_inc_ss,
-                            "episode_match_inc_p": episode_match_inc_p,
+                            "touch_freq": touch_freq,
                         },
                         step=epoch,
                     )
@@ -1095,6 +1169,10 @@ class Main:
             episode_success_rate_par = (
                 policy_changed_par.sum(axis=1) >= 2
             ).mean()
+        
+            # How many timesteps involve touching the object?
+            touch_freq = (self.controller.model_data["batch_ss"].sum(axis=-1) > 0).mean()
+            touch_freq_par = (self.controller_par.model_data["batch_ss"].sum(axis=-1) > 0).mean()
 
             # Mark end of each policy
             policy_ended = np.zeros(policy_changed.shape, dtype=bool)
@@ -1119,19 +1197,37 @@ class Main:
                 - 1,
             ] = 0
 
-            # Calculate within-episode match increase
-            episode_match_inc_p, episode_match_inc_ss = (
-                self.calc_match_inc_within_goal(
-                    policy_ended,
-                    self.controller,
-                )
-            )
-            episode_match_inc_p_par, episode_match_inc_ss_par = (
-                self.calc_match_inc_within_goal(
-                    policy_ended_par,
-                    self.controller_par,
-                )
-            )
+            # # Calculate within-episode match increase
+            # episode_match_inc_p, episode_match_inc_ss = (
+            #     self.calc_match_inc_within_goal(
+            #         policy_ended,
+            #         self.controller,
+            #     )
+            # )
+            # episode_match_inc_p_par, episode_match_inc_ss_par = (
+            #     self.calc_match_inc_within_goal(
+            #         policy_ended_par,
+            #         self.controller_par,
+            #     )
+            # )
+            #
+            # (mi_score_context_touch,
+            #  mi_score_context_policy,
+            #  mi_score_policy_touch,
+            #  mi_score_context_gripper,
+            #  mi_score_policy_gripper,
+            # ) = self.calc_mi_metrics(contexts, params_ind,
+            #                          self.controller,
+            #                          policy_ended)
+            #
+            # (mi_score_context_touch_par,
+            #  mi_score_context_policy_par,
+            #  mi_score_policy_touch_par,
+            #  mi_score_context_gripper_par,
+            #  mi_score_policy_gripper_par,
+            # ) = self.calc_mi_metrics(contexts, params_ind,
+            #                          self.controller_par,
+            #                          policy_ended_par)
 
             # Local competences based on predictor
             comp_dict = self.controller.get_global_local_competence(
@@ -1462,7 +1558,8 @@ class Main:
                             ][matches, 2].mean(),
                             "match_value_a": self.controller.model_data[
                                 "match_value_per_mod"
-                            ][matches, 3].mean()
+                            ][matches, 3].mean(),
+                            "touch_freq": touch_freq,
                         },
                         step=epoch
                     )
@@ -1516,7 +1613,7 @@ class Main:
                                 contexts == 3, :
                             ][policy_ended[contexts == 3, :]].mean(),
                             "goal_activation_par": goal_activation_par[
-                                policy_ended
+                                policy_ended_par
                             ].mean(),
                             "goal_activation_blue_par": goal_activation_par[
                                 contexts == 1, :
@@ -1527,18 +1624,7 @@ class Main:
                             "goal_activation_green_par": goal_activation_par[
                                 contexts == 3, :
                             ][policy_ended_par[contexts == 3, :]].mean(),
-                            "episode_match_inc_ss": episode_match_inc_ss,
-                            "episode_match_inc_p": episode_match_inc_p,
-                            "episode_match_inc_ss_par": episode_match_inc_ss_par,
-                            "episode_match_inc_p_par": episode_match_inc_p_par,
-                            "mean_episode_match_inc": (
-                                episode_match_inc_ss + episode_match_inc_p
-                            )
-                            / 2,
-                            "mean_episode_match_inc_par": (
-                                episode_match_inc_ss_par + episode_match_inc_p_par
-                            )
-                            / 2,
+                            "touch_freq_par": touch_freq_par,
                         },
                         step=epoch,
                     )
@@ -1650,7 +1736,6 @@ class Main:
                 render="offline",
                 suffix="_demo",
                 save_stats=False,
-                zero_noise=True
             )
 
         if use_wandb:
@@ -1694,7 +1779,7 @@ class Main:
 
         gen = cycle(chain.from_iterable(repeat(x, 3) for x in range(len(self.obj_params_space))))
         params_ind = np.array([next(gen) for _ in range(n_episodes)])
-        
+       
         self.initialize_model_data(controller, n_episodes)
         if env_states is not None:
             contexts = [s["context"] for s in env_states]
@@ -1738,6 +1823,14 @@ class Main:
                 "JOINT_POSITIONS"
             ][:5]
 
+
+        # print(pd.Series(contexts).value_counts() / n_episodes)
+        # print(pd.Series(params_ind).value_counts() / n_episodes)
+        # d = pd.DataFrame({"contexts": contexts, "params_ind": params_ind})
+        # d["v"] = 1
+        # print(d.pivot_table(values="v", index="params_ind", columns="contexts", aggfunc="sum") / n_episodes)
+        # exit(1)
+
         # Notice: For some reason without noise eval results are much worse 
         # than with normal noise.
         if zero_noise:
@@ -1745,20 +1838,40 @@ class Main:
             controller.base_policy_noise = 0.0
             controller.max_policy_noise = 0.0
 
-        (
-            matches,
-            max_match,
-            cum_match,
-            episodes_len,
-            policy_changed,
-            goal_activation,
-        ) = self.run_episodes(
-            agent,
-            controller,
-            contexts,
-            envs,
-            states,
-        )
+        print("Evaluation episodes")
+
+        bsize = self.params.batch_size
+        collected_res = defaultdict(list)
+        controller_ = SMController(self.params)
+        self.initialize_model_data(controller_, n_episodes=n_episodes)
+
+        for i in range(0, n_episodes, bsize):
+            self.initialize_model_data(controller, n_episodes=bsize)
+            res = self.run_episodes(
+                agent,
+                controller,
+                contexts[i:(i+bsize)],
+                envs[i:(i+bsize)],
+                states[i:(i+bsize)],
+            )
+            for j, r in enumerate(res):
+                collected_res[j].append(r)
+            for key in ["batch_v", "batch_ss", "batch_p", "batch_a",
+                        "batch_c", "batch_log", "batch_g",
+                        "v_r", "ss_r", "p_r", "a_r",
+                        "v_p", "ss_p", "p_p", "a_p", "g_p",
+                        "match_value", "match_value_per_mod"
+                        ]:
+                controller_.model_data[key][i:(i+bsize)] = controller.model_data[key]
+
+        controller = controller_
+
+        matches = np.concat(collected_res[0])
+        max_match = np.concat(collected_res[1])
+        cum_match = np.concat(collected_res[2])
+        episodes_len = np.concat(collected_res[3])
+        policy_changed = np.concat(collected_res[4])
+        goal_activation = np.concat(collected_res[5])
 
         goal_counts = defaultdict(int)
         for goal in controller.model_data["g_p"][policy_changed]:
@@ -1824,6 +1937,10 @@ class Main:
 
         # Episode success rate: in how many episodes policy ever changes?
         episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
+        print(f"eval success rate {episode_success_rate}")
+
+        # How many timesteps involve touching the object?
+        touch_freq = (controller.model_data["batch_ss"].sum(axis=-1) > 0).mean()
 
         # Mark end of each policy
         policy_ended = np.zeros(policy_changed.shape, dtype=np.bool)
@@ -1840,6 +1957,10 @@ class Main:
         episode_match_inc_p, episode_match_inc_ss = (
             self.calc_match_inc_within_goal(policy_ended, controller)
         )
+
+        mi_metrics = self.calc_mi_metrics(contexts, params_ind,
+                                          controller,
+                                          policy_ended)
 
         if render is not None:
             for i in range(n_episodes):
@@ -1896,11 +2017,14 @@ class Main:
                     f"eval_episode_success_rate{suffix}": episode_success_rate,
                     f"eval_episode_match_inc_ss{suffix}": episode_match_inc_ss,
                     f"eval_episode_match_inc_p{suffix}": episode_match_inc_p,
-                    f"mean_episode_match_inc{suffix}": (
+                    f"eval_episode_match_inc{suffix}": (
                         episode_match_inc_ss + episode_match_inc_p
                     )
                     / 2,
+                    f"eval_touch_freq{suffix}": touch_freq,
                 }
+                for key, val in mi_metrics.items():
+                    log_data[f"{key}{suffix}"] = val
             for f in glob.glob(f"{site_dir}/episode_*{suffix}*.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
             wandb.log(log_data, step=epoch)
@@ -2044,7 +2168,6 @@ class Main:
             save_stats=False,
             render=render,
             n_episodes=self.params.tests,
-            zero_noise=True
         )
 
         action_onset = self.params.drop_first_n_steps + self.params.policy_selection_steps
