@@ -12,11 +12,14 @@ import slugify
 # ------------------------------------------------------------------------
 # ------------------------------------------------------------------------
 
-SEEDS = None  # [93581]
+# SEEDS =  [93581]
 WANDB = True
 N_SEEDS = 5
 MAX_PROCESSES = 2
 base_name = "testnoise"
+
+SEEDS =  [93581]
+WANDB = False 
 
 params = dict(
     base_match_sigma=2,

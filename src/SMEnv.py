@@ -106,10 +106,6 @@ class SMEnv:
             f_pp,
             f_ap,
             f_gp,
-            initial_skip=(
-                self.params.drop_first_n_steps
-                + self.params.policy_selection_steps
-            ),
             visual_map_path="./www/visual_map.png",
         )
 
