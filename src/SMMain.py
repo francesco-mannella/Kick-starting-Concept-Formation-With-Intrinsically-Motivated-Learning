@@ -1060,7 +1060,6 @@ class Main:
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
                 self.diagnose()
-                self.evaluation_episodes(epoch=epoch)
 
                 time_elapsed = time.perf_counter() - epoch_start
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
@@ -1700,7 +1699,6 @@ class Main:
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
                 self.diagnose()
-                self.evaluation_episodes(epoch=epoch)
 
                 time_elapsed = time.perf_counter() - epoch_start
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
@@ -1825,7 +1823,7 @@ class Main:
         save_stats=True,
         add_goal_suffix=False,
         n_episodes=None,
-        zero_noise=False,
+        zero_noise=True,
     ):
 
         print(f"------> {suffix}")
@@ -1949,12 +1947,10 @@ class Main:
 
         controller = controller_
 
-        matches = np.concat(collected_res[0])
         max_match = np.concat(collected_res[1])
         cum_match = np.concat(collected_res[2])
         episodes_len = np.concat(collected_res[3])
         policy_changed = np.concat(collected_res[4])
-        goal_activation = np.concat(collected_res[5])
 
         goal_counts = defaultdict(int)
         for goal in controller.model_data["g_p"][policy_changed]:
