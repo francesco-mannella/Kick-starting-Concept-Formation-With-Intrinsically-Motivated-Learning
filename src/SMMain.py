@@ -2238,6 +2238,13 @@ def parse_arguments():
         default=None,
     )
     parser.add_argument(
+        "-d",
+        "--dir",
+        help="Simulation simulation_directory",
+        action="store",
+        default=None,
+    )
+    parser.add_argument(
         "--group",
         help="Simulation group name (to organize wandb runs)",
         action="store",
@@ -2310,6 +2317,7 @@ if __name__ == "__main__":
     demo = bool(args.demo)
     render = bool(args.render)
     simulation_name = args.name
+    simulation_dir = args.dir or simulation_name
     wdb_project = args.wdb_project
     wdb_entity = args.wdb_entity
 
@@ -2321,7 +2329,7 @@ if __name__ == "__main__":
     torch.set_default_device(device)
 
     if args.name is not None:
-        named_dir = (Path(simulations_dir) / args.name).resolve()
+        named_dir = (Path(simulations_dir) / simulation_dir).resolve()
         os.makedirs(named_dir, exist_ok=True)
         os.chdir(named_dir)
         if plots:
@@ -2338,7 +2346,7 @@ if __name__ == "__main__":
         run = wandb.init(
             project=wdb_project or "kickstarting_concept",
             entity=wdb_entity or "hill_uw",
-            name=args.name,
+            name=simulation_name,
             group=args.group if args.group else None,
             config=config,
         )
