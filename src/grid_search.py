@@ -10,6 +10,9 @@ import numpy as np
 import slugify
 
 
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument("--wandb", action="store_true", help="Enable WANDB")
@@ -95,7 +98,10 @@ for i, p in enumerate(get_combinations(params)):
                 subprocess.Popen(
                     command,
                     stdout=log,
-                    stderr=log,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    close_fds=True,
+                    text=True,
                 )
             )
 
