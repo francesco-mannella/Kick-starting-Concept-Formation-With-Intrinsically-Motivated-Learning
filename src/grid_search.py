@@ -3,6 +3,7 @@ import collections
 import os
 import re
 import subprocess
+import sys
 from itertools import product
 
 import numpy as np
@@ -22,6 +23,7 @@ def parse_arguments():
 args = parse_arguments()
 
 params = dict(
+    decay=[5.5, 6],
     base_match_sigma=2,
     match_sigma=2,
     base_internal_sigma=0.1,
@@ -45,7 +47,6 @@ def optimize_option_key(options_str):
 
 
 seeds = args.seeds or np.random.randint(0, 1e5, args.n_seeds)
-wandb = "-w" if args.wandb else ""
 
 
 processes = []
@@ -57,21 +58,45 @@ for i, p in enumerate(get_combinations(params)):
             for process in processes:
                 process.wait()
             processes = []
-        options_str = ""
+        options = []
         for k, v in p.items():
-            options_str += f" -o '{k}={v}'"
-        option_key = optimize_option_key(options_str)
+            options.append("-o")
+            options.append(f"{k}={v}")
 
-        base_cmd_str = (
-            f"nohup python {orig_path}/SMMain.py "
-            f"-n {args.base_name}_{option_key}_{seed:06d} "
-            f"-s {seed} -t 55000 -x -g {wandb} "
-            "--wdb_project grasp-simulation "
-            "--wdb_entity francesco-mannella"
-        )
-        cmd_str = base_cmd_str + options_str
+        option_key = optimize_option_key("".join(options))
 
-        print(f"Running: {cmd_str}")
-        processes.append(subprocess.Popen(cmd_str, shell=True))
+        run_id = f"{args.base_name}_{option_key}_{seed:06d}"
+
+        command = [
+            sys.executable,
+            f"{orig_path}/SMMain.py",
+            "-n",
+            f"{run_id}",
+            "-s",
+            f"{seed}",
+            "-t",
+            "55000",
+            "-x",
+            "-g",
+            "--wdb_project",
+            "grasp-simulation",
+            "--wdb_entity",
+            "francesco-mannella",
+        ]
+
+        if args.wandb:
+            command.append("-w")
+        command.extend(options)
+
+        print(f"Running: {' '.join(command)}")
+
+        with open(f"{run_id}.log", "w") as log:
+            processes.append(
+                subprocess.Popen(
+                    command,
+                    stdout=log,
+                    stderr=log,
+                )
+            )
 
 exit_codes = [p.wait() for p in processes]
