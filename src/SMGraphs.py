@@ -49,10 +49,9 @@ def remove_figs(epoch=0):
                 f"{site_dir}/visual_map.png", f"{epoch_dir}/visual_map.png"
             )
             copyfile(f"{site_dir}/comp_map.png", f"{epoch_dir}/comp_map.png")
+            copyfile(f"{site_dir}/ssensory_map.png", f"{epoch_dir}/ssensory_map.png")
+            copyfile(f"{site_dir}/proprio_map.png", f"{epoch_dir}/proprio_map.png")
             copyfile(f"{site_dir}/log.png", f"{epoch_dir}/log.png")
-            copyfile(
-                f"{site_dir}/trajectories.png", f"{epoch_dir}/trajectories.png"
-            )
             copyfile(
                 f"{site_dir}/goal_frequency_map.png",
                 f"{epoch_dir}/goal_frequency_map.png",
@@ -66,11 +65,6 @@ def remove_figs(epoch=0):
         if not os.path.exists(f"{site_dir}/blank.gif"):
             blank_video()
         os.makedirs("storage", exist_ok=True)
-        for f in glob.glob("storage/*"):
-            if os.path.isdir(f):
-                rmtree(f)
-            else:
-                os.remove(f)
         copyfile(f"{site_dir}/blank.gif", f"{site_dir}/tv.gif")
         copyfile(
             f"{pathlib.Path(__file__).parent.resolve()}/arms.html",

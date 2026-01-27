@@ -81,6 +81,8 @@ for i, p in enumerate(get_combinations(params)):
             options.append(f"{k}={v}")
         else:
             seed = v
+    options.append("-o")
+    options.append(f"name='{args.base_name}'")
 
     option_key = optimize_option_key("".join(options))
 
@@ -90,8 +92,6 @@ for i, p in enumerate(get_combinations(params)):
         sys.executable,
         f"{orig_path}/SMMain.py",
         "-n",
-        f"{args.base_name}",
-        "-d",
         f"{run_id}",
         "-s",
         f"{seed}",

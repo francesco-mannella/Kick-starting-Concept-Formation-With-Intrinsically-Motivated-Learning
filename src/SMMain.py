@@ -963,15 +963,8 @@ class Main:
                 epoch_dir = f"{storage_dir}/{epoch:06d}"
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
-                self.diagnose()
 
-                evaluation_episodes = self.params.tests
-                gc, tr = self.evaluation_episodes(
-                    epoch=epoch,
-                    n_episodes=evaluation_episodes,
-                    render=None,
-                    save_stats=True,
-                )
+                self.diagnose()
 
                 time_elapsed = time.perf_counter() - epoch_start
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
@@ -1511,7 +1504,7 @@ class Main:
                         step=epoch,
                     )
 
-            # diagnose
+            # PARASITE EVALUATION
             if (epoch % self.params.epochs_to_test == 0) or epoch == (
                 self.params.epochs - 1
             ):
@@ -1519,33 +1512,16 @@ class Main:
                 epoch_dir = f"{storage_dir}/{epoch:06d}"
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
-                self.diagnose()
+
+                self.diagnose(controller=self.controller_par, suffix="_par")
 
                 time_elapsed = time.perf_counter() - epoch_start
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
                 epoch_start = time.perf_counter()
 
-                self.evaluation_episodes(
-                    orig_controller=self.controller_par,
-                    epoch=epoch,
-                    suffix="_par",
-                    save_stats=True,
-                )
-
                 self.controller_par.save(epoch, tag="parasite")
                 visual_map(wfile=f"{site_dir}/visual_weights-parasite.npy")
                 comp_map(wfile=f"{site_dir}/comp_grid-parasite.npy")
-
-                if self.plots and os.path.isfile("PLOT_SIMS"):
-                    print("----> Test Sims ...", end=" ", flush=True)
-                    self.evaluation_episodes(
-                        epoch=epoch,
-                        n_episodes=self.params.tests,
-                        suffix="_demo_par",
-                        render="offline",
-                        orig_controller=self.controller_par,
-                        save_stats=False,
-                    )
 
                 if use_wandb:
                     log_data = {
@@ -1572,11 +1548,12 @@ class Main:
         )
         df_final_par.to_csv("internal_trajectory_data_parasite.csv")
 
-    def diagnose(self):
+    def diagnose(self, controller=None, suffix=None):
 
         np.save("main.dump", [self], allow_pickle=True)
 
-        controller = self.controller
+        controller = controller or self.controller
+        suffix = suffix or ""
         logs = self.logs
         epoch = self.epoch
 
@@ -1600,31 +1577,50 @@ class Main:
         np.save(f"{epoch_dir}/data", [data])
         np.save(f"{site_dir}/log", logs[: epoch + 1])
         np.save(f"{epoch_dir}/log", logs[: epoch + 1])
-
         if self.plots is False:
             return
 
         print("----> Graphs  ...", flush=True)
         remove_figs(epoch)
-        visual_map()
         log()
+        visual_map()
         comp_map()
+        somatosensory_map()
+        proprio_map()
 
-        # Demos
-        if os.path.isfile("PLOT_SIMS"):
+        if not os.path.exists(epoch_dir):
+            print("----->>>>>>")
+            sys.exit()
+        # Tests
+        gc, tr = self.evaluation_episodes(
+            epoch=epoch,
+            n_episodes=self.params.tests,
+            render=None,
+            save_stats=True,
+            suffix=suffix,
+            orig_controller=controller,
+        )
+
+        tr.to_csv(f"{epoch_dir}/trajectories.csv")
+
+        # Render demos
+        if self.plots:
             print("----> Test Sims ...", end=" ", flush=True)
             self.evaluation_episodes(
                 epoch=epoch,
                 n_episodes=self.params.tests,
                 render="offline",
-                suffix="_demo",
-                save_stats=True,
+                suffix="_demo" + suffix,
+                save_stats=False,
+                orig_controller=controller,
             )
 
         if use_wandb:
             log_data = {
                 "visual_map": wandb.Image("www/visual_map.png"),
                 "comp_map": wandb.Image("www/comp_map.png"),
+                "ssensory_map": wandb.Image("www/ssensory_map.png"),
+                "proprio_map": wandb.Image("www/proprio_map.png"),
             }
             wandb.log(log_data, step=epoch)
 
@@ -1771,10 +1767,18 @@ class Main:
 
         all_trajectories = []
         for i in range(n_episodes):
+            i
             # only trajectory of the i-th episode from batch is
             # collected
-            trajectories = pd.DataFrame(controller.model_data["batch_p"][i, :, -2:])
-            trajectories.columns = ["d1", "d2"]
+            postures = pd.DataFrame(controller.model_data["batch_p"][i, :, :])
+            postures.columns = ["d1", "d2", "d3", "d4", "d5"]
+            postures.loc[:, "index_"] = np.arange(postures.shape[0])
+            ss_sensors = pd.DataFrame(controller.model_data["batch_ss"][i, :, :])
+            ss_sensors.columns = [f"s{x}" for x in range(self.params.somatosensory_size)]
+            ss_sensors.loc[:, "index_"] = np.arange(ss_sensors.shape[0])
+            trajectories = pd.merge(postures, ss_sensors, on="index_")
+            trajectories.drop("index_", axis=1, inplace=True)
+
             trajectories["prototype_x"] = controller.model_data["g_p"][i, :, 0]
             trajectories["prototype_y"] = controller.model_data["g_p"][i, :, 1]
             trajectories["goal_id"] = np.cumsum(policy_changed[i])
@@ -2175,6 +2179,7 @@ class Main:
                 "seed": 0,
             }
 
+            # render demo for single prototype
             self.evaluation_episodes(
                 epoch=0,
                 env_states=[state],
