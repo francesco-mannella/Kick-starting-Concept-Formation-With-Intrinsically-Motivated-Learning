@@ -111,16 +111,20 @@ for i, p in enumerate(get_combinations(params)):
 
     print(f"Running: {' '.join(command)}")
 
-    with open(f"{run_id}.log", "w") as log:
-        processes.append(
-            subprocess.Popen(
-                command,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                close_fds=True,
-                text=True,
+    if not os.path.exists(f"simulations/{run_id}"):
+
+        with open(f"{run_id}.log", "w") as log:
+            processes.append(
+                subprocess.Popen(
+                    command,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    close_fds=True,
+                    text=True,
+                )
             )
-        )
+    else:
+        print(f"{run_id} simulation present")
 
 exit_codes = [p.wait() for p in processes]

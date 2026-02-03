@@ -456,6 +456,7 @@ class SMController:
         suffix = "" if tag is None else f"-{tag}"
         storage_dir = f"storage{suffix}"
         epoch_dir = f"{storage_dir}/{epoch:06d}"
+        site_dir = "www"
         os.makedirs(storage_dir, exist_ok=True)
         os.makedirs(epoch_dir, exist_ok=True)
 
@@ -473,10 +474,13 @@ class SMController:
             allow_pickle=True,
         )
 
-        np.save(f"www/visual_weights{suffix}", self.stm_v.get_weights())
-        np.save(f"www/ssensory_weights{suffix}", self.stm_ss.get_weights())
-        np.save(f"www/proprio_weights{suffix}", self.stm_p.get_weights())
-        np.save(f"www/comp_grid{suffix}", self.comp_grid)
+        np.save(
+            f"{site_dir}/weights",
+            [weights],
+            allow_pickle=True,
+        )
+
+        np.save(f"{site_dir}/comp_grid{suffix}", self.comp_grid)
 
     def load(
         self,
