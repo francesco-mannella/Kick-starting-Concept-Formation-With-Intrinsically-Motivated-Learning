@@ -18,22 +18,16 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import mutual_info_score
 
 from params import Parameters
+from storage import StorageManager
+from SMGraphs import GraphManager
 from SMAgent import SMAgent
 from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
-from SMGraphs import (comp_map, goal_frequency_map, log, proprio_map,
-                      remove_figs, somatosensory_map, update_weight_data,
-                      visual_map)
 from tplot import TPlotManager
 
 
 matplotlib.use("Agg")
 np.set_printoptions(formatter={"float": "{:6.4f}".format})
-
-storage_dir = "storage"
-site_dir = "www"
-simulations_dir = "simulations"
-os.makedirs(simulations_dir, exist_ok=True)
 
 
 class RepeatedGoalPrototypeException(Exception):
@@ -75,9 +69,11 @@ def softmax(x, t=0.01):
 
 
 class Main:
-    def __init__(self, params, seed=None, plots=False):
+    def __init__(self, params, seed=None, plots=False, sm=None):
 
         self.params = params
+        self.sm = sm if sm is not None else StorageManager()
+        self.gm = GraphManager(sm, params)
 
         print("Main", flush=True)
 
@@ -89,8 +85,8 @@ class Main:
 
         self.plots = plots
         self.start = time.perf_counter()
-        if self.plots is True:
-            remove_figs()
+        # if self.plots is True:
+        #     remove_figs()
 
         self.random_obj_params = {
             "stretch_conditions": self.params.obj_stretch_conditions,
@@ -189,8 +185,8 @@ class Main:
 
         self.agent = SMAgent(self.env)
         self.start = time.perf_counter()
-        if self.plots is True:
-            remove_figs(self.epoch)
+        # if self.plots is True:
+        #     remove_figs(self.epoch)
 
     def reset_model_data(self, controller):
 
@@ -678,6 +674,9 @@ class Main:
 
         while epoch < self.params.epochs:
 
+            if epoch % self.params.epochs_to_test == 0:
+                self.sm.update(epoch)
+
             self.reset_model_data(self.controller)
 
             total_time_elapsed = time.perf_counter() - self.start
@@ -710,7 +709,7 @@ class Main:
                     "JOINT_POSITIONS"
                 ][:5]
 
-            n_episodes = self.params.batch_size
+            # n_episodes = self.params.batch_size
             # print(pd.Series(contexts).value_counts() / n_episodes)
             # print(pd.Series(params_ind).value_counts() / n_episodes)
             # d = pd.DataFrame({"contexts": contexts, "params_ind": params_ind})
@@ -960,7 +959,7 @@ class Main:
                 self.params.epochs - 1
             ):
 
-                epoch_dir = f"{storage_dir}/{epoch:06d}"
+                epoch_dir = f"{self.sm.storage_dir}/{epoch:06d}"
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
 
@@ -1025,6 +1024,9 @@ class Main:
         internal_trajectory_data_par = []
 
         while epoch < self.params.epochs:
+
+            if epoch % self.params.epochs_to_test == 0:
+                self.sm.update(epoch)
 
             self.reset_model_data(self.controller)
             self.reset_model_data(self.controller_par)
@@ -1509,7 +1511,7 @@ class Main:
                 self.params.epochs - 1
             ):
 
-                epoch_dir = f"{storage_dir}/{epoch:06d}"
+                epoch_dir = f"{self.sm.storage_dir}/{epoch:06d}"
                 os.makedirs(epoch_dir, exist_ok=True)
                 np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
 
@@ -1520,8 +1522,8 @@ class Main:
                 epoch_start = time.perf_counter()
 
                 self.controller_par.save(epoch, tag="parasite")
-                visual_map(wfile=f"{site_dir}/visual_weights-parasite.npy")
-                comp_map(wfile=f"{site_dir}/comp_grid-parasite.npy")
+                self.gm.visual_map(wfile=f"{self.sm.site_dir}/visual_weights-parasite.npy")
+                self.gm.comp_map(wfile=f"{self.sm.site_dir}/comp_grid-parasite.npy")
 
                 if use_wandb:
                     log_data = {
@@ -1569,26 +1571,25 @@ class Main:
         data["p"] = self.controller.model_data["batch_p"]
         data["a"] = self.controller.model_data["batch_a"]
 
-        epoch_dir = f"{storage_dir}/{epoch:06d}"
-        os.makedirs(epoch_dir, exist_ok=True)
-        os.makedirs(site_dir, exist_ok=True)
+        os.makedirs(self.sm.epoch_dir, exist_ok=True)
+        os.makedirs(self.sm.site_dir, exist_ok=True)
 
         controller.save(epoch)
-        np.save(f"{epoch_dir}/data", [data])
-        np.save(f"{site_dir}/log", logs[: epoch + 1])
-        np.save(f"{epoch_dir}/log", logs[: epoch + 1])
+        np.save(f"{self.sm.epoch_dir}/data", [data])
+        np.save(f"{self.sm.site_dir}/log", logs[: epoch + 1])
+        np.save(f"{self.sm.epoch_dir}/log", logs[: epoch + 1])
         if self.plots is False:
             return
 
         print("----> Graphs  ...", flush=True)
-        remove_figs(epoch)
-        log()
-        visual_map()
-        comp_map()
-        somatosensory_map()
-        proprio_map()
+        # remove_figs(epoch)
+        self.gm.log()
+        self.gm.visual_map()
+        self.gm.comp_map()
+        self.gm.somatosensory_map()
+        self.gm.proprio_map()
 
-        if not os.path.exists(epoch_dir):
+        if not os.path.exists(self.sm.epoch_dir):
             print("----->>>>>>")
             sys.exit()
         # Tests
@@ -1601,7 +1602,7 @@ class Main:
             orig_controller=controller,
         )
 
-        tr.to_csv(f"{epoch_dir}/trajectories.csv")
+        tr.to_csv(f"{self.sm.epoch_dir}/trajectories.csv")
 
         # Render demos
         if self.plots:
@@ -1687,7 +1688,7 @@ class Main:
             # env.b2d_env.prepare_world(contexts[episode])
             states[episode] = env.reset(
                 contexts[episode],
-                plot=f"{site_dir}/episode_{episode}{suffix}",
+                plot=f"{self.sm.site_dir}/episode_{episode}{suffix}",
                 render=render,
             )
             if env_states is not None:
@@ -1781,6 +1782,12 @@ class Main:
 
             trajectories["prototype_x"] = controller.model_data["g_p"][i, :, 0]
             trajectories["prototype_y"] = controller.model_data["g_p"][i, :, 1]
+            trajectories["visual_x"] = controller.model_data["v_p"][i, :, 0]
+            trajectories["visual_y"] = controller.model_data["v_p"][i, :, 1]
+            trajectories["touch_x"] = controller.model_data["ss_p"][i, :, 0]
+            trajectories["touch_y"] = controller.model_data["ss_p"][i, :, 1]
+            trajectories["proprio_x"] = controller.model_data["p_p"][i, :, 0]
+            trajectories["proprio_y"] = controller.model_data["p_p"][i, :, 1]
             trajectories["goal_id"] = np.cumsum(policy_changed[i])
             trajectories["tr_id"] = trajectories.goal_id + i * 100
             trajectories["episode_id"] = i
@@ -1882,8 +1889,8 @@ class Main:
                         + self.params.policy_selection_steps,
                     ]
                     shutil.copyfile(
-                        f"{site_dir}/episode_{i}{suffix}.gif",
-                        f"{site_dir}/episode_{i}{suffix}_"
+                        f"{self.sm.site_dir}/episode_{i}{suffix}.gif",
+                        f"{self.sm.site_dir}/episode_{i}{suffix}_"
                         f"{int(first_g_p[0])}_"
                         f"{int(first_g_p[1])}.gif",
                     )
@@ -1908,7 +1915,7 @@ class Main:
                 }
                 for key, val in mi_metrics.items():
                     log_data[f"{key}{suffix}"] = val
-            for f in glob.glob(f"{site_dir}/episode_*{suffix}*.gif"):
+            for f in glob.glob(f"{self.sm.site_dir}/episode_*{suffix}*.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
             wandb.log(log_data, step=epoch)
 
@@ -2030,10 +2037,10 @@ class Main:
         return goals_env_states
 
     def demo_episodes(self, epoch=0, render=None):
-        update_weight_data()
-        visual_map()
-        somatosensory_map()
-        proprio_map()
+        self.gm.update_weight_data()
+        self.gm.visual_map()
+        self.gm.somatosensory_map()
+        self.gm.proprio_map()
 
         goal_counts, trajectories = self.evaluation_episodes(
             epoch=epoch,
@@ -2049,21 +2056,21 @@ class Main:
         for _, row in trajectories[trajectories.index == action_onset].iterrows():
             first_goal_counts[(int(row["prototype_x"]), int(row["prototype_y"]))] += 1
 
-        goal_frequency_map(first_goal_counts)
+        self.gm.goal_frequency_map(first_goal_counts)
         shutil.copyfile(
-            f"{site_dir}/goal_frequency_map.png",
-            f"{site_dir}/first_goal_frequency_map.png",
+            f"{self.sm.site_dir}/goal_frequency_map.png",
+            f"{self.sm.site_dir}/first_goal_frequency_map.png",
         )
 
-        goal_frequency_map(goal_counts)
+        self.gm.goal_frequency_map(goal_counts)
         shutil.copyfile(
-            f"{site_dir}/goal_frequency_map.png",
-            f"{site_dir}/all_goal_frequency_map.png",
+            f"{self.sm.site_dir}/goal_frequency_map.png",
+            f"{self.sm.site_dir}/all_goal_frequency_map.png",
         )
 
         print("Plot grid graph of trajectories")
         tp = TPlotManager(
-            plot_path=f"{site_dir}/trajectory_plots.png",
+            plot_path=f"{self.sm.site_dir}/trajectory_plots.png",
             n_prototypes=self.params.internal_size,
             max_ts=self.params.stime,
         )
@@ -2072,27 +2079,27 @@ class Main:
         if use_wandb:
             log_data = {
                 "first_goal_frequency_map": wandb.Image(
-                    f"{site_dir}/first_goal_frequency_map.png"
+                    f"{self.sm.site_dir}/first_goal_frequency_map.png"
                 ),
                 "all_goal_frequency_map": wandb.Image(
-                    f"{site_dir}/all_goal_frequency_map.png"
+                    f"{self.sm.site_dir}/all_goal_frequency_map.png"
                 ),
-                "trajectory_plots": wandb.Image(f"{site_dir}/trajectory_plots.png"),
+                "trajectory_plots": wandb.Image(f"{self.sm.site_dir}/trajectory_plots.png"),
             }
             wandb.log(log_data, step=epoch)
 
     def demo_episodes_monte_carlo(self, epoch=0, render=None):
-        update_weight_data()
-        visual_map()
-        somatosensory_map()
-        proprio_map()
+        self.gm.update_weight_data()
+        self.gm.visual_map()
+        self.gm.somatosensory_map()
+        self.gm.proprio_map()
 
         goals_env_states = main.monte_carlo_episode_search()
         goal_counts = {k: len(v) for k, v in goals_env_states.items()}
-        goal_frequency_map(goal_counts)
+        self.gm.goal_frequency_map(goal_counts)
         shutil.copyfile(
-            f"{site_dir}/goal_frequency_map.png",
-            f"{site_dir}/first_goal_frequency_map.png",
+            f"{self.sm.site_dir}/goal_frequency_map.png",
+            f"{self.sm.site_dir}/first_goal_frequency_map.png",
         )
 
         goal_counts = defaultdict(int)
@@ -2142,7 +2149,7 @@ class Main:
 
         trajectories = trajectories.reset_index()
         print("Save trajectories dataset")
-        trajectories.to_csv(f"{site_dir}/trajectories.csv")
+        trajectories.to_csv(f"{self.sm.site_dir}/trajectories.csv")
 
         print("Select a dataset of  best trajectories for each prototype ")
         prototype_trajectories = trajectories.query("best==True")
@@ -2159,7 +2166,7 @@ class Main:
 
         prototype_trajectories = prototype_trajectories.query("best_tr == True")
 
-        prototype_trajectories.to_csv(f"{site_dir}/prototype_trajectories.csv")
+        prototype_trajectories.to_csv(f"{self.sm.site_dir}/prototype_trajectories.csv")
 
         print("Render the simulation for each prototype")
         for prototype_idx, row in prototype_trajectories.groupby(
@@ -2190,15 +2197,15 @@ class Main:
                 n_episodes=1,
             )
 
-        goal_frequency_map(goal_counts)
+        self.gm.goal_frequency_map(goal_counts)
         shutil.copyfile(
-            f"{site_dir}/goal_frequency_map.png",
-            f"{site_dir}/all_goal_frequency_map.png",
+            f"{self.sm.site_dir}/goal_frequency_map.png",
+            f"{self.sm.site_dir}/all_goal_frequency_map.png",
         )
 
         print("Plot grid graph of trajectories")
         tp = TPlotManager(
-            plot_path=f"{site_dir}/trajectory_plots.png",
+            plot_path=f"{self.sm.site_dir}/trajectory_plots.png",
             n_prototypes=self.params.internal_size,
             max_ts=self.params.stime,
         )
@@ -2207,12 +2214,12 @@ class Main:
         if use_wandb:
             log_data = {
                 "first_goal_frequency_map": wandb.Image(
-                    f"{site_dir}/first_goal_frequency_map.png"
+                    f"{self.sm.site_dir}/first_goal_frequency_map.png"
                 ),
                 "all_goal_frequency_map": wandb.Image(
-                    f"{site_dir}/all_goal_frequency_map.png"
+                    f"{self.sm.site_dir}/all_goal_frequency_map.png"
                 ),
-                "trajectory_plots": wandb.Image(f"{site_dir}/trajectory_plots.png"),
+                "trajectory_plots": wandb.Image(f"{self.sm.site_dir}/trajectory_plots.png"),
             }
             wandb.log(log_data, step=epoch)
 
@@ -2327,6 +2334,7 @@ if __name__ == "__main__":
     wdb_entity = args.wdb_entity
 
     params = Parameters()
+    sm = StorageManager()
     if os.path.isfile("params.json"):
         params.load("params.json", mode="json")
 
@@ -2334,7 +2342,7 @@ if __name__ == "__main__":
     torch.set_default_device(device)
 
     if args.name is not None:
-        named_dir = (Path(simulations_dir) / simulation_dir).resolve()
+        named_dir = (Path(sm.simulations_dir) / simulation_dir).resolve()
         os.makedirs(named_dir, exist_ok=True)
         os.chdir(named_dir)
         if plots:
@@ -2360,16 +2368,13 @@ if __name__ == "__main__":
         main = np.load("main.dump.npy", allow_pickle=True)[0]
         main.plots = plots
         main.params.update(AppendParamsAction.params_string)
+        main.sm = sm
     else:
-        main = Main(seed=seed, params=params, plots=plots)
+        main = Main(seed=seed, params=params, plots=plots, sm=sm)
 
     if args.load_weights is not None:
         weights = np.load(args.load_weights, allow_pickle=True)[0]
         main.controller.load(weights=weights)
-
-        epoch_dir = f"{storage_dir}/{main.epoch:06d}"
-        os.makedirs(epoch_dir, exist_ok=True)
-        os.makedirs(site_dir, exist_ok=True)
 
         main.controller.save(main.epoch)
 

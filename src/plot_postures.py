@@ -3,6 +3,9 @@ Visualization module for trajectory animation with proprioceptive,
 sensory, and visual weight maps.
 """
 
+import glob
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -10,7 +13,9 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Rectangle
 from scipy.interpolate import splev, splprep
 
-import SMGraphs as g
+from params import Parameters
+from SMGraphs import GraphManager
+from storage import StorageManager
 
 
 def generate_offset_points(points, distance=0.05):
@@ -68,14 +73,13 @@ def interp(points, n=10):
     return np.vstack(splev(u_new, tck)).T
 
 
-def plot_polyline(angles, lengths, ss=None):
+def plot_polyline(angles, lengths):
     """
     Compute polyline coordinates for a multi-segment arm with gripper.
 
     Args:
         angles: Joint angles in degrees.
         lengths: Segment lengths.
-        ss: Unused parameter (reserved for future use).
 
     Returns:
         Tuple of (arm_points, secondary_points, gripper_points).
@@ -262,6 +266,11 @@ class TrajectoryAnimator:
         self.lines2 = []
         self.scatters = []
         self._initialized = False
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.episodes = glob.glob(f"{script_dir}/data/e_*")
+        self.episodes.sort()
+
         self._anim = None
 
     def _init_artists(self, n):
@@ -283,6 +292,31 @@ class TrajectoryAnimator:
         for scatter in self.scatters:
             scatter.set_offsets(np.empty((0, 2)))
             scatter.set_sizes([])
+
+    def render_episode(self, n):
+        episode = self.episodes[n]
+        # Load and display the PNG image in bottom-right of self.video_ax
+        img = plt.imread(episode)
+        img_height, img_width = img.shape[:2]
+
+        # Get axis limits
+        xlim = self.video_ax.get_xlim()
+        ylim = self.video_ax.get_ylim()
+
+        # Define image size (as fraction of axis)
+        scale = 0.2
+        ax_width = xlim[1] - xlim[0]
+        ax_height = ylim[1] - ylim[0]
+
+        # Position in bottom-right
+        extent = [
+            xlim[1] - scale * ax_width,  # left
+            xlim[1],  # right
+            ylim[0],  # bottom
+            ylim[0] + scale * ax_height,  # top
+        ]
+
+        self.video_ax.imshow(img, extent=extent, aspect="auto", zorder=10)
 
     def animate(self, trajectory):
         n = trajectory.shape[0]
@@ -322,6 +356,7 @@ class TrajectoryAnimator:
                     100
                     * np.hstack([ssensors[-10:], ssensors[10:30][::-1], ssensors[:10]])
                 )
+        self.render_episode(trajectory.episode_id.iloc[0])
 
         def update(frame_idx):
             artists = []
@@ -345,6 +380,13 @@ class TrajectoryAnimator:
         )
         plt.show()
 
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+print(glob.glob(f"{script_dir}/data/e_*"))
+
+params = Parameters()
+sm = StorageManager()
+g = GraphManager(sm, params)
 
 df, has_sensors, weights = load_and_process_data()
 wfile = "weights.npy"
