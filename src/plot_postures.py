@@ -295,6 +295,7 @@ class TrajectoryAnimator:
 
     def render_episode(self, n):
         episode = self.episodes[n]
+        print(episode)
         # Load and display the PNG image in bottom-right of self.video_ax
         img = plt.imread(episode)
         img_height, img_width = img.shape[:2]
@@ -380,9 +381,6 @@ class TrajectoryAnimator:
         )
         plt.show()
 
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-print(glob.glob(f"{script_dir}/data/e_*"))
 
 params = Parameters()
 sm = StorageManager()
