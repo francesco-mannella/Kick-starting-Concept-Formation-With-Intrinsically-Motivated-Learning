@@ -7,6 +7,7 @@ import numpy as np
 from params import Parameters
 from SMPredict import SMPredictKDE
 from stm import SMSTM
+from storage import StorageManager
 
 
 def softmax(x, lmb=1):
@@ -20,8 +21,9 @@ def flt(n, s=0.1):
 
 
 class SMController:
-    def __init__(self, params, rng=None, load=False, shuffle=False, tag=None):
+    def __init__(self, params, sm, rng=None, load=False, shuffle=False, tag=None):
 
+        self.sm = sm
         self.params = params
         self.maxmatch = None
         self.rng = rng
@@ -68,7 +70,7 @@ class SMController:
         weights_path = (
             pathlib.Path(__file__).parent.resolve() / "policy_weights_random.npy"
         )
-        # initial_policy = np.load(weights_path, allow_pickle=True)
+        initial_policy = np.load(weights_path, allow_pickle=True)
         # self.stm_a.set_weights(initial_policy)
 
         self.match_sigma = self.params.match_sigma
@@ -277,19 +279,17 @@ class SMController:
 
     def choose_policy(self, v_pt, v_rt):
 
-        if len(v_pt) > 0:
-            goals_p = []
-            goals = []
-            for vp, vr in zip(v_pt, v_rt):
-                unique, counts = np.unique(vp, axis=0, return_counts=True)
-                max_count_index = np.argsort(counts)[::-1][0]
-                goals_p.append(vp[max_count_index])
-                goals.append(vr[max_count_index])
+        goals_p = []
+        goals = []
+        for vp, vr in zip(v_pt, v_rt):
+            unique, counts = np.unique(vp, axis=0, return_counts=True)
+            max_count_index = np.argsort(counts)[::-1][0]
+            goals_p.append(vp[max_count_index])
+            goals.append(vr[max_count_index])
 
+        goals_p = np.squeeze(np.stack(goals_p))
+        goals = np.squeeze(np.stack(goals))
 
-            goals_p = np.squeeze(np.stack(goals_p))
-            goals = np.squeeze(np.stack(goals))
-        
         # update policies in successful episodes
         (policies, competences, local_competences, mean_policy_noise) = (
             self.getPoliciesFromPointsWithNoise(goals_p)
@@ -386,17 +386,11 @@ class SMController:
             self.stm_ss.update_params(sigma=local_sigma_effect)
             self.stm_p.update_params(sigma=local_sigma_effect)
             self.stm_a.update_params(sigma=local_sigma_effect)
-
-            mv, mss, mp, ma = (
-                self.params.modalities_modulations[k]
-                for k in self.params.modalities_modulations.keys()
-            )
-
             curr_loss = (
-                self.stm_v.update(visuals[cond_ind], mv * modulate_cond).item(),
-                self.stm_ss.update(ssensories[match_ind], mss * modulate_effect).item(),
-                self.stm_p.update(proprios[match_ind], mp * modulate_effect).item(),
-                self.stm_a.update(policies[match_ind], ma * modulate_effect).item(),
+                self.stm_v.update(visuals[cond_ind], modulate_cond).item(),
+                self.stm_ss.update(ssensories[match_ind], modulate_effect).item(),
+                self.stm_p.update(proprios[match_ind], modulate_effect).item(),
+                self.stm_a.update(policies[match_ind], modulate_effect).item(),
             )
 
         # Update predictor: predictor predicts cumulated matches for a
@@ -436,7 +430,6 @@ class SMController:
     def __setstate__(self, state):
         params = Parameters()
         params.__setstate__(state["params"])
-        self.__init__(params)
         self.stm_v.set_weights(state["visual"])
         self.stm_ss.set_weights(state["ssensory"])
         self.stm_p.set_weights(state["proprio"])
@@ -448,11 +441,6 @@ class SMController:
     def save(self, epoch, tag=None):
 
         suffix = "" if tag is None else f"-{tag}"
-        storage_dir = f"storage{suffix}"
-        epoch_dir = f"{storage_dir}/{epoch:06d}"
-        site_dir = "www"
-        os.makedirs(storage_dir, exist_ok=True)
-        os.makedirs(epoch_dir, exist_ok=True)
 
         weights = {
             "visual": self.stm_v.get_weights(),
@@ -463,18 +451,17 @@ class SMController:
         }
 
         np.save(
-            f"{epoch_dir}/weights",
+            f"{self.sm.epoch_dir}/weights",
             [weights],
             allow_pickle=True,
         )
 
         np.save(
-            f"{site_dir}/weights",
+            f"{self.sm.site_dir}/weights",
             [weights],
             allow_pickle=True,
         )
-
-        np.save(f"{site_dir}/comp_grid{suffix}", self.comp_grid)
+        np.save(self.sm.site_dir / f"comp_grid{suffix}", self.comp_grid)
 
     def load(
         self,

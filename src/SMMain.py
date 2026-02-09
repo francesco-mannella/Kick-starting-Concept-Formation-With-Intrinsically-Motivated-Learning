@@ -111,9 +111,11 @@ class Main:
             rand_obj_params=self.random_obj_params,
         )
         self.agent = SMAgent(self.env)
+        
         self.controller = SMController(
-            self.params,
-            self.rng,
+            params=self.params,
+            sm=sm,
+            rng=self.rng,
             load=self.params.load_weights,
             shuffle=self.params.shuffle_weights,
         )
@@ -130,11 +132,13 @@ class Main:
             "plots": self.plots,
             "logs": self.logs,
             "epoch": self.epoch,
+            "sm": self.sm.__getstate__(),
         }
 
     def __setstate__(self, state):
 
         self.params = Parameters()
+        self.sm = StorageManager.from_state(state["sm"])
         self.params.__setstate__(state["params"])
         self.plots = state["plots"]
         self.logs = state["logs"]
@@ -175,6 +179,7 @@ class Main:
         )
         self.controller = SMController(
             self.params,
+            self.sm,
             self.rng,
             load=self.params.load_weights,
             shuffle=self.params.shuffle_weights,
@@ -598,8 +603,8 @@ class Main:
                     policy_changed[success_mask, t] = 1
 
                     data_slice = slice(t - self.params.policy_selection_steps, t)
-                    v_pt = controller.model_data["v_p"][success_mask, data_slice, :]
-                    v_rt = controller.model_data["v_r"][success_mask, data_slice, :]
+                    v_pt = controller.model_data["v_p"][:, data_slice, :]
+                    v_rt = controller.model_data["v_r"][:, data_slice, :]
 
                     goal_activation[success_mask, t:] = visual_activation[
                         success_mask,
@@ -607,10 +612,7 @@ class Main:
                     ].mean(axis=1)[:, None]
 
                     # choose policy
-                    chosen_policy_results = controller.choose_policy(
-                        v_pt,
-                        v_rt,
-                    )
+                    chosen_policy_results = controller.choose_policy(v_pt, v_rt)
 
                     (
                         goals_p,
@@ -624,10 +626,10 @@ class Main:
                     # fill successful batches with policies, goals, and
                     # competences (from the current timestep onward)
                     data = controller.model_data
-                    data["batch_a"][success_mask, t:, :] = policies[:, None, :]
-                    data["batch_g"][success_mask, t:, :] = goals[:, None, :]
-                    data["batch_c"][success_mask, t:, :] = competences[:, None, :]
-                    data["batch_log"][success_mask, t:, :] = lcompetences[:, None, :]
+                    data["batch_a"][:, t:, :] = policies[:, None, :]
+                    data["batch_g"][:, t:, :] = goals[:, None, :]
+                    data["batch_c"][:, t:, :] = competences[:, None, :]
+                    data["batch_log"][:, t:, :] = lcompetences[:, None, :]
 
         return (
             matches,
@@ -948,9 +950,7 @@ class Main:
                 self.params.epochs - 1
             ):
 
-                epoch_dir = f"{self.sm.storage_dir}/{epoch:06d}"
-                os.makedirs(epoch_dir, exist_ok=True)
-                np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
+                np.save(self.sm.epoch_dir / "main.dump", [self], allow_pickle=True)
 
                 self.diagnose()
 
@@ -991,6 +991,7 @@ class Main:
 
         self.controller_par = SMController(
             self.params,
+            self.sm,
             self.rng,
             load=self.params.load_weights,
             shuffle=self.params.shuffle_weights,
@@ -1500,9 +1501,7 @@ class Main:
                 self.params.epochs - 1
             ):
 
-                epoch_dir = f"{self.sm.storage_dir}/{epoch:06d}"
-                os.makedirs(epoch_dir, exist_ok=True)
-                np.save(f"{epoch_dir}/main.dump", [self], allow_pickle=True)
+                np.save(self.sm.epoch_dir / "main.dump", [self], allow_pickle=True)
 
                 self.diagnose(controller=self.controller_par, suffix="_par")
 
@@ -1511,15 +1510,17 @@ class Main:
                 epoch_start = time.perf_counter()
 
                 self.controller_par.save(epoch, tag="parasite")
-                self.gm.visual_map(
-                    wfile=f"{self.sm.site_dir}/visual_weights-parasite.npy"
-                )
-                self.gm.comp_map(wfile=f"{self.sm.site_dir}/comp_grid-parasite.npy")
+                self.gm.visual_map(wfile=self.sm.site_dir / "visual_weights-parasite.npy")
+                self.gm.comp_map(wfile=self.sm.site_dir / "comp_grid-parasite.npy")
 
                 if use_wandb:
                     log_data = {
-                        "visual_map_par": wandb.Image("www/visual_map.png"),
-                        "comp_map_par": wandb.Image("www/comp_map.png"),
+                        "visual_map_par": wandb.Image(
+                            str(self.sm.site_dir / "visual_map.png")
+                        ),
+                        "comp_map_par": wandb.Image(
+                            str(self.sm.site_dir / "comp_map.png")
+                        ),
                     }
                     wandb.log(log_data, step=epoch)
 
@@ -1543,7 +1544,7 @@ class Main:
 
     def diagnose(self, controller=None, suffix=None):
 
-        np.save("main.dump", [self], allow_pickle=True)
+        np.save(self.sm.epoch_dir / "main.dump", [self], allow_pickle=True)
 
         controller = controller or self.controller
         suffix = suffix or ""
@@ -1562,28 +1563,13 @@ class Main:
         data["p"] = self.controller.model_data["batch_p"]
         data["a"] = self.controller.model_data["batch_a"]
 
-        os.makedirs(self.sm.epoch_dir, exist_ok=True)
-        os.makedirs(self.sm.site_dir, exist_ok=True)
-
         controller.save(epoch)
-        np.save(f"{self.sm.epoch_dir}/data", [data])
-        np.save(f"{self.sm.site_dir}/log", logs[: epoch + 1])
-        np.save(f"{self.sm.epoch_dir}/log", logs[: epoch + 1])
-        if self.plots is False:
-            return
 
-        print("----> Graphs  ...", flush=True)
-        # remove_figs(epoch)
-        self.gm.log()
-        self.gm.visual_map()
-        self.gm.comp_map()
-        self.gm.somatosensory_map()
-        self.gm.proprio_map()
+        np.save(self.sm.epoch_dir / "data", [data])
+        np.save(self.sm.site_dir / "log", logs[: epoch + 1])
+        np.save(self.sm.epoch_dir / "log", logs[: epoch + 1])
 
-        if not os.path.exists(self.sm.epoch_dir):
-            print("----->>>>>>")
-            sys.exit()
-        # Tests
+        print("----> Evaluation tests  ...", flush=True)
         gc, tr = self.evaluation_episodes(
             epoch=epoch,
             n_episodes=self.params.tests,
@@ -1593,11 +1579,27 @@ class Main:
             orig_controller=controller,
         )
 
-        tr.to_csv(f"{self.sm.epoch_dir}/trajectories.csv")
+        tr.to_csv(self.sm.epoch_dir / "trajectories.csv")
+
+        print("----> Map renderings  ...", flush=True)
+        self.gm.log()
+        self.gm.visual_map()
+        self.gm.comp_map()
+        self.gm.somatosensory_map()
+        self.gm.proprio_map()
+
+        if use_wandb:
+            log_data = {
+                "visual_map": wandb.Image(self.sm.site_dir / "visual_map.png"),
+                "comp_map": wandb.Image(self.sm.site_dir / "comp_map.png"),
+                "ssensory_map": wandb.Image(self.sm.site_dir / "ssensory_map.png"),
+                "proprio_map": wandb.Image(self.sm.site_dir / "proprio_map.png"),
+            }
+            wandb.log(log_data, step=epoch)
 
         # Render demos
         if self.plots:
-            print("----> Test Sims ...", end=" ", flush=True)
+            print("----> Demo renderings ...", end=" ", flush=True)
             self.evaluation_episodes(
                 epoch=epoch,
                 n_episodes=self.params.tests,
@@ -1606,15 +1608,6 @@ class Main:
                 save_stats=False,
                 orig_controller=controller,
             )
-
-        if use_wandb:
-            log_data = {
-                "visual_map": wandb.Image("www/visual_map.png"),
-                "comp_map": wandb.Image("www/comp_map.png"),
-                "ssensory_map": wandb.Image("www/ssensory_map.png"),
-                "proprio_map": wandb.Image("www/proprio_map.png"),
-            }
-            wandb.log(log_data, step=epoch)
 
     def collect_sensory_states(self):
         pass
@@ -1639,7 +1632,10 @@ class Main:
 
         n_episodes = n_episodes or self.params.evaluation_episodes
         agent = self.agent
-        controller = SMController(self.params)
+        controller = SMController(
+            self.params,
+            self.sm,
+        )
         if orig_controller is None:
             controller.__setstate__(self.controller.__getstate__())
         else:
@@ -1710,7 +1706,7 @@ class Main:
 
         bsize = self.params.batch_size
         collected_res = defaultdict(list)
-        controller_ = SMController(self.params)
+        controller_ = SMController(self.params, self.sm)
         self.initialize_model_data(controller_, n_episodes=n_episodes)
 
         for i in range(0, n_episodes, bsize):
@@ -1917,10 +1913,10 @@ class Main:
         agent = self.agent
 
         if controller is None:
-            controller = SMController(self.params)
+            controller = SMController(self.params, self.sm)
             controller.__setstate__(self.controller.__getstate__())
         else:
-            copied = SMController(self.params)
+            copied = SMController(self.params, self.sm)
             copied.__setstate__(controller.__getstate__())
             controller = copied
 
@@ -2329,21 +2325,12 @@ if __name__ == "__main__":
     wdb_entity = args.wdb_entity
 
     params = Parameters()
-    sm = StorageManager()
-    if os.path.isfile("params.json"):
+    sm = StorageManager(simulation_dir)
+    if Path("params.json").is_file():
         params.load("params.json", mode="json")
 
     device = "cuda" if torch.cuda.is_available() and gpu else "cpu"
     torch.set_default_device(device)
-
-    if args.name is not None:
-        named_dir = (Path(sm.simulations_dir) / simulation_dir).resolve()
-        os.makedirs(named_dir, exist_ok=True)
-        os.chdir(named_dir)
-        if plots:
-            Path("PLOT_SIMS").touch()
-        else:
-            Path("PLOT_SIMS").unlink(missing_ok=True)
 
     print(AppendParamsAction.params_string)
     params.update(AppendParamsAction.params_string)
@@ -2359,7 +2346,7 @@ if __name__ == "__main__":
             config=config,
         )
 
-    if os.path.isfile("main.dump.npy"):
+    if os.path.isfile(sm.sim_dir / "main.dump.npy"):
         main = np.load("main.dump.npy", allow_pickle=True)[0]
         main.plots = plots
         main.params.update(AppendParamsAction.params_string)

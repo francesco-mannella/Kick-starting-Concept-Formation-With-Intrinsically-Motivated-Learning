@@ -42,6 +42,12 @@ def parse_arguments():
         type=str,
         help="JSON of combinations parameters",
     )
+    parser.add_argument(
+        "-x",
+        "--plot",
+        action="store_true",
+        help="Plot rendered demos",
+    )
     return parser.parse_args()
 
 
@@ -79,8 +85,10 @@ for i, p in enumerate(get_combinations(params)):
         if k != "seeds":
             options.append("-o")
             options.append(f"{k}={v}")
-        else:
+        elif k == "seeds":
             seed = v
+        else:
+            seed = 0
     options.append("-o")
     options.append(f"name='{args.base_name}'")
 
@@ -99,13 +107,16 @@ for i, p in enumerate(get_combinations(params)):
         f"{seed}",
         "-t",
         "55000",
-        "-x",
         "-g",
         "--wdb_project",
         "grasp-simulation",
         "--wdb_entity",
         "francesco-mannella",
     ]
+
+    if args.plot:
+        command.append("-x")
+
 
     if args.wandb:
         command.append("-w")
