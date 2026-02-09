@@ -46,7 +46,8 @@ class Parameters(ParameterManager):
         policy_weights_sigma=2.0,
         motor_noise=1.0,
         representation_sigma=2.0,
-        modalities_weights=[0.0, 1.0, 1.0, 0.0], # use only touch and proprioception
+        modalities_weights=(0.0, 1.0, 1.0, 0.0),  # use only touch and proprioception
+        modalities_modulations=None,  # v,ss,p,a
         match_incr_th=0.001,
         cum_match_stop_th=1.0,
         predict_lr=0.05,
@@ -69,9 +70,7 @@ class Parameters(ParameterManager):
     ):
 
         self.task_space = (
-            {"xlim": [-10, 50], "ylim": [-10, 50]}
-            if task_space is None
-            else task_space
+            {"xlim": [-10, 50], "ylim": [-10, 50]} if task_space is None else task_space
         )
         self.stime = stime
         self.drop_first_n_steps = drop_first_n_steps
@@ -113,10 +112,9 @@ class Parameters(ParameterManager):
         self.policy_weights_sigma = policy_weights_sigma
         self.motor_noise = motor_noise
         self.representation_sigma = representation_sigma
-        self.modalities_weights = (
-            [1.0, 1.0, 1.0, 1.0]
-            if modalities_weights is None
-            else modalities_weights
+        self.modalities_weights = modalities_weights
+        self.modalities_modulations = modalities_modulations or dict.fromkeys(
+            ["v", "ss", "p", "a"], 1.0
         )
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th

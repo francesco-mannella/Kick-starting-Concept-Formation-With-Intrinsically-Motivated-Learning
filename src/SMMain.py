@@ -18,11 +18,11 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import mutual_info_score
 
 from params import Parameters
-from storage import StorageManager
-from SMGraphs import GraphManager
 from SMAgent import SMAgent
 from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
+from SMGraphs import GraphManager
+from storage import StorageManager
 from tplot import TPlotManager
 
 
@@ -445,7 +445,7 @@ class Main:
                         continue
                     episode_len[episode] = t
 
-                    # set correct policy/
+                    # set correct policy to zero policy
                     agent.updatePolicy(controller.model_data["batch_a"][episode, t, :])
 
                     # action-outcome step
@@ -475,10 +475,6 @@ class Main:
                 t0 = t - self.params.action_steps
                 sa = np.s_[:, t0:t, :]
 
-                # Use minimal sigma for building within-episode representations
-                # controller.updateParams(
-                #    self.params.base_internal_sigma, controller.curr_lr
-                # )
                 # Use representation sigma for building within-episode representations
                 controller.updateParams(
                     self.params.representation_sigma, controller.curr_lr
@@ -602,9 +598,8 @@ class Main:
                     policy_changed[success_mask, t] = 1
 
                     data_slice = slice(t - self.params.policy_selection_steps, t)
+                    v_pt = controller.model_data["v_p"][success_mask, data_slice, :]
                     v_rt = controller.model_data["v_r"][success_mask, data_slice, :]
-                    ss_rt = controller.model_data["ss_r"][success_mask, data_slice, :]
-                    p_rt = controller.model_data["p_r"][success_mask, data_slice, :]
 
                     goal_activation[success_mask, t:] = visual_activation[
                         success_mask,
@@ -613,7 +608,8 @@ class Main:
 
                     # choose policy
                     chosen_policy_results = controller.choose_policy(
-                        v_rt, ss_rt, p_rt, goal_activation, t
+                        v_pt,
+                        v_rt,
                     )
 
                     (
@@ -674,7 +670,7 @@ class Main:
 
         while epoch < self.params.epochs:
 
-            if epoch % self.params.epochs_to_test == 0:
+            if epoch % self.params.epochs_to_test == 0 or epoch == self.params.epochs - 1:
                 self.sm.update(epoch)
 
             self.reset_model_data(self.controller)
@@ -695,7 +691,7 @@ class Main:
                     self.params.action_steps,
                     rand_obj_params=self.obj_params_space[params_ind[episode]],
                 )
-                # env.b2d_env.prepare_world(contexts[episode])
+
                 states[episode] = env.reset(contexts[episode])
                 envs[episode] = env
                 state = states[episode]
@@ -708,13 +704,6 @@ class Main:
                 self.controller.model_data["batch_p"][episode, 0, :] = state[
                     "JOINT_POSITIONS"
                 ][:5]
-
-            # n_episodes = self.params.batch_size
-            # print(pd.Series(contexts).value_counts() / n_episodes)
-            # print(pd.Series(params_ind).value_counts() / n_episodes)
-            # d = pd.DataFrame({"contexts": contexts, "params_ind": params_ind})
-            # d["v"] = 1
-            # print(d.pivot_table(values="v", index="params_ind", columns="contexts", aggfunc="sum") / n_episodes)
 
             (
                 matches,
@@ -1025,7 +1014,7 @@ class Main:
 
         while epoch < self.params.epochs:
 
-            if epoch % self.params.epochs_to_test == 0:
+            if epoch % self.params.epochs_to_test == 0 or epoch == self.params.epochs - 1:
                 self.sm.update(epoch)
 
             self.reset_model_data(self.controller)
@@ -1522,7 +1511,9 @@ class Main:
                 epoch_start = time.perf_counter()
 
                 self.controller_par.save(epoch, tag="parasite")
-                self.gm.visual_map(wfile=f"{self.sm.site_dir}/visual_weights-parasite.npy")
+                self.gm.visual_map(
+                    wfile=f"{self.sm.site_dir}/visual_weights-parasite.npy"
+                )
                 self.gm.comp_map(wfile=f"{self.sm.site_dir}/comp_grid-parasite.npy")
 
                 if use_wandb:
@@ -2084,7 +2075,9 @@ class Main:
                 "all_goal_frequency_map": wandb.Image(
                     f"{self.sm.site_dir}/all_goal_frequency_map.png"
                 ),
-                "trajectory_plots": wandb.Image(f"{self.sm.site_dir}/trajectory_plots.png"),
+                "trajectory_plots": wandb.Image(
+                    f"{self.sm.site_dir}/trajectory_plots.png"
+                ),
             }
             wandb.log(log_data, step=epoch)
 
@@ -2219,7 +2212,9 @@ class Main:
                 "all_goal_frequency_map": wandb.Image(
                     f"{self.sm.site_dir}/all_goal_frequency_map.png"
                 ),
-                "trajectory_plots": wandb.Image(f"{self.sm.site_dir}/trajectory_plots.png"),
+                "trajectory_plots": wandb.Image(
+                    f"{self.sm.site_dir}/trajectory_plots.png"
+                ),
             }
             wandb.log(log_data, step=epoch)
 

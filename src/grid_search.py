@@ -92,6 +92,8 @@ for i, p in enumerate(get_combinations(params)):
         sys.executable,
         f"{orig_path}/SMMain.py",
         "-n",
+        f"{args.base_name}",
+        "-d",
         f"{run_id}",
         "-s",
         f"{seed}",
@@ -112,13 +114,12 @@ for i, p in enumerate(get_combinations(params)):
     print(f"Running: {' '.join(command)}")
 
     if not os.path.exists(f"simulations/{run_id}"):
-
-        with open(f"{run_id}.log", "w") as log:
+        with open(f"{run_id}.log", "w") as log, open(f"{run_id}.err", "w") as err:
             processes.append(
                 subprocess.Popen(
                     command,
                     stdout=log,
-                    stderr=subprocess.STDOUT,
+                    stderr=err,
                     start_new_session=True,
                     close_fds=True,
                     text=True,

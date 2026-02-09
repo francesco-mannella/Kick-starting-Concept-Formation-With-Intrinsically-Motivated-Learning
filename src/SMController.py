@@ -68,7 +68,7 @@ class SMController:
         weights_path = (
             pathlib.Path(__file__).parent.resolve() / "policy_weights_random.npy"
         )
-        initial_policy = np.load(weights_path, allow_pickle=True)
+        # initial_policy = np.load(weights_path, allow_pickle=True)
         # self.stm_a.set_weights(initial_policy)
 
         self.match_sigma = self.params.match_sigma
@@ -275,33 +275,21 @@ class SMController:
             matches_increments_per_mod,
         )
 
-    def choose_policy(self, v_rt, ss_rt, p_rt, goal_activation, t):
-        # TODO: ugly hack to avoid division by 0
-        # v_rt_w = 1.1 - self.controller.predict.spread(v_rt)
-        # ss_rt_w = 1.1 - self.controller.predict.spread(ss_rt)
-        # p_rt_w = 1.1 - self.controller.predict.spread(p_rt)
-        v_rt_w = self.predict.spread(v_rt)
-        # ss_rt_w = self.predict.spread(ss_rt)
-        # p_rt_w = self.predict.spread(p_rt)
+    def choose_policy(self, v_pt, v_rt):
 
-        v_rt_w_sum = v_rt_w.sum(axis=1)
-        v_rt = (v_rt * v_rt_w).sum(axis=1) / np.where(v_rt_w_sum != 0, v_rt_w_sum, 1)
-        # ss_rt = (ss_rt * ss_rt_w).sum(axis=1) / ss_rt_w.sum(axis=1)
-        # p_rt = (p_rt * p_rt_w).sum(axis=1) / p_rt_w.sum(axis=1)
+        if len(v_pt) > 0:
+            goals_p = []
+            goals = []
+            for vp, vr in zip(v_pt, v_rt):
+                unique, counts = np.unique(vp, axis=0, return_counts=True)
+                max_count_index = np.argsort(counts)[::-1][0]
+                goals_p.append(vp[max_count_index])
+                goals.append(vr[max_count_index])
 
-        # goals = np.average([v_rt, ss_rt, p_rt],
-        #                   axis=0,
-        #                   weights=[self.params.modalities_weights[0],
-        #                            self.params.modalities_weights[1],
-        #                            self.params.modalities_weights[2]])
-        # goals = (v_rt + ss_rt + p_rt) / 3 # TEST
-        # goals_out = (v_rt + p_rt) / 2 # TEST: no touch modality
-        goals_out = v_rt  # TEST: Visual modality only
 
-        goals_p, goals = self.stm_a.get_point_and_representation(
-            goals_out, sigma=self.params.representation_sigma
-        )
-
+            goals_p = np.squeeze(np.stack(goals_p))
+            goals = np.squeeze(np.stack(goals))
+        
         # update policies in successful episodes
         (policies, competences, local_competences, mean_policy_noise) = (
             self.getPoliciesFromPointsWithNoise(goals_p)
@@ -398,11 +386,17 @@ class SMController:
             self.stm_ss.update_params(sigma=local_sigma_effect)
             self.stm_p.update_params(sigma=local_sigma_effect)
             self.stm_a.update_params(sigma=local_sigma_effect)
+
+            mv, mss, mp, ma = (
+                self.params.modalities_modulations[k]
+                for k in self.params.modalities_modulations.keys()
+            )
+
             curr_loss = (
-                self.stm_v.update(visuals[cond_ind], modulate_cond).item(),
-                self.stm_ss.update(ssensories[match_ind], modulate_effect).item(),
-                self.stm_p.update(proprios[match_ind], modulate_effect).item(),
-                self.stm_a.update(policies[match_ind], modulate_effect).item(),
+                self.stm_v.update(visuals[cond_ind], mv * modulate_cond).item(),
+                self.stm_ss.update(ssensories[match_ind], mss * modulate_effect).item(),
+                self.stm_p.update(proprios[match_ind], mp * modulate_effect).item(),
+                self.stm_a.update(policies[match_ind], ma * modulate_effect).item(),
             )
 
         # Update predictor: predictor predicts cumulated matches for a
