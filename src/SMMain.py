@@ -450,7 +450,7 @@ class Main:
                         continue
                     episode_len[episode] = t
 
-                    # set correct policy to zero policy
+                    # set correct policy
                     agent.updatePolicy(controller.model_data["batch_a"][episode, t, :])
 
                     # action-outcome step
@@ -603,8 +603,10 @@ class Main:
                     policy_changed[success_mask, t] = 1
 
                     data_slice = slice(t - self.params.policy_selection_steps, t)
-                    v_pt = controller.model_data["v_p"][:, data_slice, :]
-                    v_rt = controller.model_data["v_r"][:, data_slice, :]
+                    v_pt = controller.model_data["v_p"][success_mask, data_slice, :]
+                    v_rt = controller.model_data["v_r"][success_mask, data_slice, :]
+                    ss_rt = controller.model_data["ss_r"][success_mask, data_slice, :]
+                    p_rt = controller.model_data["p_r"][success_mask, data_slice, :]
 
                     goal_activation[success_mask, t:] = visual_activation[
                         success_mask,
@@ -612,7 +614,9 @@ class Main:
                     ].mean(axis=1)[:, None]
 
                     # choose policy
-                    chosen_policy_results = controller.choose_policy(v_pt, v_rt)
+                    chosen_policy_results = controller.choose_policy(
+                        v_pt, v_rt, ss_rt, p_rt, goal_activation, t
+                    )
 
                     (
                         goals_p,
@@ -626,10 +630,10 @@ class Main:
                     # fill successful batches with policies, goals, and
                     # competences (from the current timestep onward)
                     data = controller.model_data
-                    data["batch_a"][:, t:, :] = policies[:, None, :]
-                    data["batch_g"][:, t:, :] = goals[:, None, :]
-                    data["batch_c"][:, t:, :] = competences[:, None, :]
-                    data["batch_log"][:, t:, :] = lcompetences[:, None, :]
+                    data["batch_a"][success_mask, t:, :] = policies[:, None, :]
+                    data["batch_g"][success_mask, t:, :] = goals[:, None, :]
+                    data["batch_c"][success_mask, t:, :] = competences[:, None, :]
+                    data["batch_log"][success_mask, t:, :] = lcompetences[:, None, :]
 
         return (
             matches,

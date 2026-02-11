@@ -7,7 +7,6 @@ import numpy as np
 from params import Parameters
 from SMPredict import SMPredictKDE
 from stm import SMSTM
-from storage import StorageManager
 
 
 def softmax(x, lmb=1):
@@ -277,18 +276,16 @@ class SMController:
             matches_increments_per_mod,
         )
 
-    def choose_policy(self, v_pt, v_rt):
+    def choose_policy(self, v_pt, v_rt, ss_rt, p_rt, goal_activation, t):
 
-        goals_p = []
-        goals = []
-        for vp, vr in zip(v_pt, v_rt):
-            unique, counts = np.unique(vp, axis=0, return_counts=True)
-            max_count_index = np.argsort(counts)[::-1][0]
-            goals_p.append(vp[max_count_index])
-            goals.append(vr[max_count_index])
-
-        goals_p = np.squeeze(np.stack(goals_p))
-        goals = np.squeeze(np.stack(goals))
+        v_rt_w = self.predict.spread(v_rt)
+        v_rt_w_sum = v_rt_w.sum(axis=1)
+        v_rt = (v_rt * v_rt_w).sum(axis=1) / np.where(v_rt_w_sum != 0, v_rt_w_sum, 1)
+        goals_out = v_rt  # TEST: Visual modality only
+        #
+        goals_p, goals = self.stm_a.get_point_and_representation(
+            goals_out, sigma=self.params.representation_sigma
+        )
 
         # update policies in successful episodes
         (policies, competences, local_competences, mean_policy_noise) = (

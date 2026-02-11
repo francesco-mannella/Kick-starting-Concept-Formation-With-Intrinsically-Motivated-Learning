@@ -18,6 +18,9 @@ from SMGraphs import GraphManager
 from storage import StorageManager
 
 
+from pathlib import Path
+
+
 def generate_offset_points(points, distance=0.05):
     """
     Generate points offset perpendicular to a polyline.
@@ -383,7 +386,7 @@ class TrajectoryAnimator:
 
 
 params = Parameters()
-sm = StorageManager()
+sm = StorageManager((Path("..") / "..").resolve().stem)
 g = GraphManager(sm, params)
 
 df, has_sensors, weights = load_and_process_data()
@@ -391,8 +394,8 @@ wfile = "weights.npy"
 for tr_id, trajectory in df.groupby(["goal_id", "tr_id"]):
     fig, axes, xlims, ylims, sensor_points = create_figure_layout()
     setup_ax(axes["video"], xlims, ylims)
-    py = int(trajectory.prototype_x.iat[0])
-    px = int(trajectory.prototype_y.iat[0])
+    px = int(trajectory.prototype_x.iat[0])
+    py = int(trajectory.prototype_y.iat[0])
 
     update_maps(g, wfile, axes["pmap"], axes["vmap"], axes["smap"], px, py)
     plot_proprioceptive(axes["proprio"], weights, px, py)
