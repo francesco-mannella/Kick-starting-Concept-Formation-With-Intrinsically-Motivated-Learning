@@ -351,7 +351,7 @@ class TestPlotter:
         f_ap,
         f_gp,
         initial_skip=50,
-        visual_map_path=None,
+        path=None,
     ):
 
         # def translate_data(x, side=10):
@@ -431,8 +431,8 @@ class TestPlotter:
             self.ax.set_ylim(0.98 * (np.array(self.int_ylim) - 0.1))
             self.ax.axis("off")
 
-            if visual_map_path is not None:
-                im = plt.imread(visual_map_path)
+            if path is not None:
+                im = plt.imread(path / "visual_map.png")
                 im = im
                 self.ax.imshow(
                     np.rot90(im),

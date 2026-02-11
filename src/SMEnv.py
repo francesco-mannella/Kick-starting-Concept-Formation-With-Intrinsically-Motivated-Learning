@@ -1,5 +1,5 @@
 import copy
-
+from pathlib import Path
 import gymnasium as gym
 
 from params import Parameters
@@ -94,7 +94,16 @@ class SMEnv:
         return observation
 
     def render_info(
-        self, match_value, max_match, cum_match, f_vp, f_ssp, f_pp, f_ap, f_gp
+        self,
+        match_value,
+        max_match,
+        cum_match,
+        f_vp,
+        f_ssp,
+        f_pp,
+        f_ap,
+        f_gp,
+        map_path=None,
     ):
         assert self.render is not None
         self.b2d_env.renderer.add_info_to_frames(
@@ -106,7 +115,7 @@ class SMEnv:
             f_pp,
             f_ap,
             f_gp,
-            visual_map_path="./www/visual_map.png",
+            path=map_path or Path("./www/"),
         )
 
     def close(self):
@@ -117,9 +126,7 @@ class SMEnv:
 class SMEnvParasite(SMEnv):
 
     def __init__(self, seed, params, observations, rand_obj_params=None):
-        super(SMEnvParasite, self).__init__(
-            seed, params, rand_obj_params=rand_obj_params
-        )
+        super(SMEnvParasite, self).__init__(seed, params, rand_obj_params=rand_obj_params)
         self.stored_observations = observations
         self.i = 0
 

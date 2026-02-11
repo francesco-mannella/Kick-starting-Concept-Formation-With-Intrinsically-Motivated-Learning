@@ -391,7 +391,7 @@ g = GraphManager(sm, params)
 
 df, has_sensors, weights = load_and_process_data()
 wfile = "weights.npy"
-for tr_id, trajectory in df.groupby(["goal_id", "tr_id"]):
+for tr_id, trajectory in df.groupby(["episode_id", "goal_id"]):
     fig, axes, xlims, ylims, sensor_points = create_figure_layout()
     setup_ax(axes["video"], xlims, ylims)
     px = int(trajectory.prototype_x.iat[0])

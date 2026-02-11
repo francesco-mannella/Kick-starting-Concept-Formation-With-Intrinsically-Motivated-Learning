@@ -2,8 +2,8 @@ from pathlib import Path
 
 
 class StorageManager:
-    def __init__(self, name):
-        self.orig_dir = Path.cwd()
+    def __init__(self, name, orig_dir=None):
+        self.orig_dir = orig_dir or Path.cwd()
         self.simulations_dir = self.orig_dir / "simulations"
         self.sim_dir = self.simulations_dir / name
         self.storage_dir = self.sim_dir / "storage"

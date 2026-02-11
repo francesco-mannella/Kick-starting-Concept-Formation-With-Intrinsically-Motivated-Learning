@@ -39,9 +39,10 @@ class TimeLimitsException(Exception):
 
 
 class SensoryMotorCircle:
-    def __init__(self, action_steps=5):
+    def __init__(self, main, action_steps=5):
         self.t = 0
         self.action_steps = action_steps
+        self.main = main
 
     def step(self, env, agent, state):
         if self.t % self.action_steps == 0:
@@ -56,7 +57,7 @@ class SensoryMotorCircle:
             self.action = agent.step(state)
         state = env.step(
             self.action
-            + np.random.normal(scale=params.motor_noise, size=self.action.shape)
+            + np.random.normal(scale=self.main.params.motor_noise, size=self.action.shape)
         )
 
         self.t += 1
@@ -66,6 +67,209 @@ class SensoryMotorCircle:
 def softmax(x, t=0.01):
     e = np.exp(x / t)
     return e / (e.sum() + 1e-100)
+
+
+def build_episode_dataset(params):
+    """
+    Build a dataset mapping unique indices to (obj_param_space_index, context) pairs.
+
+    This provides a common dataset of episode types with defining parameters that can
+    be used across run_episodes, evaluation_episodes, and single_demo.py.
+
+    Args:
+        params: Parameters object containing obj_stretch_conditions, obj_rotation_conditions,
+                obj_y, and obj_x.
+
+    Returns:
+        tuple: (pd.DataFrame, list)
+            - DataFrame with columns ['index', 'obj_param_index', 'context', 'stretch', 'rotation']
+            - List of obj_params_space dictionaries
+    """
+    obj_params_space = [
+        {
+            "stretch_conditions": [stretch],
+            "rotation_conditions": [rotation],
+            "pos": [params.obj_y, params.obj_x],
+        }
+        for stretch in params.obj_stretch_conditions
+        for rotation in params.obj_rotation_conditions
+    ]
+
+    contexts = [1, 2, 3]
+
+    dataset = []
+    idx = 0
+    for obj_idx, obj_params in enumerate(obj_params_space):
+        for context in contexts:
+            dataset.append(
+                {
+                    "index": idx,
+                    "obj_param_index": obj_idx,
+                    "context": context,
+                    "stretch": obj_params["stretch_conditions"][0],
+                    "rotation": obj_params["rotation_conditions"][0],
+                }
+            )
+            idx += 1
+
+    df = pd.DataFrame(dataset)
+    df = df.astype(
+        {
+            "index": "int",
+            "obj_param_index": "int",
+            "context": "int",
+            "stretch": "float",
+            "rotation": "float",
+        }
+    )
+
+    print(df)
+
+    return (df, obj_params_space)
+
+
+class EpisodeRunner:
+    """
+    Encapsulates the execution and rendering of episodes.
+
+    This class provides a unified interface for running episodes that can be used
+    in run_episodes, evaluation_episodes, and wherever episodes are executed and/or rendered.
+    """
+
+    def __init__(self, main_instance):
+        """
+        Initialize the EpisodeRunner.
+
+        Args:
+            main_instance: Reference to the Main instance containing params, controller, etc.
+        """
+        self.main = main_instance
+        self.params = main_instance.params
+
+    def prepare_environment(
+        self,
+        episode_index,
+        seed,
+        obj_params,
+        context,
+        render=None,
+        plot_path=None,
+    ):
+        """
+        Prepare a single environment for episode execution.
+
+        Args:
+            episode_index: Index of the episode in the batch.
+            seed: Random seed for the environment.
+            obj_params: Object parameters dictionary.
+            context: Context value (1, 2, or 3).
+            render: Render mode ('offline' or None).
+            plot_path: Path for saving rendered output.
+
+        Returns:
+            tuple: (env, state) - The initialized environment and initial state.
+        """
+        env = SMEnv(
+            seed,
+            self.params,
+            self.params.action_steps,
+            rand_obj_params=obj_params,
+        )
+
+        state = env.reset(
+            context,
+            plot=plot_path,
+            render=render,
+        )
+
+        return env, state
+
+    def initialize_episode_state(self, controller, episode_index, state):
+        """
+        Initialize the controller's model data for a single episode's initial state.
+
+        Args:
+            controller: SMController instance.
+            episode_index: Index of the episode in the batch.
+            state: Initial state from the environment.
+        """
+        controller.model_data["batch_v"][episode_index, 0, :] = state[
+            "VISUAL_SENSORS"
+        ].ravel()
+        controller.model_data["batch_ss"][episode_index, 0, :] = state["TOUCH_SENSORS"]
+        controller.model_data["batch_p"][episode_index, 0, :] = state["JOINT_POSITIONS"][
+            :5
+        ]
+
+    def render_episode_results(
+        self,
+        env,
+        controller,
+        episode_index,
+        episode_len,
+        max_match,
+        cum_match,
+        maps_path=None,
+    ):
+        """
+        Render the results of a completed episode.
+
+        Args:
+            env: The environment instance.
+            controller: SMController instance.
+            episode_index: Index of the episode.
+            episode_len: Length of the episode.
+            max_match: Maximum match values array.
+            cum_match: Cumulative match values array.
+        """
+        ep_len = episode_len
+        full_match_value = controller.model_data["match_value"][episode_index, :ep_len]
+        full_cum_match = cum_match[episode_index, :ep_len] / self.params.cum_match_stop_th
+        full_max_match = max_match[episode_index, :ep_len]
+        f_vp = controller.model_data["v_p"][episode_index, :ep_len]
+        f_ssp = controller.model_data["ss_p"][episode_index, :ep_len]
+        f_pp = controller.model_data["p_p"][episode_index, :ep_len]
+        f_ap = controller.model_data["a_p"][episode_index, :ep_len]
+        f_gp = controller.model_data["g_p"][episode_index, :ep_len]
+
+        env.render_info(
+            full_match_value,
+            full_max_match,
+            full_cum_match,
+            f_vp,
+            f_ssp,
+            f_pp,
+            f_ap,
+            f_gp,
+            maps_path,
+        )
+        env.close()
+
+    def run_batch_episodes(
+        self,
+        agent,
+        controller,
+        contexts,
+        envs,
+        states,
+    ):
+        """
+        Run a batch of episodes and return results.
+
+        This is the main entry point for executing episodes, encapsulating
+        the core logic from run_episodes.
+
+        Args:
+            agent: SMAgent instance.
+            controller: SMController instance with initialized model_data.
+            contexts: Array of context values for each episode.
+            envs: List of environment instances.
+            states: List of initial states.
+
+        Returns:
+            tuple: (matches, max_match, cum_match, episode_len, policy_changed, goal_activation)
+        """
+        return self.main.run_episodes(agent, controller, contexts, envs, states)
 
 
 class Main:
@@ -94,15 +298,8 @@ class Main:
             "pos": [self.params.obj_y, self.params.obj_x],
         }
 
-        self.obj_params_space = [
-            {
-                "stretch_conditions": [stretch],
-                "rotation_conditions": [rotation],
-                "pos": [self.params.obj_y, self.params.obj_x],
-            }
-            for stretch in self.params.obj_stretch_conditions
-            for rotation in self.params.obj_rotation_conditions
-        ]
+        # Build episode dataset using the common function
+        self.episode_dataset, self.obj_params_space = build_episode_dataset(self.params)
 
         self.env = SMEnv(
             seed,
@@ -111,7 +308,7 @@ class Main:
             rand_obj_params=self.random_obj_params,
         )
         self.agent = SMAgent(self.env)
-        
+
         self.controller = SMController(
             params=self.params,
             sm=sm,
@@ -121,6 +318,9 @@ class Main:
         )
         self.logs = np.zeros([self.params.epochs, 3])
         self.epoch = 0
+
+        # Initialize the episode runner
+        self.episode_runner = EpisodeRunner(self)
 
     def __getstate__(self):
         return {
@@ -154,15 +354,8 @@ class Main:
             "pos": [self.params.obj_y, self.params.obj_x],
         }
 
-        self.obj_params_space = [
-            {
-                "stretch_conditions": [stretch],
-                "rotation_conditions": [rotation],
-                "pos": [self.params.obj_y, self.params.obj_x],
-            }
-            for stretch in self.params.obj_stretch_conditions
-            for rotation in self.params.obj_rotation_conditions
-        ]
+        # Build episode dataset using the common function
+        self.episode_dataset, self.obj_params_space = build_episode_dataset(self.params)
 
         nlogs = len(self.logs)
         if self.params.epochs > nlogs:
@@ -190,8 +383,45 @@ class Main:
 
         self.agent = SMAgent(self.env)
         self.start = time.perf_counter()
+
+        # Initialize the episode runner
+        self.episode_runner = EpisodeRunner(self)
         # if self.plots is True:
         #     remove_figs(self.epoch)
+
+    def get_episode_config(self, episode_index):
+        """
+        Get the configuration for a specific episode type by index.
+
+        Args:
+            episode_index: Index into the episode dataset (0 to len(episode_dataset)-1).
+
+        Returns:
+            dict: Episode configuration with keys 'obj_param_index', 'context', 'stretch', 'rotation'.
+
+        Raises:
+            ValueError: If episode_index is out of range.
+        """
+        if episode_index < 0 or episode_index >= len(self.episode_dataset):
+            raise ValueError(
+                f"Episode index must be between 0 and "
+                f"{len(self.episode_dataset) - 1}, got {episode_index}"
+            )
+        row = self.episode_dataset.iloc[[episode_index]]
+        return {col: row[col].iloc[0] for col in row.columns}
+
+    def get_obj_params_for_episode(self, episode_index):
+        """
+        Get the object parameters for a specific episode type.
+
+        Args:
+            episode_index: Index into the episode dataset.
+
+        Returns:
+            dict: Object parameters dictionary.
+        """
+        config = self.get_episode_config(episode_index)
+        return self.obj_params_space[config["obj_param_index"]]
 
     def reset_model_data(self, controller):
 
@@ -417,6 +647,75 @@ class Main:
                 "JOINT_POSITIONS"
             ][:5]
 
+    def _prepare_episodes_for_batch(
+        self,
+        controller,
+        contexts,
+        params_ind,
+        epoch_offset=0,
+        render=None,
+        plot_prefix=None,
+        env_states=None,
+        store_observations=False,
+    ):
+        """
+        Prepare environments and initial states for a batch of episodes.
+
+        This is a helper method that encapsulates the common episode preparation logic
+        used in train, train_parasite, and evaluation_episodes.
+
+        Args:
+            controller: SMController instance with initialized model_data.
+            contexts: Array of context values for each episode.
+            params_ind: Array of object parameter indices for each episode.
+            epoch_offset: Offset to add to seed for each episode.
+            render: Render mode ('offline' or None).
+            plot_prefix: Prefix for plot file paths.
+            env_states: Optional list of environment states to restore.
+            store_observations: Whether to store observations in the environment.
+
+        Returns:
+            tuple: (envs, states) - Lists of environments and initial states.
+        """
+        batch_size = len(contexts)
+        envs = [None] * batch_size
+        states = [None] * batch_size
+
+        for episode in range(batch_size):
+            if env_states is not None:
+                seed = env_states[episode]["seed"]
+            else:
+                seed = self.seed + episode + epoch_offset
+
+            env = SMEnv(
+                seed,
+                self.params,
+                self.params.action_steps,
+                store_observations=store_observations,
+                rand_obj_params=self.obj_params_space[params_ind[episode]],
+            )
+
+            plot_path = None
+            if plot_prefix is not None:
+                plot_path = f"{plot_prefix}/episode_{episode}"
+
+            states[episode] = env.reset(
+                contexts[episode],
+                plot=plot_path,
+                render=render,
+            )
+
+            if env_states is not None:
+                env.set_b2d_state(env_states[episode])
+
+            envs[episode] = env
+            state = states[episode]
+
+            # Initialize controller model data for this episode
+            self.episode_runner.initialize_episode_state(controller, episode, state)
+
+        return envs, states
+
     def run_episodes(
         self,
         agent,
@@ -441,7 +740,7 @@ class Main:
         goal_activation = np.zeros((batch_size, self.params.stime))
 
         # Main loop through time steps and episodes
-        smcycles = [SensoryMotorCircle(self.params.action_steps)] * batch_size
+        smcycles = [SensoryMotorCircle(self, self.params.action_steps)] * batch_size
         for t in range(1, self.params.stime + 1):
             if t < self.params.stime:
                 for episode in range(batch_size):
@@ -642,6 +941,202 @@ class Main:
             episode_len,
             policy_changed,
             goal_activation,
+        )
+
+    def _execute_and_collect_episode_results(
+        self,
+        agent,
+        controller,
+        contexts,
+        envs,
+        states,
+        render=None,
+        suffix="",
+        add_goal_suffix=False,
+        env_states=None,
+    ):
+        """
+        Execute episodes and collect results including trajectories.
+
+        This method encapsulates the common logic for running episodes and
+        collecting trajectory data used in evaluation_episodes.
+
+        Args:
+            agent: SMAgent instance.
+            controller: SMController instance.
+            contexts: Array of context values.
+            envs: List of environments.
+            states: List of initial states.
+            render: Render mode.
+            suffix: Suffix for output files.
+            add_goal_suffix: Whether to add goal info to filenames.
+            env_states: Optional environment states.
+
+        Returns:
+            tuple: (goal_counts, trajectories, policy_changed, policy_ended,
+                   max_match, cum_match, episodes_len)
+        """
+        n_episodes = len(contexts)
+        bsize = self.params.batch_size
+        collected_res = defaultdict(list)
+        controller_ = SMController(self.params, self.sm)
+        self.initialize_model_data(controller_, n_episodes=n_episodes)
+
+        for i in range(0, n_episodes, bsize):
+            self.initialize_model_data(controller, n_episodes=bsize)
+            res = self.run_episodes(
+                agent,
+                controller,
+                contexts[i : (i + bsize)],
+                envs[i : (i + bsize)],
+                states[i : (i + bsize)],
+            )
+            for j, r in enumerate(res):
+                collected_res[j].append(r)
+            for key in [
+                "batch_v",
+                "batch_ss",
+                "batch_p",
+                "batch_a",
+                "batch_c",
+                "batch_log",
+                "batch_g",
+                "v_r",
+                "ss_r",
+                "p_r",
+                "a_r",
+                "v_p",
+                "ss_p",
+                "p_p",
+                "a_p",
+                "g_p",
+                "match_value",
+                "match_value_per_mod",
+            ]:
+                controller_.model_data[key][i : (i + bsize)] = controller.model_data[key]
+
+        # Use the accumulated controller
+        controller_out = controller_
+
+        max_match = np.concatenate(collected_res[1])
+        cum_match = np.concatenate(collected_res[2])
+        episodes_len = np.concatenate(collected_res[3])
+        policy_changed = np.concatenate(collected_res[4])
+
+        goal_counts = defaultdict(int)
+        for goal in controller_out.model_data["g_p"][policy_changed]:
+            goal_counts[(int(goal[0]), int(goal[1]))] += 1
+
+        all_trajectories = []
+        for i in range(n_episodes):
+            # only trajectory of the i-th episode from batch is collected
+            postures = pd.DataFrame(controller_out.model_data["batch_p"][i, :, :])
+            postures.columns = ["d1", "d2", "d3", "d4", "d5"]
+            postures.loc[:, "index_"] = np.arange(postures.shape[0])
+            ss_sensors = pd.DataFrame(controller_out.model_data["batch_ss"][i, :, :])
+            ss_sensors.columns = [f"s{x}" for x in range(self.params.somatosensory_size)]
+            ss_sensors.loc[:, "index_"] = np.arange(ss_sensors.shape[0])
+            trajectories = pd.merge(postures, ss_sensors, on="index_")
+            trajectories.drop("index_", axis=1, inplace=True)
+
+            trajectories["prototype_x"] = controller_out.model_data["g_p"][i, :, 0]
+            trajectories["prototype_y"] = controller_out.model_data["g_p"][i, :, 1]
+            trajectories["visual_x"] = controller_out.model_data["v_p"][i, :, 0]
+            trajectories["visual_y"] = controller_out.model_data["v_p"][i, :, 1]
+            trajectories["touch_x"] = controller_out.model_data["ss_p"][i, :, 0]
+            trajectories["touch_y"] = controller_out.model_data["ss_p"][i, :, 1]
+            trajectories["proprio_x"] = controller_out.model_data["p_p"][i, :, 0]
+            trajectories["proprio_y"] = controller_out.model_data["p_p"][i, :, 1]
+            trajectories["goal_id"] = np.cumsum(policy_changed[i])
+            trajectories["tr_id"] = trajectories.goal_id + i * 100
+            trajectories["episode_id"] = i
+            if env_states is not None:
+                trajectories["state"] = [
+                    tuple(
+                        np.hstack(
+                            [
+                                env_states[i]["verts"].reshape(-1).round(5),
+                                env_states[i]["pos"].reshape(-1).round(5),
+                                env_states[i]["color"].reshape(-1).round(5),
+                                [env_states[i]["context"]],
+                                [np.round(env_states[i]["rot"], 5)],
+                            ]
+                        )
+                    )
+                    for x in trajectories.index
+                ]
+
+            trajectories["ts"] = (
+                np.hstack(
+                    list(
+                        map(
+                            np.cumsum,
+                            np.split(
+                                np.ones(self.params.stime),
+                                np.argwhere(policy_changed[i])[:, 0],
+                            ),
+                        )
+                    )
+                )
+                - 1
+            )
+            trajectories = trajectories.iloc[
+                self.params.drop_first_n_steps + self.params.policy_selection_steps : -1
+            ]
+
+            # TMP: remove empty records (when episode ends prematurely). Should be
+            # solved better in the future
+            trajectories.drop(trajectories[trajectories["d1"] == 0].index, inplace=True)
+
+            all_trajectories.append(trajectories)
+
+        trajectories = pd.concat(all_trajectories)
+
+        # Mark end of each policy
+        policy_ended = np.zeros(policy_changed.shape, dtype=np.bool_)
+        policy_ended[:, -1] = 1
+        policy_ended[:, :-1] = policy_changed[:, 1:]
+        # Initial policy change does not count
+        policy_ended[
+            :,
+            self.params.drop_first_n_steps + self.params.policy_selection_steps - 1,
+        ] = 0
+
+        # Render episodes if requested
+        if render is not None:
+            for i in range(n_episodes):
+                self.episode_runner.render_episode_results(
+                    envs[i],
+                    controller_out,
+                    i,
+                    episodes_len[i],
+                    max_match,
+                    cum_match,
+                    self.sm.site_dir,
+                )
+
+                if add_goal_suffix:
+                    first_g_p = controller_out.model_data["g_p"][
+                        i,
+                        self.params.drop_first_n_steps
+                        + self.params.policy_selection_steps,
+                    ]
+                    shutil.copyfile(
+                        f"{self.sm.site_dir}/episode_{i}{suffix}.gif",
+                        f"{self.sm.site_dir}/episode_{i}{suffix}_"
+                        f"{int(first_g_p[0])}_"
+                        f"{int(first_g_p[1])}.gif",
+                    )
+
+        return (
+            goal_counts,
+            trajectories,
+            policy_changed,
+            policy_ended,
+            max_match,
+            cum_match,
+            episodes_len,
+            controller_out,
         )
 
     def train(self, time_limits):
@@ -1613,11 +2108,119 @@ class Main:
                 orig_controller=controller,
             )
 
-    def collect_sensory_states(self):
-        pass
+    def run_single_episode(
+        self,
+        episode_index,
+        controller=None,
+        render=None,
+        output_path=None,
+        seed_offset=0,
+        zero_noise=True,
+    ):
+        """
+        Run and optionally render a single episode based on the episode dataset index.
 
-    def demo_episode(self, idx):
-        pass
+        This method provides a unified interface for executing a single episode
+        that can be used for demos, evaluation, or debugging.
+
+        Args:
+            episode_index: Index into the episode dataset (0 to len(episode_dataset)-1).
+            controller: Optional SMController to use. If None, uses self.controller.
+            render: Render mode ('offline' or None).
+            output_path: Path for saving rendered output.
+            seed_offset: Additional offset to add to the seed for variation.
+            zero_noise: Whether to disable policy noise (default True for evaluation).
+
+        Returns:
+            dict: Results containing:
+                - 'matches': Match array
+                - 'max_match': Maximum match values
+                - 'cum_match': Cumulative match values
+                - 'episode_len': Episode length
+                - 'policy_changed': Policy change indicators
+                - 'goal_activation': Goal activation values
+                - 'controller': The controller used (with model_data populated)
+                - 'env': The environment instance
+                - 'config': Episode configuration from dataset
+        """
+        # Get episode configuration from dataset
+        config = self.get_episode_config(episode_index)
+        obj_params = self.obj_params_space[config["obj_param_index"]]
+        context = config["context"]
+
+        # Setup controller
+        if controller is None:
+            ctrl = SMController(self.params, self.sm)
+            ctrl.__setstate__(self.controller.__getstate__())
+        else:
+            ctrl = SMController(self.params, self.sm)
+            ctrl.__setstate__(controller.__getstate__())
+
+        # Initialize model data for single episode
+        self.initialize_model_data(ctrl, n_episodes=1)
+
+        # Disable policy noise if requested
+        if zero_noise:
+            ctrl.base_policy_noise = 0.0
+            ctrl.max_policy_noise = 0.0
+
+        # Prepare environment
+        seed = self.seed + episode_index + seed_offset
+        env, state = self.episode_runner.prepare_environment(
+            episode_index=0,
+            seed=seed,
+            obj_params=obj_params,
+            context=context,
+            render=render,
+            plot_path=output_path,
+        )
+
+        # Initialize controller state
+        self.episode_runner.initialize_episode_state(ctrl, 0, state)
+
+        # Run the episode
+        envs = [env]
+        states = [state]
+        contexts = [context]
+
+        (
+            matches,
+            max_match,
+            cum_match,
+            episode_len,
+            policy_changed,
+            goal_activation,
+        ) = self.run_episodes(
+            self.agent,
+            ctrl,
+            contexts,
+            envs,
+            states,
+        )
+
+        # Render if requested
+        if render is not None:
+            self.episode_runner.render_episode_results(
+                env,
+                ctrl,
+                0,
+                episode_len[0],
+                max_match,
+                cum_match,
+                self.sm.site_dir,
+            )
+
+        return {
+            "matches": matches,
+            "max_match": max_match,
+            "cum_match": cum_match,
+            "episode_len": episode_len,
+            "policy_changed": policy_changed,
+            "goal_activation": goal_activation,
+            "controller": ctrl,
+            "env": env,
+            "config": config,
+        }
 
     def evaluation_episodes(
         self,
@@ -1655,49 +2258,41 @@ class Main:
 
         self.initialize_model_data(controller, n_episodes)
         if env_states is not None:
-            contexts = [s["context"] for s in env_states]
+            contexts = np.array([s["context"] for s in env_states])
         else:
             contexts = (np.arange(n_episodes) % 3) + 1
 
         envs = [None] * n_episodes
         states = [None] * n_episodes
 
-        # ----- prepare episodes
+        # ----- prepare episodes using the encapsulated method
         for episode in range(n_episodes):
-            # Each environment in each epoch should have a different seed
             if env_states is not None:
                 seed = env_states[episode]["seed"]
             else:
                 seed = self.seed + episode
-            env = SMEnv(
-                seed,
-                self.params,
-                self.params.action_steps,
-                rand_obj_params=self.obj_params_space[params_ind[episode]],
-            )
-            # env.b2d_env.renderer_figsize=(8, 8)
-            # env.b2d_env.prepare_world(contexts[episode])
-            states[episode] = env.reset(
-                contexts[episode],
-                plot=f"{self.sm.site_dir}/episode_{episode}{suffix}",
+
+            plot_path = None
+            if render is not None:
+                plot_path = f"{self.sm.site_dir}/episode_{episode}{suffix}"
+
+            env, state = self.episode_runner.prepare_environment(
+                episode_index=episode,
+                seed=seed,
+                obj_params=self.obj_params_space[params_ind[episode]],
+                context=contexts[episode],
                 render=render,
+                plot_path=plot_path,
             )
+
             if env_states is not None:
                 env.set_b2d_state(env_states[episode])
-            envs[episode] = env
-            state = states[episode]
-            controller.model_data["batch_v"][episode, 0, :] = state[
-                "VISUAL_SENSORS"
-            ].ravel()
-            controller.model_data["batch_ss"][episode, 0, :] = state["TOUCH_SENSORS"]
-            controller.model_data["batch_p"][episode, 0, :] = state["JOINT_POSITIONS"][:5]
 
-        # print(pd.Series(contexts).value_counts() / n_episodes)
-        # print(pd.Series(params_ind).value_counts() / n_episodes)
-        # d = pd.DataFrame({"contexts": contexts, "params_ind": params_ind})
-        # d["v"] = 1
-        # print(d.pivot_table(values="v", index="params_ind", columns="contexts", aggfunc="sum") / n_episodes)
-        # exit(1)
+            envs[episode] = env
+            states[episode] = state
+
+            # Initialize controller model data
+            self.episode_runner.initialize_episode_state(controller, episode, state)
 
         # Notice: For some reason without noise eval results are much worse
         # than with normal noise.
@@ -1708,189 +2303,48 @@ class Main:
 
         print("Evaluation episodes")
 
-        bsize = self.params.batch_size
-        collected_res = defaultdict(list)
-        controller_ = SMController(self.params, self.sm)
-        self.initialize_model_data(controller_, n_episodes=n_episodes)
-
-        for i in range(0, n_episodes, bsize):
-            self.initialize_model_data(controller, n_episodes=bsize)
-            res = self.run_episodes(
-                agent,
-                controller,
-                contexts[i : (i + bsize)],
-                envs[i : (i + bsize)],
-                states[i : (i + bsize)],
-            )
-            for j, r in enumerate(res):
-                collected_res[j].append(r)
-            for key in [
-                "batch_v",
-                "batch_ss",
-                "batch_p",
-                "batch_a",
-                "batch_c",
-                "batch_log",
-                "batch_g",
-                "v_r",
-                "ss_r",
-                "p_r",
-                "a_r",
-                "v_p",
-                "ss_p",
-                "p_p",
-                "a_p",
-                "g_p",
-                "match_value",
-                "match_value_per_mod",
-            ]:
-                controller_.model_data[key][i : (i + bsize)] = controller.model_data[key]
-
-        controller = controller_
-
-        max_match = np.concat(collected_res[1])
-        cum_match = np.concat(collected_res[2])
-        episodes_len = np.concat(collected_res[3])
-        policy_changed = np.concat(collected_res[4])
-
-        goal_counts = defaultdict(int)
-        for goal in controller.model_data["g_p"][policy_changed]:
-            goal_counts[(int(goal[0]), int(goal[1]))] += 1
-
-        all_trajectories = []
-        for i in range(n_episodes):
-            i
-            # only trajectory of the i-th episode from batch is
-            # collected
-            postures = pd.DataFrame(controller.model_data["batch_p"][i, :, :])
-            postures.columns = ["d1", "d2", "d3", "d4", "d5"]
-            postures.loc[:, "index_"] = np.arange(postures.shape[0])
-            ss_sensors = pd.DataFrame(controller.model_data["batch_ss"][i, :, :])
-            ss_sensors.columns = [f"s{x}" for x in range(self.params.somatosensory_size)]
-            ss_sensors.loc[:, "index_"] = np.arange(ss_sensors.shape[0])
-            trajectories = pd.merge(postures, ss_sensors, on="index_")
-            trajectories.drop("index_", axis=1, inplace=True)
-
-            trajectories["prototype_x"] = controller.model_data["g_p"][i, :, 0]
-            trajectories["prototype_y"] = controller.model_data["g_p"][i, :, 1]
-            trajectories["visual_x"] = controller.model_data["v_p"][i, :, 0]
-            trajectories["visual_y"] = controller.model_data["v_p"][i, :, 1]
-            trajectories["touch_x"] = controller.model_data["ss_p"][i, :, 0]
-            trajectories["touch_y"] = controller.model_data["ss_p"][i, :, 1]
-            trajectories["proprio_x"] = controller.model_data["p_p"][i, :, 0]
-            trajectories["proprio_y"] = controller.model_data["p_p"][i, :, 1]
-            trajectories["goal_id"] = np.cumsum(policy_changed[i])
-            trajectories["tr_id"] = trajectories.goal_id + i * 100
-            trajectories["episode_id"] = i
-            if env_states is not None:
-                trajectories["state"] = [
-                    tuple(
-                        np.hstack(
-                            [
-                                env_states[i]["verts"].reshape(-1).round(5),
-                                env_states[i]["pos"].reshape(-1).round(5),
-                                env_states[i]["color"].reshape(-1).round(5),
-                                [env_states[i]["context"]],
-                                [np.round(env_states[i]["rot"], 5)],
-                            ]
-                        )
-                    )
-                    for x in trajectories.index
-                ]
-
-            trajectories["ts"] = (
-                np.hstack(
-                    list(
-                        map(
-                            np.cumsum,
-                            np.split(
-                                np.ones(self.params.stime),
-                                np.argwhere(policy_changed[i])[:, 0],
-                            ),
-                        )
-                    )
-                )
-                - 1
-            )
-            trajectories = trajectories.iloc[
-                self.params.drop_first_n_steps + self.params.policy_selection_steps : -1
-            ]
-
-            # TMP: remove empty records (when episode ends prematurely). Should be
-            # solved better in the future
-            trajectories.drop(trajectories[trajectories["d1"] == 0].index, inplace=True)
-
-            all_trajectories.append(trajectories)
-
-        trajectories = pd.concat(all_trajectories)
+        # Execute and collect results using the encapsulated method
+        (
+            goal_counts,
+            trajectories,
+            policy_changed,
+            policy_ended,
+            max_match,
+            cum_match,
+            episodes_len,
+            controller_out,
+        ) = self._execute_and_collect_episode_results(
+            agent,
+            controller,
+            contexts,
+            envs,
+            states,
+            render=render,
+            suffix=suffix,
+            add_goal_suffix=add_goal_suffix,
+            env_states=env_states,
+        )
 
         # Episode success rate: in how many episodes policy ever changes?
         episode_success_rate = (policy_changed.sum(axis=1) >= 2).mean()
         print(f"eval success rate {episode_success_rate}")
 
         # How many timesteps involve touching the object?
-        touch_freq = (controller.model_data["batch_ss"].sum(axis=-1) > 0).mean()
-
-        # Mark end of each policy
-        policy_ended = np.zeros(policy_changed.shape, dtype=np.bool)
-        policy_ended[:, -1] = 1
-        policy_ended[:, :-1] = policy_changed[:, 1:]
-        # Initial policy change does not count
-        policy_ended[
-            :,
-            self.params.drop_first_n_steps + self.params.policy_selection_steps - 1,
-        ] = 0
+        touch_freq = (controller_out.model_data["batch_ss"].sum(axis=-1) > 0).mean()
 
         episode_match_inc_p, episode_match_inc_ss = self.calc_match_inc_within_goal(
-            policy_ended, controller
+            policy_ended, controller_out
         )
 
-        mi_metrics = self.calc_mi_metrics(contexts, params_ind, controller, policy_ended)
-
-        if render is not None:
-            for i in range(n_episodes):
-                episode_len = episodes_len[i]
-                full_match_value = controller.model_data["match_value"][i, :episode_len]
-                full_cum_match = (
-                    cum_match[i, :episode_len] / self.params.cum_match_stop_th
-                )
-                full_max_match = max_match[i, :episode_len]
-                f_vp = controller.model_data["v_p"][i, :episode_len]
-                f_ssp = controller.model_data["ss_p"][i, :episode_len]
-                f_pp = controller.model_data["p_p"][i, :episode_len]
-                f_ap = controller.model_data["a_p"][i, :episode_len]
-                f_gp = controller.model_data["g_p"][i, :episode_len]
-
-                envs[i].render_info(
-                    full_match_value,
-                    full_max_match,
-                    full_cum_match,
-                    f_vp,
-                    f_ssp,
-                    f_pp,
-                    f_ap,
-                    f_gp,
-                )
-                envs[i].close()
-
-                if add_goal_suffix:
-                    first_g_p = controller.model_data["g_p"][
-                        i,
-                        self.params.drop_first_n_steps
-                        + self.params.policy_selection_steps,
-                    ]
-                    shutil.copyfile(
-                        f"{self.sm.site_dir}/episode_{i}{suffix}.gif",
-                        f"{self.sm.site_dir}/episode_{i}{suffix}_"
-                        f"{int(first_g_p[0])}_"
-                        f"{int(first_g_p[1])}.gif",
-                    )
+        mi_metrics = self.calc_mi_metrics(
+            contexts, params_ind, controller_out, policy_ended
+        )
 
         if use_wandb:
             log_data = {}
             if save_stats:
                 log_data = {
-                    f"eval_mean_comp{suffix}": controller.model_data["batch_log"][
+                    f"eval_mean_comp{suffix}": controller_out.model_data["batch_log"][
                         policy_ended
                     ].mean(),
                     f"eval_mean_cum_match{suffix}": cum_match[policy_ended].mean()
