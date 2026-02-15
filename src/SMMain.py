@@ -123,8 +123,6 @@ def build_episode_dataset(params):
         }
     )
 
-    print(df)
-
     return (df, obj_params_space)
 
 
@@ -154,6 +152,7 @@ class EpisodeRunner:
         context,
         render=None,
         plot_path=None,
+        render_params=None,
     ):
         """
         Prepare a single environment for episode execution.
@@ -174,6 +173,7 @@ class EpisodeRunner:
             self.params,
             self.params.action_steps,
             rand_obj_params=obj_params,
+            render_params=render_params,
         )
 
         state = env.reset(
@@ -2116,6 +2116,7 @@ class Main:
         output_path=None,
         seed_offset=0,
         zero_noise=True,
+        render_params=None,
     ):
         """
         Run and optionally render a single episode based on the episode dataset index.
@@ -2145,8 +2146,9 @@ class Main:
         """
         # Get episode configuration from dataset
         config = self.get_episode_config(episode_index)
-        obj_params = self.obj_params_space[config["obj_param_index"]]
+        obj_params = self.get_obj_params_for_episode(episode_index)
         context = config["context"]
+        print(obj_params)
 
         # Setup controller
         if controller is None:
@@ -2170,6 +2172,7 @@ class Main:
             episode_index=0,
             seed=seed,
             obj_params=obj_params,
+            render_params=render_params,
             context=context,
             render=render,
             plot_path=output_path,
@@ -2248,29 +2251,45 @@ class Main:
         else:
             controller.__setstate__(orig_controller.__getstate__())
 
+        self.initialize_model_data(controller, n_episodes)
+
         if env_states is not None:
             n_episodes = len(env_states)
 
-        gen = cycle(
-            chain.from_iterable(repeat(x, 3) for x in range(len(self.obj_params_space)))
-        )
-        params_ind = np.array([next(gen) for _ in range(n_episodes)])
+            gen = cycle(
+                chain.from_iterable(
+                    repeat(x, 3) for x in range(len(self.obj_params_space))
+                )
+            )
+            params_ind = np.array([next(gen) for _ in range(n_episodes)])
 
-        self.initialize_model_data(controller, n_episodes)
-        if env_states is not None:
             contexts = np.array([s["context"] for s in env_states])
+            seeds = np.array([s["seed"] for s in env_states])
         else:
-            contexts = (np.arange(n_episodes) % 3) + 1
+            contexts = np.zeros(n_episodes)
+            params_ind = np.zeros(n_episodes)
 
         envs = [None] * n_episodes
         states = [None] * n_episodes
 
         # ----- prepare episodes using the encapsulated method
         for episode in range(n_episodes):
+
             if env_states is not None:
-                seed = env_states[episode]["seed"]
+                seed = seeds[episode]
+                context = contexts[episode]
+                obj_params = self.obj_params_space[params_ind[episode]]
             else:
                 seed = self.seed + episode
+
+                db_episode = episode % len(self.episode_dataset)
+
+                config = self.get_episode_config(db_episode)
+                obj_param_index = config["obj_param_index"]
+                context = config["context"]
+                obj_params = self.get_obj_params_for_episode(db_episode)
+                contexts[episode] = context
+                params_ind[episode] = obj_param_index
 
             plot_path = None
             if render is not None:
@@ -2279,8 +2298,8 @@ class Main:
             env, state = self.episode_runner.prepare_environment(
                 episode_index=episode,
                 seed=seed,
-                obj_params=self.obj_params_space[params_ind[episode]],
-                context=contexts[episode],
+                obj_params=obj_params,
+                context=context,
                 render=render,
                 plot_path=plot_path,
             )
@@ -2796,6 +2815,7 @@ if __name__ == "__main__":
 
     if use_wandb:
         config = {k: v for k, v in vars(params).items() if not k.startswith("_")}
+        config["seed"] = seed
         run = wandb.init(
             project=wdb_project or "kickstarting_concept",
             entity=wdb_entity or "hill_uw",

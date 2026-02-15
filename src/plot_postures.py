@@ -3,8 +3,11 @@ Visualization module for trajectory animation with proprioceptive,
 sensory, and visual weight maps.
 """
 
+import argparse
 import glob
 import os
+import subprocess
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,9 +19,6 @@ from scipy.interpolate import splev, splprep
 from params import Parameters
 from SMGraphs import GraphManager
 from storage import StorageManager
-
-
-from pathlib import Path
 
 
 def generate_offset_points(points, distance=0.05):
@@ -87,7 +87,6 @@ def plot_polyline(angles, lengths):
     Returns:
         Tuple of (arm_points, secondary_points, gripper_points).
     """
-    x1, y1 = np.zeros(len(angles)), np.zeros(len(angles))
     angles = np.array(angles)
 
     # Adjust angles for coordinate system
@@ -96,21 +95,38 @@ def plot_polyline(angles, lengths):
 
     # Compute cumulative angles and segment endpoints
     angle_sum = np.cumsum(np.radians(angles))[1:]
+    x1, y1 = np.zeros(len(angles)), np.zeros(len(angles))
     x1[1:], y1[1:] = lengths * np.cos(angle_sum), lengths * np.sin(angle_sum)
-    x1y1 = np.vstack((np.cumsum(x1), np.cumsum(y1))).T
+    arm_coords = np.vstack((np.cumsum(x1), np.cumsum(y1))).T
 
     # Compute mirrored gripper segment
     angles[-2:] *= -1
     angle_sum = np.cumsum(np.radians(angles))[1:]
-    x2 = np.zeros(len(angles))
-    y2 = np.zeros(len(angles))
+    x2, y2 = np.zeros(len(angles)), np.zeros(len(angles))
     x2[1:], y2[1:] = lengths * np.cos(angle_sum), lengths * np.sin(angle_sum)
     x2y2 = np.vstack((np.cumsum(x2), np.cumsum(y2))).T[-3:]
 
     # Combine gripper points from both sides
-    xy_grip = np.vstack([x1y1[-2:][::-1], x2y2])
+    grip_coords = np.vstack([arm_coords[-2:][::-1], x2y2])
+    arm_coords = arm_coords[:3]
 
-    return x1y1, x2y2, xy_grip
+    return arm_coords, grip_coords
+
+
+def get_sensors_coords(grip_coords, n=20):
+
+    n_2 = n // 2
+    pts1 = interp(generate_offset_points(grip_coords, distance=-0.1), n)
+    pts2 = interp(generate_offset_points(grip_coords, distance=0.1), n)
+    pts1 = pts1[::-1]
+    points = np.vstack(
+        [
+            pts1[n_2:],
+            pts2,
+            pts1[:n_2],
+        ]
+    )
+    return points
 
 
 def plot_somatosensory(ax, weights, px, py, sensor_points):
@@ -298,7 +314,6 @@ class TrajectoryAnimator:
 
     def render_episode(self, n):
         episode = self.episodes[n]
-        print(episode)
         # Load and display the PNG image in bottom-right of self.video_ax
         img = plt.imread(episode)
         img_height, img_width = img.shape[:2]
@@ -344,32 +359,29 @@ class TrajectoryAnimator:
         n_minus_1 = n - 1
         indices = ts_vals.astype(int)
         all_angles = np.degrees(data[indices])
-        polylines = [plot_polyline(ang, [1, 1, 0.5, 0.5]) for ang in all_angles]
+        self.polylines = [plot_polyline(ang, [1, 1, 0.5, 0.5]) for ang in all_angles]
         alphas = 0.01 + 0.99 * np.exp(exp_coeff * (np.arange(n) / n_minus_1 - 1) ** 2)
 
         offsets_pts = []
         sizes_arr = []
         if self.has_sensors:
             all_sensors = sensor_data[indices]
-            for i, (x1y1, x2y2, xy_grip) in enumerate(polylines):
-                pts1 = interp(generate_offset_points(xy_grip, distance=-0.1), 20)
-                pts2 = interp(generate_offset_points(xy_grip, distance=0.1), 20)
-                offsets_pts.append(np.vstack([pts1, pts2]))
+            for i, (arm_coords, grip_coords) in enumerate(self.polylines):
+                pts = get_sensors_coords(grip_coords)
+                offsets_pts.append(pts)
                 ssensors = all_sensors[i]
-                sizes_arr.append(
-                    100
-                    * np.hstack([ssensors[-10:], ssensors[10:30][::-1], ssensors[:10]])
-                )
+                sizes_arr.append(100 * ssensors)
+
         self.render_episode(trajectory.episode_id.iloc[0])
 
         def update(frame_idx):
             artists = []
             for i in range(frame_idx + 1):
-                x1y1, x2y2, xy_grip = polylines[i]
+                arm_coords, grip_coords = self.polylines[i]
                 alpha = alphas[i]
-                self.lines1[i].set_data(x1y1[:, 0], x1y1[:, 1])
+                self.lines1[i].set_data(arm_coords[:, 0], arm_coords[:, 1])
                 self.lines1[i].set_alpha(alpha)
-                self.lines2[i].set_data(x2y2[:, 0], x2y2[:, 1])
+                self.lines2[i].set_data(grip_coords[:, 0], grip_coords[:, 1])
                 self.lines2[i].set_alpha(alpha)
                 artists.extend([self.lines1[i], self.lines2[i]])
                 if self.has_sensors:
@@ -385,13 +397,38 @@ class TrajectoryAnimator:
         plt.show()
 
 
-params = Parameters()
-sm = StorageManager((Path("..") / "..").resolve().stem)
-g = GraphManager(sm, params)
+if __name__ == "__main__":
 
-df, has_sensors, weights = load_and_process_data()
-wfile = "weights.npy"
-for tr_id, trajectory in df.groupby(["episode_id", "goal_id"]):
+    parser = argparse.ArgumentParser(description="Process episode and goal identifiers.")
+    parser.add_argument(
+        "-e", "--episode_id", type=int, help="Unique identifier for the episode"
+    )
+    parser.add_argument(
+        "-g",
+        "--goal_id",
+        type=int,
+        help="Unique identifier for the goal within the episode",
+    )
+    args = parser.parse_args()
+
+    params = Parameters()
+    sm = StorageManager((Path("..") / "..").resolve().stem)
+    g = GraphManager(sm, params)
+
+    df, has_sensors, weights = load_and_process_data()
+    wfile = "weights.npy"
+
+    trajectory = df[(df.episode_id == args.episode_id) & (df.goal_id == args.goal_id)]
+
+    gif_path = f"rendered_episodes/episode_{args.episode_id}.gif"
+    if Path(gif_path).exists():
+        subprocess.Popen(
+            ["imv-x11", gif_path],
+            start_new_session=True,
+            close_fds=True,
+        )
+    plt.pause(0.1)
+
     fig, axes, xlims, ylims, sensor_points = create_figure_layout()
     setup_ax(axes["video"], xlims, ylims)
     px = int(trajectory.prototype_x.iat[0])

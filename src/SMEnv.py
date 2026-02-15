@@ -1,5 +1,6 @@
 import copy
 from pathlib import Path
+
 import gymnasium as gym
 
 from params import Parameters
@@ -12,22 +13,29 @@ class SMEnv:
         params,
         action_steps=5,
         store_observations=False,
+        render_params=None,
         rand_obj_params=None,
     ):
 
         self.params = params
         self.action_steps = action_steps
         self.store_observations = store_observations
-        if rand_obj_params is not None:
-            self.rand_obj_params = rand_obj_params
-        else:
-            self.rand_obj_params = {
-                "stretch_conditions": params.obj_stretch_conditions,
-                "rotation_conditions": params.obj_rotation_conditions,
-                "pos": [params.obj_x, params.obj_y],
-            }
+
+        self.rand_obj_params = rand_obj_params or {
+            "stretch_conditions": params.obj_stretch_conditions,
+            "rotation_conditions": params.obj_rotation_conditions,
+            "pos": [params.obj_x, params.obj_y],
+        }
+
+        self.render_params = render_params or {
+            "resolution_prop": 1,
+            "duration": 100,
+        }
+
         self.b2d_env = gym.make(
-            "Box2DSimOneArmOneEye-v0", rand_obj_params=self.rand_obj_params
+            "Box2DSimOneArmOneEye-v0",
+            rand_obj_params=self.rand_obj_params,
+            render_params=self.render_params,
         )
         self.b2d_env = self.b2d_env.unwrapped
         self.b2d_env.set_seed(seed)
@@ -105,18 +113,20 @@ class SMEnv:
         f_gp,
         map_path=None,
     ):
-        assert self.render is not None
-        self.b2d_env.renderer.add_info_to_frames(
-            match_value,
-            max_match,
-            cum_match,
-            f_vp,
-            f_ssp,
-            f_pp,
-            f_ap,
-            f_gp,
-            path=map_path or Path("./www/"),
-        )
+        pass
+        # assert self.render is not None
+        # 
+        # self.b2d_env.renderer.add_info_to_frames(
+        #     match_value,
+        #     max_match,
+        #     cum_match,
+        #     f_vp,
+        #     f_ssp,
+        #     f_pp,
+        #     f_ap,
+        #     f_gp,
+        #     path=map_path or Path("./www/"),
+        # )
 
     def close(self):
         if self.plot is not None:

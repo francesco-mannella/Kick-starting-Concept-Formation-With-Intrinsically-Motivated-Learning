@@ -1,6 +1,7 @@
 import io
 
 import cv2
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from Box2D import b2ContactListener
@@ -91,15 +92,11 @@ class Box2DSim(object):
         self.world.contactListener = self.contact_listener
         self.bodies = bodies
         self.joints = joints
-        self.joint_pids = {
-            ("%s" % k): PID(dt=self.dt) for k in list(self.joints.keys())
-        }
+        self.joint_pids = {("%s" % k): PID(dt=self.dt) for k in list(self.joints.keys())}
 
         def is_body_visible(body):
             return not (
-                body[1].color[0] == 1
-                and body[1].color[1] == 1
-                and body[1].color[2] == 1
+                body[1].color[0] == 1 and body[1].color[1] == 1 and body[1].color[2] == 1
             )
 
         self.visible_bodies = dict(filter(is_body_visible, bodies.items()))
@@ -199,19 +196,14 @@ class VisualSensor:
             color = np.array(body.color)
 
             data = np.array(
-                [
-                    body.GetWorldPoint(v)
-                    for v in body.fixtures[0].shape.vertices
-                ]
+                [body.GetWorldPoint(v) for v in body.fixtures[0].shape.vertices]
             )
             vertices_t = np.round((data - focus) / self.scale) + [
                 (self.shape[0] - 1) // 2,
                 -self.shape[1] // 2,
             ]
             vertices_t[:, 1] = -vertices_t[:, 1]
-            cv2.fillPoly(
-                self.retina, pts=[vertices_t.astype(np.int32)], color=1 - color
-            )
+            cv2.fillPoly(self.retina, pts=[vertices_t.astype(np.int32)], color=1 - color)
 
         self.retina = np.maximum(0, 1 - (self.retina))
         return self.retina
@@ -273,10 +265,16 @@ class TestPlotter:
 
         self.int_xlim = int_xlim
         self.int_ylim = int_ylim
+        self.ratio = 1
 
         if figsize is None:
             self.fig = plt.figure()
         else:
+            self.ratio = figsize[0] / 3
+
+            fontsize = matplotlib.rcParams["font.size"]
+            fontsize = int(fontsize * self.ratio)
+            matplotlib.rcParams.update({"font.size": fontsize})
             self.fig = plt.figure(figsize=figsize)
 
         if self.offline:
@@ -325,9 +323,7 @@ class TestPlotter:
         for key in self.polygons:
             body = self.env.sim.bodies[key]
             vercs = np.vstack(body.fixtures[0].shape.vertices)
-            data = np.vstack(
-                [body.GetWorldPoint(vercs[x]) for x in range(len(vercs))]
-            )
+            data = np.vstack([body.GetWorldPoint(vercs[x]) for x in range(len(vercs))])
             self.polygons[key].set_xy(data)
 
         self.onStep()
@@ -388,9 +384,7 @@ class TestPlotter:
             self.ax.set_ylim(self.ylim)
             self.ax.axis("off")
 
-            self.ax.text(
-                self.xlim[0], 0.9 * self.ylim[1], f"t={i}", fontsize="large"
-            )
+            self.ax.text(self.xlim[0], 0.9 * self.ylim[1], f"t={i}", fontsize="large")
 
             # Current max match
             # self.ax.bar(
@@ -445,8 +439,7 @@ class TestPlotter:
             # Current match value
             self.ax.bar(
                 self.int_xlim[0] + 0.1,
-                self.int_ylim[0]
-                + match_value[i] * (self.int_ylim[1] - self.int_ylim[0]),
+                self.int_ylim[0] + match_value[i] * (self.int_ylim[1] - self.int_ylim[0]),
                 bottom=self.int_ylim[0],
                 width=0.2,
             )
@@ -469,7 +462,7 @@ class TestPlotter:
                     label="goal",
                     color=goal_color,
                     ec="#000",
-                    s=140,
+                    s=int(140 * self.ratio),
                     lw=3,
                 )
             # self.ax.scatter(
@@ -486,7 +479,7 @@ class TestPlotter:
                 label="somatosensory",
                 color=touch_color,
                 ec="#000",
-                s=120,
+                s=int(120 * self.ratio),
             )
             self.ax.scatter(
                 f_pp[i, 0] + q,
@@ -495,7 +488,7 @@ class TestPlotter:
                 label="proprioception",
                 color=proprio_color,
                 ec="#000",
-                s=120,
+                s=int(120 * self.ratio),
             )
             self.ax.scatter(
                 f_ap[i, 0] + q,
@@ -504,7 +497,7 @@ class TestPlotter:
                 label="action",
                 color=action_color,
                 ec="#000",
-                s=120,
+                s=int(120 * self.ratio),
             )
 
             max_trace = 25
@@ -518,27 +511,27 @@ class TestPlotter:
                     f_ssp[t : t + 2, 0] + q,
                     f_ssp[t : t + 2, 1] + q,
                     color=touch_color,
-                    lw=6,
+                    lw=int(6 * self.ratio),
                     alpha=alpha,
                 )
                 self.ax.plot(
                     f_pp[t : t + 2, 0] + q,
                     f_pp[t : t + 2, 1] + q,
-                    lw=6,
+                    lw=int(6 * self.ratio),
                     color=proprio_color,
                     alpha=alpha,
                 )
                 self.ax.plot(
                     f_gp[t : t + 2, 0] + q,
                     f_gp[t : t + 2, 1] + q,
-                    lw=6,
+                    lw=int(6 * self.ratio),
                     color=goal_color,
                     alpha=alpha,
                 )
                 self.ax.plot(
                     f_ap[t : t + 2, 0] + q,
                     f_ap[t : t + 2, 1] + q,
-                    lw=6,
+                    lw=int(6 * self.ratio),
                     color=action_color,
                     alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
                 )
