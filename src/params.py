@@ -116,7 +116,7 @@ class Parameters(ParameterManager):
         self.modalities_modulations = modalities_modulations or dict.fromkeys(
             ["v", "ss", "p", "a"], 1.0
         )
-        for k,v in self.modalities_modulations.items():
+        for k, v in self.modalities_modulations.items():
             setattr(self, f"mm_{k}", v)
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th

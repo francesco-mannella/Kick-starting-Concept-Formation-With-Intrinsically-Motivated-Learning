@@ -231,6 +231,12 @@ def create_figure_layout():
 
     sensor_points = g.generate_sensor_points(40)
     video_ax = plt.subplot2grid(gridsize, [0, 2], 3, 3, fig=fig, aspect="equal")
+    traces_ax = plt.subplot2grid(gridsize, [2, 2], 1, 1, fig=fig, aspect="equal")
+    traces_ax.set_xlim(-0.5, 9.5)
+    traces_ax.set_ylim(-0.5, 9.5)
+    traces_ax.set_xticks(np.arange(10), [])
+    traces_ax.set_yticks(np.arange(10), [])
+    traces_ax.grid()
 
     fig.tight_layout(pad=0.3)
 
@@ -238,6 +244,7 @@ def create_figure_layout():
         "pmap": pmap_ax,
         "smap": smap_ax,
         "vmap": vmap_ax,
+        "traces": traces_ax,
         "proprio": proprio_ax,
         "ssensory": ssensory_ax,
         "visual": visual_ax,
@@ -275,8 +282,9 @@ def update_maps(g, wfile, pmap_ax, vmap_ax, smap_ax, px, py):
 
 
 class TrajectoryAnimator:
-    def __init__(self, video_ax, fig, has_sensors, xlims, ylims):
+    def __init__(self, video_ax, traces_ax, fig, has_sensors, xlims, ylims):
         self.video_ax = video_ax
+        self.traces_ax = traces_ax
         self.fig = fig
         self.has_sensors = has_sensors
         self.xlims = xlims
@@ -301,6 +309,12 @@ class TrajectoryAnimator:
             if self.has_sensors:
                 scatter = self.video_ax.scatter([], [], c="red")
                 self.scatters.append(scatter)
+            self.traces = {
+                "goal": self.traces_ax.scatter(1, 1),
+                "ss": self.traces_ax.scatter(4, 4),
+                "p": self.traces_ax.scatter(9, 9),
+            }
+
         self._initialized = True
 
     def clear(self):
@@ -342,6 +356,7 @@ class TrajectoryAnimator:
         ts_vals = trajectory.ts.to_numpy()
         data = trajectory.iloc[:, 1:6].to_numpy()
         sensor_data = trajectory.iloc[:, 6:46].to_numpy() if self.has_sensors else None
+        ss_data = trajectory.loc[:, ["touch_x", "touch_y"]].to_numpy()
 
         if not self._initialized or len(self.lines1) != n:
             for line in self.lines1:
@@ -383,6 +398,8 @@ class TrajectoryAnimator:
                 self.lines1[i].set_alpha(alpha)
                 self.lines2[i].set_data(grip_coords[:, 0], grip_coords[:, 1])
                 self.lines2[i].set_alpha(alpha)
+                self.traces["ss"].set_offsets(ss_data[i])
+
                 artists.extend([self.lines1[i], self.lines2[i]])
                 if self.has_sensors:
                     self.scatters[i].set_offsets(offsets_pts[i])
@@ -439,5 +456,7 @@ if __name__ == "__main__":
     plot_somatosensory(axes["ssensory"], weights, px, py, sensor_points)
     plot_retina(axes["visual"], weights, px, py)
 
-    animator = TrajectoryAnimator(axes["video"], fig, has_sensors, xlims, ylims)
+    animator = TrajectoryAnimator(
+        axes["video"], axes["traces"], fig, has_sensors, xlims, ylims
+    )
     animator.animate(trajectory)
