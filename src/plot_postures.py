@@ -292,6 +292,8 @@ class TrajectoryAnimator:
         self.lines1 = []
         self.lines2 = []
         self.scatters = []
+        self.reps = {}
+        self.traces = {}
         self._initialized = False
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -301,6 +303,10 @@ class TrajectoryAnimator:
         self._anim = None
 
     def _init_artists(self, n):
+        goal_color = "#ff2"
+        touch_color = "#f22"
+        proprio_color = "#22f"
+
         for _ in range(n):
             (line1,) = self.video_ax.plot([], [], c="black", marker="o")
             (line2,) = self.video_ax.plot([], [], c="black", marker="o")
@@ -309,10 +315,22 @@ class TrajectoryAnimator:
             if self.has_sensors:
                 scatter = self.video_ax.scatter([], [], c="red")
                 self.scatters.append(scatter)
+
             self.traces = {
-                "goal": self.traces_ax.scatter(1, 1),
-                "ss": self.traces_ax.scatter(4, 4),
-                "p": self.traces_ax.scatter(9, 9),
+                "g": self.traces_ax.plot([999, 999], [999, 999], c=goal_color)[0],
+                "ss": self.traces_ax.plot([999, 999], [999, 999], c=touch_color)[0],
+                "p": self.traces_ax.plot([999, 999], [999, 999], c=proprio_color)[0],
+            }
+            self.reps = {
+                "g": self.traces_ax.scatter(
+                    999, 999, marker="h", fc=goal_color, ec="#000", lw=0.5, s=300
+                ),
+                "ss": self.traces_ax.scatter(
+                    999, 999, marker="*", fc=touch_color, ec="#000", lw=0.5, s=300
+                ),
+                "p": self.traces_ax.scatter(
+                    999, 999, marker="*", fc=proprio_color, ec="#000", lw=0.5, s=300
+                ),
             }
 
         self._initialized = True
@@ -356,7 +374,14 @@ class TrajectoryAnimator:
         ts_vals = trajectory.ts.to_numpy()
         data = trajectory.iloc[:, 1:6].to_numpy()
         sensor_data = trajectory.iloc[:, 6:46].to_numpy() if self.has_sensors else None
-        ss_data = trajectory.loc[:, ["touch_x", "touch_y"]].to_numpy()
+        ss_data = trajectory.loc[:, ["touch_x", "touch_y"]].to_numpy()[:, ::-1]
+        p_data = trajectory.loc[:, ["proprio_x", "proprio_y"]].to_numpy()[:, ::-1]
+        g_data = trajectory.loc[:, ["prototype_x", "prototype_y"]].to_numpy()[:, ::-1]
+        ss_trace_data = np.append(
+            np.stack([ss_data[0], ss_data[0]]).reshape(1, 2, 2),
+            np.stack([ss_data[:-1], ss_data[1:]], axis=2),
+            axis=0,
+        )
 
         if not self._initialized or len(self.lines1) != n:
             for line in self.lines1:
@@ -368,6 +393,8 @@ class TrajectoryAnimator:
             self.lines1.clear()
             self.lines2.clear()
             self.scatters.clear()
+            self.traces.clear()
+            self.reps.clear()
             self._init_artists(n)
 
         exp_coeff = -((n / 100) ** -2)
@@ -375,7 +402,7 @@ class TrajectoryAnimator:
         indices = ts_vals.astype(int)
         all_angles = np.degrees(data[indices])
         self.polylines = [plot_polyline(ang, [1, 1, 0.5, 0.5]) for ang in all_angles]
-        alphas = 0.01 + 0.99 * np.exp(exp_coeff * (np.arange(n) / n_minus_1 - 1) ** 2)
+        alphas = 0.2 + 0.8 * np.exp(exp_coeff * (np.arange(n) / n_minus_1 - 1) ** 2)
 
         offsets_pts = []
         sizes_arr = []
@@ -398,18 +425,30 @@ class TrajectoryAnimator:
                 self.lines1[i].set_alpha(alpha)
                 self.lines2[i].set_data(grip_coords[:, 0], grip_coords[:, 1])
                 self.lines2[i].set_alpha(alpha)
-                self.traces["ss"].set_offsets(ss_data[i])
+                p = self.traces_ax.plot(*ss_data[:i].T, c="#f22", zorder=-3)
+                p.extend(self.traces_ax.plot(*p_data[:i].T, c="#22f", zorder=-3))
 
-                artists.extend([self.lines1[i], self.lines2[i]])
+                self.reps["ss"].set_offsets(ss_data[i])
+                self.reps["p"].set_offsets(p_data[i])
+                self.reps["g"].set_offsets([g_data[i]])
+
+                artists.extend(
+                    [
+                        self.lines1[i],
+                        self.lines2[i],
+                        *self.reps.values(),
+                    ]
+                )
                 if self.has_sensors:
                     self.scatters[i].set_offsets(offsets_pts[i])
                     self.scatters[i].set_sizes(sizes_arr[i])
                     self.scatters[i].set_alpha(alpha)
                     artists.append(self.scatters[i])
+                artists.extend(p)
             return artists
 
         self._anim = FuncAnimation(
-            self.fig, update, frames=n, interval=50, blit=True, repeat=False
+            self.fig, update, frames=n, interval=500, blit=True, repeat=False
         )
         plt.show()
 
