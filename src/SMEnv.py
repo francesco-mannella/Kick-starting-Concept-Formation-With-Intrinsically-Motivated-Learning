@@ -113,20 +113,27 @@ class SMEnv:
         f_gp,
         map_path=None,
     ):
-        pass
-        # assert self.render is not None
-        # 
-        # self.b2d_env.renderer.add_info_to_frames(
-        #     match_value,
-        #     max_match,
-        #     cum_match,
-        #     f_vp,
-        #     f_ssp,
-        #     f_pp,
-        #     f_ap,
-        #     f_gp,
-        #     path=map_path or Path("./www/"),
-        # )
+        if hasattr(self.params, "full_render"):
+            assert self.render is not None
+
+            path = map_path or Path("./www")
+            visual_map_path = path / "visual_map.png"
+            proprio_map_path = path / "proprio_map.png"
+            touch_map_path = path / "ssensory_map.png"
+
+            self.b2d_env.renderer.add_info_to_frames_three_maps(
+                match_value,
+                max_match,
+                cum_match,
+                f_vp,
+                f_ssp,
+                f_pp,
+                f_ap,
+                f_gp,
+                visual_map_path=visual_map_path,
+                proprio_map_path=proprio_map_path,
+                touch_map_path=touch_map_path,
+            )
 
     def close(self):
         if self.plot is not None:

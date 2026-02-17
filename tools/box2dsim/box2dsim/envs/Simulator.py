@@ -1,7 +1,6 @@
 import io
 
 import cv2
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from Box2D import b2ContactListener
@@ -92,11 +91,15 @@ class Box2DSim(object):
         self.world.contactListener = self.contact_listener
         self.bodies = bodies
         self.joints = joints
-        self.joint_pids = {("%s" % k): PID(dt=self.dt) for k in list(self.joints.keys())}
+        self.joint_pids = {
+            ("%s" % k): PID(dt=self.dt) for k in list(self.joints.keys())
+        }
 
         def is_body_visible(body):
             return not (
-                body[1].color[0] == 1 and body[1].color[1] == 1 and body[1].color[2] == 1
+                body[1].color[0] == 1
+                and body[1].color[1] == 1
+                and body[1].color[2] == 1
             )
 
         self.visible_bodies = dict(filter(is_body_visible, bodies.items()))
@@ -196,14 +199,19 @@ class VisualSensor:
             color = np.array(body.color)
 
             data = np.array(
-                [body.GetWorldPoint(v) for v in body.fixtures[0].shape.vertices]
+                [
+                    body.GetWorldPoint(v)
+                    for v in body.fixtures[0].shape.vertices
+                ]
             )
             vertices_t = np.round((data - focus) / self.scale) + [
                 (self.shape[0] - 1) // 2,
                 -self.shape[1] // 2,
             ]
             vertices_t[:, 1] = -vertices_t[:, 1]
-            cv2.fillPoly(self.retina, pts=[vertices_t.astype(np.int32)], color=1 - color)
+            cv2.fillPoly(
+                self.retina, pts=[vertices_t.astype(np.int32)], color=1 - color
+            )
 
         self.retina = np.maximum(0, 1 - (self.retina))
         return self.retina
@@ -265,16 +273,10 @@ class TestPlotter:
 
         self.int_xlim = int_xlim
         self.int_ylim = int_ylim
-        self.ratio = 1
 
         if figsize is None:
             self.fig = plt.figure()
         else:
-            self.ratio = figsize[0] / 3
-
-            fontsize = matplotlib.rcParams["font.size"]
-            fontsize = int(fontsize * self.ratio)
-            matplotlib.rcParams.update({"font.size": fontsize})
             self.fig = plt.figure(figsize=figsize)
 
         if self.offline:
@@ -323,7 +325,9 @@ class TestPlotter:
         for key in self.polygons:
             body = self.env.sim.bodies[key]
             vercs = np.vstack(body.fixtures[0].shape.vertices)
-            data = np.vstack([body.GetWorldPoint(vercs[x]) for x in range(len(vercs))])
+            data = np.vstack(
+                [body.GetWorldPoint(vercs[x]) for x in range(len(vercs))]
+            )
             self.polygons[key].set_xy(data)
 
         self.onStep()
@@ -336,6 +340,215 @@ class TestPlotter:
             self.vm.save_frame()
             self.ts += 1
 
+    def add_info_to_frames_three_maps(
+        self,
+        match_value,
+        max_match,
+        cum_match,
+        f_vp,
+        f_ssp,
+        f_pp,
+        f_ap,
+        f_gp,
+        visual_map_path=None,
+        proprio_map_path=None,
+        touch_map_path=None,
+    ):
+        # Make the rendered frames and info matching lengths
+        if len(match_value) < len(self.vm.frames):
+            self.vm.frames = self.vm.frames[: len(match_value)]
+
+        n_steps = max(len(self.vm.frames), len(match_value))
+
+        goal_color = "#ff6"
+        touch_color = "#aa6"
+        proprio_color = "#6f6"
+        action_color = "#f66"
+
+        last_goal_reset = 0
+        for i in range(n_steps):
+            print(f"Rendering frame {i}")
+            if i > 0 and cum_match[i] - cum_match[i - 1] < 0:
+                last_goal_reset = i
+
+            f, axes = plt.subplots(nrows=1, ncols=4, subplot_kw={"aspect": "equal"}, figsize=(12,3))
+
+            axes[0].set_xlim(self.int_xlim)
+            axes[0].set_ylim(self.int_ylim)
+            axes[0].axis("off")
+
+            for m in range(1,4):
+                axes[m].set_xlim(0.98 * (np.array(self.int_xlim) - 0.1))
+                axes[m].set_ylim(0.98 * (np.array(self.int_ylim) - 0.1))
+                axes[m].axis("off")
+
+            
+            axes[0].imshow(
+                self.vm.frames[i],
+                alpha=1.0,
+                aspect="auto",
+                interpolation="nearest",
+                extent=(0, 10, 0, 10),
+            )
+
+            axes[0].text(
+                self.xlim[0], 0.9 * self.ylim[1], f"t={i}", fontsize="large"
+            )
+
+            if visual_map_path is not None:
+                im = plt.imread(visual_map_path)
+                im = im
+                axes[1].imshow(
+                    np.rot90(im),
+                    alpha=1.0,
+                    aspect="auto",
+                    interpolation="nearest",
+                    extent=(0, 10, 0, 10),
+                )
+            if proprio_map_path is not None:
+                im = plt.imread(proprio_map_path)
+                im = im
+                axes[2].imshow(
+                    im,
+                    alpha=1.0,
+                    aspect="auto",
+                    interpolation="nearest",
+                    extent=(0, 10, 0, 10),
+                )
+            if touch_map_path is not None:
+                im = plt.imread(touch_map_path)
+                im = im
+                axes[3].imshow(
+                    im,
+                    alpha=1.0,
+                    aspect="auto",
+                    interpolation="nearest",
+                    extent=(0, 10, 0, 10),
+                )
+
+
+            # Current match value
+            # axes[0].bar(
+            #     self.int_xlim[0] + 0.1,
+            #     self.int_ylim[0]
+            #     + match_value[i] * (self.int_ylim[1] - self.int_ylim[0]),
+            #     bottom=self.int_ylim[0],
+            #     width=0.2,
+            # )
+            # axes[0].text(
+            #     self.int_xlim[0] - 0.3,
+            #     self.int_ylim[0] + (self.int_ylim[1] - self.int_ylim[0]) * 0.5,
+            #     "match",
+            #     rotation=90,
+            #     fontsize="small",
+            #     horizontalalignment="right",
+            #     verticalalignment="center",
+            # )
+
+            q = 0.3
+            for m in range(1,4):
+                axes[m].scatter(
+                    f_gp[i, 0] + q,
+                    f_gp[i, 1] + q,
+                    marker="h",
+                    label="goal",
+                    color=goal_color,
+                    ec="#000",
+                    s=140,
+                    lw=3,
+                )
+                # axes.scatter(
+                #     f_vp[i, 0],
+                #     f_vp[i, 1],
+                #     marker="s",
+                #     label="visual",
+                #     color="b",
+                # )
+                axes[m].scatter(
+                    f_ssp[i, 0] + q,
+                    f_ssp[i, 1] + q,
+                    marker="*",
+                    label="somatosensory",
+                    color=touch_color,
+                    ec="#000",
+                    s=120,
+                    )
+                axes[m].scatter(
+                    f_pp[i, 0] + q,
+                    f_pp[i, 1] + q,
+                    marker="*",
+                    label="proprioception",
+                    color=proprio_color,
+                    ec="#000",
+                    s=120,
+                )
+                axes[m].scatter(
+                    f_ap[i, 0] + q,
+                    f_ap[i, 1] + q,
+                    marker="*",
+                    label="action",
+                    color=action_color,
+                    ec="#000",
+                    s=120,
+                )
+
+                max_trace = 25
+                t0 = i - max_trace
+                if t0 < last_goal_reset:
+                    t0 = last_goal_reset
+                for t in range(t0, i):
+                    alpha = 1.0 - ((i - t) / (max_trace))
+                    axes[m].plot(
+                        f_ssp[t : t + 2, 0] + q,
+                        f_ssp[t : t + 2, 1] + q,
+                        color=touch_color,
+                        lw=6,
+                        alpha=alpha,
+                    )
+                    axes[m].plot(
+                        f_pp[t : t + 2, 0] + q,
+                        f_pp[t : t + 2, 1] + q,
+                        lw=6,
+                        color=proprio_color,
+                        alpha=alpha,
+                    )
+                    axes[m].plot(
+                        f_gp[t : t + 2, 0] + q,
+                        f_gp[t : t + 2, 1] + q,
+                        lw=6,
+                        color=goal_color,
+                        alpha=alpha,
+                    )
+                    axes[m].plot(
+                        f_ap[t : t + 2, 0] + q,
+                        f_ap[t : t + 2, 1] + q,
+                        lw=6,
+                        color=action_color,
+                        alpha=alpha * 0.5,
+                    )
+
+            axes[2].legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.01),
+                ncol=2,
+                fontsize="small",
+            )
+            f.subplots_adjust(
+                top=0.95,
+                left=0.125,
+                bottom=0.25,
+                right=1 - 0.125,
+            )
+            f.canvas.draw()
+
+            imbuf = io.BytesIO()
+            f.savefig(imbuf, format="png", transparent=False)
+            frame2 = Image.open(imbuf)
+            plt.close(f)
+            
+            self.vm.frames[i] = frame2
+
+
     def add_info_to_frames(
         self,
         match_value,
@@ -347,7 +560,7 @@ class TestPlotter:
         f_ap,
         f_gp,
         initial_skip=50,
-        path=None,
+        visual_map_path=None,
     ):
 
         # def translate_data(x, side=10):
@@ -384,7 +597,9 @@ class TestPlotter:
             self.ax.set_ylim(self.ylim)
             self.ax.axis("off")
 
-            self.ax.text(self.xlim[0], 0.9 * self.ylim[1], f"t={i}", fontsize="large")
+            self.ax.text(
+                self.xlim[0], 0.9 * self.ylim[1], f"t={i}", fontsize="large"
+            )
 
             # Current max match
             # self.ax.bar(
@@ -425,8 +640,8 @@ class TestPlotter:
             self.ax.set_ylim(0.98 * (np.array(self.int_ylim) - 0.1))
             self.ax.axis("off")
 
-            if path is not None:
-                im = plt.imread(path / "visual_map.png")
+            if visual_map_path is not None:
+                im = plt.imread(visual_map_path)
                 im = im
                 self.ax.imshow(
                     np.rot90(im),
@@ -439,7 +654,8 @@ class TestPlotter:
             # Current match value
             self.ax.bar(
                 self.int_xlim[0] + 0.1,
-                self.int_ylim[0] + match_value[i] * (self.int_ylim[1] - self.int_ylim[0]),
+                self.int_ylim[0]
+                + match_value[i] * (self.int_ylim[1] - self.int_ylim[0]),
                 bottom=self.int_ylim[0],
                 width=0.2,
             )
@@ -462,7 +678,7 @@ class TestPlotter:
                     label="goal",
                     color=goal_color,
                     ec="#000",
-                    s=int(140 * self.ratio),
+                    s=140,
                     lw=3,
                 )
             # self.ax.scatter(
@@ -479,7 +695,7 @@ class TestPlotter:
                 label="somatosensory",
                 color=touch_color,
                 ec="#000",
-                s=int(120 * self.ratio),
+                s=120,
             )
             self.ax.scatter(
                 f_pp[i, 0] + q,
@@ -488,7 +704,7 @@ class TestPlotter:
                 label="proprioception",
                 color=proprio_color,
                 ec="#000",
-                s=int(120 * self.ratio),
+                s=120,
             )
             self.ax.scatter(
                 f_ap[i, 0] + q,
@@ -497,7 +713,7 @@ class TestPlotter:
                 label="action",
                 color=action_color,
                 ec="#000",
-                s=int(120 * self.ratio),
+                s=120,
             )
 
             max_trace = 25
@@ -511,27 +727,27 @@ class TestPlotter:
                     f_ssp[t : t + 2, 0] + q,
                     f_ssp[t : t + 2, 1] + q,
                     color=touch_color,
-                    lw=int(6 * self.ratio),
+                    lw=6,
                     alpha=alpha,
                 )
                 self.ax.plot(
                     f_pp[t : t + 2, 0] + q,
                     f_pp[t : t + 2, 1] + q,
-                    lw=int(6 * self.ratio),
+                    lw=6,
                     color=proprio_color,
                     alpha=alpha,
                 )
                 self.ax.plot(
                     f_gp[t : t + 2, 0] + q,
                     f_gp[t : t + 2, 1] + q,
-                    lw=int(6 * self.ratio),
+                    lw=6,
                     color=goal_color,
                     alpha=alpha,
                 )
                 self.ax.plot(
                     f_ap[t : t + 2, 0] + q,
                     f_ap[t : t + 2, 1] + q,
-                    lw=int(6 * self.ratio),
+                    lw=6,
                     color=action_color,
                     alpha=(1.0 - ((i - t) / max_trace)) * 0.5,
                 )

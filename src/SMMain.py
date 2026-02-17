@@ -2237,6 +2237,7 @@ class Main:
         n_episodes=None,
         zero_noise=True,
         e_seed=None,
+        render_path=None,
     ):
 
         print(f"------> {suffix}")
@@ -2296,9 +2297,11 @@ class Main:
                 contexts[episode] = context
                 params_ind[episode] = obj_param_index
 
-            plot_path = None
-            if render is not None:
-                plot_path = f"{self.sm.site_dir}/episode_{episode}{suffix}"
+            plot_path = (
+                f"{render_path or self.sm.site_dir}/episode_{episode}{suffix}"
+                if render is not None
+                else None
+            )
 
             env, state = self.episode_runner.prepare_environment(
                 episode_index=episode,
