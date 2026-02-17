@@ -2367,7 +2367,7 @@ class Main:
         if e_seed is not None:
             trajectories.loc[:, "e_seed"] = e_seed
 
-        if use_wandb:
+        if self.params.use_wandb:
             log_data = {}
             if save_stats:
                 log_data = {
