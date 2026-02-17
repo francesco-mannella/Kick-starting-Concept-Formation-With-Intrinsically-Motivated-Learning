@@ -459,6 +459,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e", "--episode_id", type=int, help="Unique identifier for the episode"
     )
+    parser.add_argument("-r", "--rep", type=int, help="Number of episode repetition")
     parser.add_argument(
         "-g",
         "--goal_id",
@@ -471,10 +472,14 @@ if __name__ == "__main__":
     sm = StorageManager((Path("..") / "..").resolve().stem)
     g = GraphManager(sm, params)
 
-    df, has_sensors, weights = load_and_process_data()
+    df, has_sensors, weights = load_and_process_data(trajectory_file="trajectory_df.csv")
     wfile = "weights.npy"
 
     trajectory = df[(df.episode_id == args.episode_id) & (df.goal_id == args.goal_id)]
+    if "e_seed" in trajectory.columns:
+        seeds = trajectory.e_seed.unique()
+        cur_seed = seeds[args.rep]
+        trajectory = trajectory.query(f"e_seed=={cur_seed}")
 
     gif_path = f"rendered_episodes/episode_{args.episode_id}.gif"
     if Path(gif_path).exists():

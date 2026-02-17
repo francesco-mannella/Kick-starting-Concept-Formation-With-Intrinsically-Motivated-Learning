@@ -2236,6 +2236,7 @@ class Main:
         add_goal_suffix=False,
         n_episodes=None,
         zero_noise=True,
+        e_seed=None,
     ):
 
         print(f"------> {suffix}")
@@ -2280,7 +2281,11 @@ class Main:
                 context = contexts[episode]
                 obj_params = self.obj_params_space[params_ind[episode]]
             else:
-                seed = self.seed + episode
+                seed = int(
+                    self.seed
+                    + episode
+                    + np.log10(self.seed) * 1e6 * (0 if e_seed is None else e_seed)
+                )
 
                 db_episode = episode % len(self.episode_dataset)
 
@@ -2358,6 +2363,9 @@ class Main:
         mi_metrics = self.calc_mi_metrics(
             contexts, params_ind, controller_out, policy_ended
         )
+
+        if e_seed is not None:
+            trajectories.loc[:, "e_seed"] = e_seed
 
         if use_wandb:
             log_data = {}
@@ -2811,6 +2819,7 @@ if __name__ == "__main__":
 
     print(AppendParamsAction.params_string)
     params.update(AppendParamsAction.params_string)
+    params.use_wandb = use_wandb
     print(f"Updated params: {params}")
 
     if use_wandb:
@@ -2828,6 +2837,7 @@ if __name__ == "__main__":
         main = np.load("main.dump.npy", allow_pickle=True)[0]
         main.plots = plots
         main.params.update(AppendParamsAction.params_string)
+        params.use_wandb = use_wandb
         main.sm = sm
     else:
         main = Main(seed=seed, params=params, plots=plots, sm=sm)
