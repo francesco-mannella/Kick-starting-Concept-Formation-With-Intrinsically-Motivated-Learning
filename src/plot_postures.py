@@ -534,9 +534,10 @@ class TrajectoryAnimator:
         stretch = self.episode_df.query(f"index=={n}").stretch.iloc[0]
         rot = self.episode_df.query(f"index=={n}").rotation.iloc[0]
         self.video_ax.text(
-            xlim[1] - 2 * scale * ax_width,
-            ylim[0] + scale * ax_height,
-            f" Object: {obj}\nStretch: {stretch}\nrotation: {np.degrees(rot)}\n",
+            xlim[1] - 2.5 * scale * ax_width,
+            ylim[0] + 0.00*scale * ax_height,
+            f" Object: {obj}\nStretch: {stretch}\nrotation: {np.degrees(rot).round(0)}°\n",
+            fontdict={"size": 16},
         )
 
     def animate(self, trajectory):
@@ -612,8 +613,8 @@ class TrajectoryAnimator:
                 self.lines2[i].set_alpha(alpha)
 
                 # Draw trajectory traces
-                p = self.traces_ax.plot(*ss_data[:i].T, c="#f22", zorder=-3)
-                p.extend(self.traces_ax.plot(*p_data[:i].T, c="#22f", zorder=-3))
+                p = self.traces_ax.plot(*ss_data[:i+1].T, c="#f22", zorder=-3)
+                p.extend(self.traces_ax.plot(*p_data[:i+1].T, c="#22f", zorder=-3))
 
                 # Update current position markers
                 self.reps["ss"].set_offsets(ss_data[i])
@@ -638,7 +639,7 @@ class TrajectoryAnimator:
             return artists
 
         self.anim = FuncAnimation(
-            self.fig, update, frames=n, interval=500, blit=True, repeat=False
+            self.fig, update, frames=n, interval=50, blit=True, repeat=False
         )
         return self.anim
 
@@ -663,6 +664,12 @@ if __name__ == "__main__":
         "--goal_id",
         type=int,
         help="Unique identifier for the goal within the episode",
+    )
+    parser.add_argument(
+        "-o",
+        "--online",
+        action="store_true",
+        help="iRender online",
     )
     args = parser.parse_args()
 
@@ -711,4 +718,7 @@ if __name__ == "__main__":
     )
     anim = animator.animate(trajectory)
 
-    anim.save(filename=f"postures_e{args.episode_id}_g{args.goal_id}_{args.rep}.gif", writer="pillow")
+    if args.online:
+        plt.show()
+    else:
+        anim.save(filename=f"postures_e{args.episode_id}_g{args.goal_id}_{args.rep}.gif", writer="pillow")

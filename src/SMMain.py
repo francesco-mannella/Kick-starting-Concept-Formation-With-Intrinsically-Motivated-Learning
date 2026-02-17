@@ -1050,6 +1050,7 @@ class Main:
             trajectories["goal_id"] = np.cumsum(policy_changed[i])
             trajectories["tr_id"] = trajectories.goal_id + i * 100
             trajectories["episode_id"] = i
+            trajectories["e_seed"] = envs[i].seed
             if env_states is not None:
                 trajectories["state"] = [
                     tuple(
@@ -2311,6 +2312,7 @@ class Main:
                 render=render,
                 plot_path=plot_path,
             )
+            env.seed = seed
 
             if env_states is not None:
                 env.set_b2d_state(env_states[episode])
@@ -2366,9 +2368,6 @@ class Main:
         mi_metrics = self.calc_mi_metrics(
             contexts, params_ind, controller_out, policy_ended
         )
-
-        if e_seed is not None:
-            trajectories.loc[:, "e_seed"] = e_seed
 
         if self.params.use_wandb:
             log_data = {}

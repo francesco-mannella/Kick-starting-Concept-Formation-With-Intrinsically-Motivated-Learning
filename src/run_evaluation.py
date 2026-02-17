@@ -3,13 +3,12 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 
 from SMMain import Main
 from storage import StorageManager
-import pandas as pd
 
-import os
 
 _ = Main
 
@@ -37,15 +36,16 @@ def run_evaluation(
 
     main.sm = StorageManager(exp_name, orig_dir)
     main.params.use_wandb = False
-    if full_render: main.params.full_render = True
+    if full_render:
+        main.params.full_render = True
 
-    goal_counts, trajectories =  main.evaluation_episodes(
+    goal_counts, trajectories = main.evaluation_episodes(
         epoch=main.epoch,
         suffix=f"_{seed}",
         render_path=render_path,
         save_stats=False,
         n_episodes=main.params.tests,
-        render= "offline" if plot else None,
+        render="offline" if plot else None,
         e_seed=seed,
     )
 
@@ -106,13 +106,12 @@ if __name__ == "__main__":
         # render
         all_trajectories = []
         for i in range(args.num_reps):
-            print(f"Rendering episode {args.episode_index}, repetition {rep}")
             trajectories = run_evaluation(
                 "main.dump.npy",
                 seed=i + args.seed,
                 plot=args.plot,
                 render_path=output_dir,
-                full_render = False,
+                full_render=False,
             )
             all_trajectories.append(trajectories)
         merged_trajectories = pd.concat(all_trajectories, ignore_index=True)
