@@ -117,7 +117,6 @@ for i, p in enumerate(get_combinations(params)):
     if args.plot:
         command.append("-x")
 
-
     if args.wandb:
         command.append("-w")
     command.extend(options)

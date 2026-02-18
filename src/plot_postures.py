@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation
-from matplotlib.patches import Rectangle
+from matplotlib.patches import FancyBboxPatch, Rectangle
 from scipy.interpolate import splev, splprep
 
 from params import Parameters
@@ -279,8 +279,8 @@ def create_figure_layout():
         tuple: (fig, axes, xlims, ylims, sensor_points) where axes
             is a dictionary mapping panel names to axis objects.
     """
-    xlims = np.array([-0.5, 3])
-    ylims = np.array([-2.5, 2])
+    xlims = np.array([-2, 4])
+    ylims = np.array([-4, 2])
 
     gridsize = (3, 5)
     fig = plt.figure(figsize=(8 * 1.666, 8))
@@ -358,7 +358,7 @@ def add_marker(ax, point, width, height):
     ax.add_patch(rp)
 
 
-def update_maps(g, wfile, pmap_ax, vmap_ax, smap_ax, px, py):
+def update_maps(g, wfile, font_size, pmap_ax, vmap_ax, smap_ax, px, py):
     """
     Update all weight map visualizations with current position marker.
 
@@ -386,9 +386,10 @@ def update_maps(g, wfile, pmap_ax, vmap_ax, smap_ax, px, py):
     g.somatosensory_map(ax=smap_ax, wfile=wfile)
     add_marker(smap_ax, np.array([py, px]) + 0.5, 1, 1)
 
-    pmap_ax.set_title("Proprioception")
-    smap_ax.set_title("Somatosensory")
-    vmap_ax.set_title("Foveal vision")
+    fonts = {"size": font_size}
+    pmap_ax.set_title("Proprioception", fontdict=fonts)
+    smap_ax.set_title("Somatosensory", fontdict=fonts)
+    vmap_ax.set_title("Foveal vision", fontdict=fonts)
 
 
 class TrajectoryAnimator:
@@ -407,7 +408,9 @@ class TrajectoryAnimator:
         ylims: Y-axis limits for video axis.
     """
 
-    def __init__(self, params, video_ax, traces_ax, fig, has_sensors, xlims, ylims):
+    def __init__(
+        self, params, font_size, video_ax, traces_ax, fig, has_sensors, xlims, ylims
+    ):
         """
         Initialize the trajectory animator.
 
@@ -425,6 +428,7 @@ class TrajectoryAnimator:
         self.has_sensors = has_sensors
         self.xlims = xlims
         self.ylims = ylims
+        self.font_size = font_size
 
         # Artist containers
         self.lines1 = []
@@ -442,7 +446,7 @@ class TrajectoryAnimator:
 
         self._anim = None
 
-    def _init_artists(self, n):
+    def _init_artists(self, n, episode_id):
         """
         Initialize matplotlib artists for n trajectory frames.
 
@@ -452,41 +456,69 @@ class TrajectoryAnimator:
         Args:
             n: Number of frames in the trajectory.
         """
-        goal_color = "#ff2"
-        touch_color = "#f22"
-        proprio_color = "#22f"
+        self.goal_color = "#cc4"
+        self.touch_color = "#c44"
+        self.proprio_color = "#44c"
 
-        for _ in range(n):
+        for i in range(n):
             # Create arm and gripper line artists
-            (line1,) = self.video_ax.plot([], [], c="black", marker="o")
-            (line2,) = self.video_ax.plot([], [], c="black", marker="o")
+            (line1,) = self.video_ax.plot([], [], c="black", marker="o", zorder=-100 + n)
+            (line2,) = self.video_ax.plot([], [], c="black", marker="o", zorder=-100 + n)
             self.lines1.append(line1)
             self.lines2.append(line2)
 
             # Create sensor scatter artist if needed
             if self.has_sensors:
-                scatter = self.video_ax.scatter([], [], c="red")
+                scatter = self.video_ax.scatter([], [], c="red", zorder=-100 + n - 1)
                 self.scatters.append(scatter)
 
             # Create trace lines for goal, touch, and proprioception
             self.traces = {
-                "g": self.traces_ax.plot([999, 999], [999, 999], c=goal_color)[0],
-                "ss": self.traces_ax.plot([999, 999], [999, 999], c=touch_color)[0],
-                "p": self.traces_ax.plot([999, 999], [999, 999], c=proprio_color)[0],
+                "g": self.traces_ax.plot([999, 999], [999, 999], c=self.goal_color)[0],
+                "ss": self.traces_ax.plot([999, 999], [999, 999], c=self.touch_color)[0],
+                "p": self.traces_ax.plot([999, 999], [999, 999], c=self.proprio_color)[0],
             }
 
             # Create marker scatter artists for current positions
             self.reps = {
                 "g": self.traces_ax.scatter(
-                    999, 999, marker="h", fc=goal_color, ec="#000", lw=0.5, s=300
+                    999,
+                    999,
+                    marker="h",
+                    fc=self.goal_color,
+                    ec="#000",
+                    lw=0.5,
+                    s=300,
+                    label=None if i < n - 1 else "goal",
                 ),
                 "ss": self.traces_ax.scatter(
-                    999, 999, marker="*", fc=touch_color, ec="#000", lw=0.5, s=300
+                    999,
+                    999,
+                    marker="*",
+                    fc=self.touch_color,
+                    ec="#000",
+                    lw=0.5,
+                    s=300,
+                    label=None if i < n - 1 else "somatosen",
                 ),
                 "p": self.traces_ax.scatter(
-                    999, 999, marker="*", fc=proprio_color, ec="#000", lw=0.5, s=300
+                    999,
+                    999,
+                    marker="*",
+                    fc=self.proprio_color,
+                    ec="#000",
+                    lw=0.5,
+                    s=300,
+                    label=None if i < n - 1 else "proprio",
                 ),
             }
+
+        # Add legend on the left
+        self.traces_ax.legend(
+            loc="center left", bbox_to_anchor=(1, 0.7), title="Reps"
+        )
+
+        self.render_episode(episode_id)
 
         self._initialized = True
 
@@ -525,19 +557,52 @@ class TrajectoryAnimator:
             ylim[0] + scale * ax_height,
         ]
 
-        self.video_ax.imshow(img, extent=extent, aspect="auto", zorder=10)
+        # Calculate bounding box for both text and image
+        # Text is positioned to the left of the image
+        text_x = xlim[1] - 2.5 * scale * ax_width
+        text_y = ylim[0] + 0.00 * scale * ax_height
+
+        # Create a rounded box that encompasses both text and image
+        box_padding = 0.05 * ax_width
+        box_x = text_x - box_padding
+        box_y = ylim[0] - box_padding
+        box_width = (xlim[1] - text_x) + 2 * box_padding
+        box_height = scale * ax_height + 1 * box_padding
+
+        # Add rounded background box behind both elements
+        self.background_box = FancyBboxPatch(
+            (box_x, box_y),
+            box_width,
+            box_height,
+            boxstyle="round,pad=0.02,rounding_size=0.05",
+            facecolor="white",
+            edgecolor="none",
+            alpha=0.95,
+            linewidth=1.5,
+            zorder=700,
+            transform=self.video_ax.transData,
+        )
+        self.video_ax.add_patch(self.background_box)
+
+        # Add episode image on top of the background box
+        self.episode_template = self.video_ax.imshow(
+            img, extent=extent, aspect="auto", zorder=900
+        )
 
         objs = ["blue cube", "red triangle", "green cube"]
-        # stretches = ["no stretch", "double"]
-        # rots = ["no rotation", "45°"]
         obj = objs[self.episode_df.query(f"index=={n}").context.iloc[0] - 1]
         stretch = self.episode_df.query(f"index=={n}").stretch.iloc[0]
         rot = self.episode_df.query(f"index=={n}").rotation.iloc[0]
-        self.video_ax.text(
-            xlim[1] - 2.5 * scale * ax_width,
-            ylim[0] + 0.00*scale * ax_height,
-            f" Object: {obj}\nStretch: {stretch}\nrotation: {np.degrees(rot).round(0)}°\n",
-            fontdict={"size": 16},
+
+        # Add text on top of the background box (no separate bbox needed now)
+        self.text_artist = self.video_ax.text(
+            text_x,
+            text_y,
+            f" Object: {obj}\nStretch: {stretch}\n"
+            f"rotation: {np.degrees(rot).round(0)}°\n",
+            fontdict={"size": self.font_size},
+            zorder=800,
+            verticalalignment="bottom",
         )
 
     def animate(self, trajectory):
@@ -576,15 +641,13 @@ class TrajectoryAnimator:
             self.scatters.clear()
             self.traces.clear()
             self.reps.clear()
-            self._init_artists(n)
+            self._init_artists(n, trajectory.episode_id.iloc[0])
 
         # Compute alpha values for fade effect (recent frames more opaque)
-        exp_coeff = -((n / 100) ** -2)
-        n_minus_1 = n - 1
         indices = ts_vals.astype(int)
         all_angles = np.degrees(data[indices])
         self.polylines = [plot_polyline(ang, [1, 1, 0.5, 0.5]) for ang in all_angles]
-        alphas = 0.2 + 0.8 * np.exp(exp_coeff * (np.arange(n) / n_minus_1 - 1) ** 2)
+        alphas = 0.02 + 0.98 * np.linspace(0, 1, n)
 
         # Precompute sensor visualization data
         offsets_pts = []
@@ -596,8 +659,6 @@ class TrajectoryAnimator:
                 offsets_pts.append(pts)
                 ssensors = all_sensors[i]
                 sizes_arr.append(100 * ssensors)
-
-        self.render_episode(trajectory.episode_id.iloc[0])
 
         def update(frame_idx):
             """Update function called for each animation frame."""
@@ -613,8 +674,14 @@ class TrajectoryAnimator:
                 self.lines2[i].set_alpha(alpha)
 
                 # Draw trajectory traces
-                p = self.traces_ax.plot(*ss_data[:i+1].T, c="#f22", zorder=-3)
-                p.extend(self.traces_ax.plot(*p_data[:i+1].T, c="#22f", zorder=-3))
+                p = self.traces_ax.plot(
+                    *ss_data[: i + 1].T, c=self.touch_color, lw=2, zorder=-3
+                )
+                p.extend(
+                    self.traces_ax.plot(
+                        *p_data[: i + 1].T, c=self.proprio_color, lw=2, zorder=-3
+                    )
+                )
 
                 # Update current position markers
                 self.reps["ss"].set_offsets(ss_data[i])
@@ -633,9 +700,12 @@ class TrajectoryAnimator:
                 if self.has_sensors:
                     self.scatters[i].set_offsets(offsets_pts[i])
                     self.scatters[i].set_sizes(sizes_arr[i])
-                    self.scatters[i].set_alpha(alpha)
+                    self.scatters[i].set_alpha(0.2 + 0.8 * alpha)
                     artists.append(self.scatters[i])
                 artists.extend(p)
+                artists.append(self.background_box)  # Add text to returned artists
+                artists.append(self.episode_template)  # Add text to returned artists
+                artists.append(self.text_artist)  # Add text to returned artists
             return artists
 
         self.anim = FuncAnimation(
@@ -677,6 +747,7 @@ if __name__ == "__main__":
     params = Parameters()
     sm = None
     g = GraphManager(sm, params)
+    font_size = 18
 
     # Load data and extract requested trajectory
     df, has_sensors, weights = load_and_process_data(trajectory_file="trajectory_df.csv")
@@ -707,18 +778,21 @@ if __name__ == "__main__":
     py = int(trajectory.prototype_y.iat[0])
 
     # Render weight maps and decoded representations
-    update_maps(g, wfile, axes["pmap"], axes["vmap"], axes["smap"], px, py)
+    update_maps(g, wfile, font_size, axes["pmap"], axes["vmap"], axes["smap"], px, py)
     plot_proprioceptive(axes["proprio"], weights, px, py)
     plot_somatosensory(axes["ssensory"], weights, px, py, sensor_points)
     plot_retina(axes["visual"], weights, px, py)
 
     # Create and run animation
     animator = TrajectoryAnimator(
-        params, axes["video"], axes["traces"], fig, has_sensors, xlims, ylims
+        params, font_size, axes["video"], axes["traces"], fig, has_sensors, xlims, ylims
     )
     anim = animator.animate(trajectory)
 
     if args.online:
         plt.show()
     else:
-        anim.save(filename=f"postures_e{args.episode_id}_g{args.goal_id}_{args.rep}.gif", writer="pillow")
+        anim.save(
+            filename=f"postures_e{args.episode_id}_g{args.goal_id}_{args.rep}.gif",
+            writer="pillow",
+        )
