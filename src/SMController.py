@@ -9,6 +9,104 @@ from SMPredict import SMPredictKDE
 from stm import SMSTM
 
 
+def weighted_product_mean(
+    a,
+    axis=None,
+    weights=None,
+    returned=False,
+    keepdims=np._NoValue,
+):
+    """
+    Calculate the weighted geometric mean excluding zero-weight elements.
+
+    The weighted geometric mean is computed using logarithms for numerical
+    stability: exp(sum(w * log(a)) / sum(w)).
+
+    Parameters
+    ----------
+    a : array_like
+        Input data values. Must contain only positive values for elements
+        with non-zero weights.
+    axis : None or int or tuple of ints, optional
+        Axis or axes along which to compute the mean. The default is to
+        compute the mean of the flattened array.
+    weights : array_like, optional
+        Weights corresponding to each data element. Elements with zero
+        weight are excluded from the calculation. If None, all elements
+        are assumed to have equal weight.
+    returned : bool, optional
+        If True, return a tuple (result, sum_of_weights). Default is
+        False.
+    keepdims : bool, optional
+        If True, the reduced axes are left in the result as dimensions
+        with size one.
+
+    Returns
+    -------
+    result : float or ndarray
+        The weighted geometric mean of the data, or NaN if no valid
+        weights exist.
+    sum_of_weights : float or ndarray
+        Only returned if `returned` is True. The sum of the weights.
+
+    Notes
+    -----
+    Only data elements with positive weights are included in the
+    calculation. Data values corresponding to positive weights must be
+    strictly positive (> 0) for the logarithm to be defined.
+
+    This function mirrors the interface of `np.average`.
+    """
+    # Convert input to numpy array for vectorized operations
+    a = np.asanyarray(a)
+
+    # Handle the case where no weights are provided
+    if weights is None:
+        # Use uniform weights; delegate directly to np.average on log(a)
+        log_avg_result = np.average(
+            np.log(a),
+            axis=axis,
+            weights=None,
+            returned=returned,
+            keepdims=keepdims,
+        )
+        if returned:
+            log_mean, sum_weights = log_avg_result
+            return np.exp(log_mean), sum_weights
+        return np.exp(log_avg_result)
+
+    # Convert weights to numpy array
+    weights = np.asanyarray(weights)
+
+    # Create mask to identify elements with positive weights
+    mask = weights > 0
+
+    # Replace non-positive weights with zero to exclude them
+    # This ensures they don't contribute to the weighted average
+    safe_weights = np.where(mask, weights, 0.0)
+
+    # For log calculation, use 1.0 where weights are zero to avoid log errors
+    # These values won't affect the result due to zero weights
+    safe_a = np.where(mask, a, 1.0)
+
+    # Calculate geometric mean using logarithms for numerical stability:
+    # geometric_mean = exp(sum(w * log(a)) / sum(w))
+    log_avg_result = np.average(
+        np.log(safe_a),
+        axis=axis,
+        weights=safe_weights,
+        returned=returned,
+        keepdims=keepdims,
+    )
+
+    # Handle the returned flag to match np.average interface
+    if returned:
+        log_mean, sum_weights = log_avg_result
+        return np.exp(log_mean), sum_weights
+
+    return np.exp(log_avg_result)
+
+
 def softmax(x, lmb=1):
     e = np.exp((x - np.max(x)) / lmb)
     return e / sum(e)
@@ -211,7 +309,7 @@ class SMController:
         mods = np.stack([v_p, ss_p, p_p, a_p])
         diffs = np.moveaxis(np.linalg.norm(mods - g_p, axis=-1), 0, -1)
         match_per_mod = np.exp(-(self.match_sigma**-2) * (diffs**2))
-        match = np.average(match_per_mod, axis=-1, weights=self.params.modalities_weights)
+        match = weighted_product_mean(match_per_mod, axis=-1, weights=self.params.modalities_weights)
         return match, match_per_mod
 
     # TODO: This method is outdated and is kept for reference
