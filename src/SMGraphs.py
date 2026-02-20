@@ -1,5 +1,4 @@
-import glob
-import os
+from pathlib import Path
 from shutil import copyfile
 
 import matplotlib
@@ -48,9 +47,7 @@ class GraphManager:
         ]
         for filename in map_files:
             try:
-                copyfile(
-                    self.sm.site_dir / filename, self.sm.epoch_dir / filename
-                )
+                copyfile(self.sm.site_dir / filename, self.sm.epoch_dir / filename)
             except (IOError, OSError) as e:
                 print(f"Failed to copy {filename}: {e}")
 
@@ -91,13 +88,11 @@ class GraphManager:
         opoints = opoints.reshape(8, 2, 2)
         line = MultiLineString([LineString(opoints[i]) for i in range(8)])
         points = np.array(
-            [
-                [i.x, i.y]
-                for i in line.interpolate(np.linspace(0, line.length, n_sensors))
-            ]
+            [[i.x, i.y] for i in line.interpolate(np.linspace(0, line.length, n_sensors))]
         )
         points[:, 0] = self._normalize_array(points[:, 0])
         points[:, 1] = self._normalize_array(points[:, 1])
+        points = (points - points.min()) / np.ptp(points)
         points *= 0.8
         points += 0.1
         return points
@@ -116,16 +111,31 @@ class GraphManager:
         return grid
 
     def generate_gripper(self, angles):
-        gsegment = 0.25
-        segments = np.ones([4, 2, 2]) * [[[0, 0.25]]]
-        for i, angle in enumerate(np.cumsum(angles)):
-            segments[i][1] = segments[i][0] + gsegment * np.array(
-                [np.cos(angle), np.sin(angle)]
-            )
-            if i == 0:
-                segments[i + 1][0] = np.copy(segments[i][1])
-        segments = np.vstack([segments * [[[-1, 1]]], segments]) + [[[0.5, 0]]]
-        segments = [[[0, 1]]] - segments
+
+        init_angles = [0, 0, 0]
+        init_angles.extend(angles)
+        angles = init_angles
+        lengths = [1, 1, 0.5, 0.5]
+
+        angles = np.array(angles)
+
+        angles[-2:] *= [-1, 1]
+
+        angle_sum = np.cumsum(angles)[1:]
+        x1, y1 = np.zeros(len(angles)), np.zeros(len(angles))
+        x1[1:], y1[1:] = lengths * np.cos(angle_sum), lengths * np.sin(angle_sum)
+        arm_coords = np.vstack((np.cumsum(x1), np.cumsum(y1))).T
+
+        angles[-2:] *= -1
+        angle_sum = np.cumsum(angles)[1:]
+        x2, y2 = np.zeros(len(angles)), np.zeros(len(angles))
+        x2[1:], y2[1:] = lengths * np.cos(angle_sum), lengths * np.sin(angle_sum)
+        x2y2 = np.vstack((np.cumsum(x2), np.cumsum(y2))).T[-3:]
+
+        segments = np.vstack([arm_coords[-2:][::-1], x2y2])
+        segments += [-2, 0]
+        segments *= 0.7
+
         return segments
 
     def trajectories_map(self, wfile=None, ax=None, palette=None):
@@ -184,9 +194,7 @@ class GraphManager:
         if wfile is None:
             wfile = self.sm.site_dir / "weights.npy"
         data_v = np.load(wfile, allow_pickle=True)[0]["visual"]
-        data_v = data_v.reshape(
-            visual_side, visual_side, 3, internal_side, internal_side
-        )
+        data_v = data_v.reshape(visual_side, visual_side, 3, internal_side, internal_side)
         data_v = data_v.transpose(3, 0, 4, 1, 2)
         data_v = data_v[::-1, :, :, :, :]
         data_v = data_v.reshape(
@@ -196,6 +204,8 @@ class GraphManager:
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
         ax.imshow((data_v - data_v.min()) / (data_v.max() - data_v.min()))
+        ax.set_ylim(-0.5 * visual_side, (internal_side + 0.5) * visual_side)
+        ax.set_ylim((internal_side + 0.5) * visual_side, -0.5 * visual_side)
         ax.set_axis_off()
         if fig:
             fig.tight_layout(pad=0.0)
@@ -214,13 +224,16 @@ class GraphManager:
         for j in range(internal_side):
             for i in range(internal_side):
                 grip = self.generate_gripper(data[j, i][-2:])
+                grip = (grip - [0, -1]) / [1, 2]
                 grips.append(grip + [[i, j]])
         grips = np.stack(grips)
         fig = None
         if ax is None:
             fig, ax = plt.subplots()
         for grip in grips:
-            ax.plot(*grip.T, c="black")
+            ax.plot(*(grip).T, c="black", marker="o", markersize=1.5)
+        ax.set_xlim(-0.5, internal_side + 0.5)
+        ax.set_ylim(-0.5, internal_side + 0.5)
         ax.set_axis_off()
         if fig:
             fig.tight_layout(pad=0.0)
@@ -244,6 +257,8 @@ class GraphManager:
         for i in range(internal_side * internal_side):
             ax.scatter(*np.array(grid[i]).T, c="grey", s=0.05)
             ax.scatter(*np.array(grid[i]).T, c="black", s=2 * data[i])
+        ax.set_xlim(-0.5, internal_side + 0.5)
+        ax.set_ylim(-0.5, internal_side + 0.5)
         ax.set_axis_off()
         if fig:
             fig.tight_layout(pad=0.0)

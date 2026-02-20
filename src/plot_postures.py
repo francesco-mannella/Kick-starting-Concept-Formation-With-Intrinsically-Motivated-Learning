@@ -4,8 +4,6 @@ sensory, and visual weight maps.
 """
 
 import argparse
-import glob
-import os
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -13,6 +11,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Rectangle
+from PIL import Image
 from scipy.interpolate import splev, splprep
 
 from params import Parameters
@@ -59,22 +58,22 @@ def interp(points, n=10):
 def plot_polyline(angles, lengths):
     angles = np.array(angles)
 
-    angles[1] += 90
+    angles[0] += 90
     angles[-2:] *= [-1, 1]
 
-    angle_sum = np.cumsum(np.radians(angles))[1:]
-    x1, y1 = np.zeros(len(angles)), np.zeros(len(angles))
+    angle_sum = np.cumsum(np.radians(angles))
+    x1, y1 = np.zeros(len(angles) + 1), np.zeros(len(angles) + 1)
     x1[1:], y1[1:] = lengths * np.cos(angle_sum), lengths * np.sin(angle_sum)
     arm_coords = np.vstack((np.cumsum(x1), np.cumsum(y1))).T
 
     angles[-2:] *= -1
-    angle_sum = np.cumsum(np.radians(angles))[1:]
-    x2, y2 = np.zeros(len(angles)), np.zeros(len(angles))
+    angle_sum = np.cumsum(np.radians(angles))
+    x2, y2 = np.zeros(len(angles) + 1), np.zeros(len(angles) + 1)
     x2[1:], y2[1:] = lengths * np.cos(angle_sum), lengths * np.sin(angle_sum)
     x2y2 = np.vstack((np.cumsum(x2), np.cumsum(y2))).T[-3:]
 
     grip_coords = np.vstack([arm_coords[-2:][::-1], x2y2])
-    arm_coords = arm_coords[:3]
+    arm_coords = arm_coords[:-2]
 
     return arm_coords, grip_coords
 
@@ -106,15 +105,14 @@ def plot_somatosensory(axes, weights, px, py, sensor_points):
 
 def plot_proprioceptive(axes, weights, px, py, g):
     angles = weights["proprio"][px, py]
-    grips = g.generate_gripper(angles)
+    grip = g.generate_gripper(angles)
     ax = axes["proprio"]
     ax.clear()
-    ax.set_xlim(-1.1, 0.1)
-    ax.set_ylim(0.7, 1.3)
+    ax.set_xlim(-0.2, 0.8)
+    ax.set_ylim(-0.8, 0.8)
 
-    for grip in grips:
-        ax.scatter(*grip.T, c="black")
-        ax.plot(*grip.T, c="black")
+    ax.scatter(*grip.T, c="black")
+    ax.plot(*grip.T, c="black")
     ax.set_axis_off()
 
 
@@ -220,7 +218,7 @@ def add_marker(ax, point, width, height):
 def update_maps(g, wfile, font_size, axes, px, py):
     setup_ax(axes, "pmap")
     g.proprio_map(ax=axes["pmap"], wfile=wfile)
-    add_marker(axes["pmap"], np.array([py, px]) + [-0.5, 1], 1, 1)
+    add_marker(axes["pmap"], np.array([py, px]) + [0.5, 0.5], 1, 1)
 
     setup_ax(axes, "vmap")
     g.visual_map(ax=axes["vmap"], wfile=wfile)
@@ -230,19 +228,10 @@ def update_maps(g, wfile, font_size, axes, px, py):
     g.somatosensory_map(ax=axes["smap"], wfile=wfile)
     add_marker(axes["smap"], np.array([py, px]) + 0.5, 1, 1)
 
-    fonts = {"size": font_size}
-
 
 class TrajectoryAnimator:
     def __init__(
-        self,
-        params,
-        font_size,
-        axes,
-        fig,
-        has_sensors,
-        xlims,
-        ylims,
+        self, params, font_size, axes, fig, has_sensors, xlims, ylims, episode_id, rep
     ):
         self.axes = axes
         self.fig = fig
@@ -258,14 +247,14 @@ class TrajectoryAnimator:
         self.traces = {}
         self._initialized = False
 
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.episodes = glob.glob(f"{script_dir}/data/e_*")
+        self.episode_id = episode_id
+        self.rep = rep
         self.episode_df, self.conditions_df = build_episode_dataset(params)
-        self.episodes.sort()
 
         self._anim = None
+        self.params = params
 
-    def _init_artists(self, n, episode_id):
+    def _init_artists(self, n, episode_id, trajectory):
         self.goal_color = "#cc4"
         self.touch_color = "#c44"
         self.proprio_color = "#44c"
@@ -333,9 +322,16 @@ class TrajectoryAnimator:
         print(xlims, ylims)
 
         extent = [0, 6, 4, 10]
-        img = plt.imread(self.episodes[episode_id])
+        ts0, tsl = trajectory.ets.iloc[[0, -1]]
 
-        self.episode_template = label_ax.imshow(img, extent=extent, zorder=900)
+        gif = Image.open(f"episode_{self.episode_id}_{self.rep+1}.gif")
+        gif.seek(0)
+        gif.seek(
+            self.params.drop_first_n_steps + self.params.policy_selection_steps + tsl
+        )
+        self.framel = np.array(gif)[150:250, 50:150]
+
+        self.episode_template = label_ax.imshow(self.framel, extent=extent, zorder=900)
 
         objs = ["blue cube", "red triangle", "green cube"]
         obj = objs[self.episode_df.query(f"index=={episode_id}").context.iloc[0] - 1]
@@ -404,11 +400,11 @@ class TrajectoryAnimator:
             self.scatters.clear()
             self.traces.clear()
             self.reps.clear()
-            self._init_artists(n, trajectory.episode_id.iloc[0])
+            self._init_artists(n, self.episode_id, trajectory)
 
         indices = ts_vals.astype(int)
         all_angles = np.degrees(data[indices])
-        self.polylines = [plot_polyline(ang, [1, 1, 0.5, 0.5]) for ang in all_angles]
+        self.polylines = [plot_polyline(ang, [1, 1, 1, 0.5, 0.5]) for ang in all_angles]
         alphas = 0.02 + 0.98 * np.exp(-np.linspace(-5, 0, n) ** 2)
 
         offsets_pts = []
@@ -421,7 +417,6 @@ class TrajectoryAnimator:
                 ssensors = all_sensors[i]
                 sizes_arr.append(100 * ssensors)
 
-        video_ax = self.axes["video"]
         traces_ax = self.axes["traces"]
 
         def update(frame_idx):
@@ -511,6 +506,8 @@ if __name__ == "__main__":
     df, has_sensors, weights = load_and_process_data(trajectory_file="trajectory_df.csv")
     wfile = "weights.npy"
 
+    df["ets"] = df.groupby(["episode_id", "e_seed"]).cumcount()
+
     trajectory = df[(df.episode_id == args.episode_id) & (df.goal_id == args.goal_id)]
 
     if "e_seed" in trajectory.columns:
@@ -536,6 +533,8 @@ if __name__ == "__main__":
         has_sensors,
         xlims,
         ylims,
+        args.episode_id,
+        args.rep,
     )
     anim = animator.animate(trajectory)
 
