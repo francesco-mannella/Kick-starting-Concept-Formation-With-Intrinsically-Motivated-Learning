@@ -274,9 +274,13 @@ class TrajectoryAnimator:
                 self.scatters.append(scatter)
 
             self.traces = {
-                "g": traces_ax.plot([999, 999], [999, 999], c=self.goal_color)[0],
-                "ss": traces_ax.plot([999, 999], [999, 999], c=self.touch_color)[0],
-                "p": traces_ax.plot([999, 999], [999, 999], c=self.proprio_color)[0],
+                "g": traces_ax.plot([999, 999], [999, 999], lw=0.5, c=self.goal_color)[0],
+                "ss": traces_ax.plot([999, 999], [999, 999], lw=0.5, c=self.touch_color)[
+                    0
+                ],
+                "p": traces_ax.plot([999, 999], [999, 999], lw=0.5, c=self.proprio_color)[
+                    0
+                ],
             }
 
             self.reps = {
@@ -417,8 +421,6 @@ class TrajectoryAnimator:
                 ssensors = all_sensors[i]
                 sizes_arr.append(100 * ssensors)
 
-        traces_ax = self.axes["traces"]
-
         def update(frame_idx):
             artists = []
             for i in range(frame_idx + 1):
@@ -430,20 +432,33 @@ class TrajectoryAnimator:
                 self.lines2[i].set_data(grip_coords[:, 0], grip_coords[:, 1])
                 self.lines2[i].set_alpha(alpha)
 
-                p = traces_ax.plot(
-                    *ss_data[: i + 1].T, c=self.touch_color, lw=2, zorder=-3
-                )
-                p.extend(
-                    traces_ax.plot(
-                        *p_data[: i + 1].T,
-                        c=self.proprio_color,
-                        lw=2,
-                        zorder=-3,
-                    )
-                )
+                self.traces["ss"].set_data(*ss_data[: i + 1].T)
+                self.traces["p"].set_data(*p_data[: i + 1].T)
 
-                self.reps["ss"].set_offsets(ss_data[i])
-                self.reps["p"].set_offsets(p_data[i])
+
+                loc_alphas = 0.01 + 0.99 * np.exp(-np.linspace(-20, 0, i+1) ** 2)
+                self.reps["ss"].set_offsets(ss_data[: i + 1])
+                self.reps["ss"].set_sizes(50 + 250 * loc_alphas[: i + 1])
+                fc = self.reps["ss"].get_facecolor()
+                ec = self.reps["ss"].get_edgecolor()
+                fc = np.tile(fc, [n, 1])
+                ec = np.tile(ec, [n, 1])
+                fc[: i + 1, 3] = loc_alphas[: i + 1]
+                ec[: i + 1, 3] = loc_alphas[: i + 1]
+                self.reps["ss"].set_facecolor(fc[: i + 1])
+                self.reps["ss"].set_edgecolor(ec[: i + 1])
+
+                self.reps["p"].set_offsets(p_data[: i + 1])
+                self.reps["p"].set_sizes(50 + 250 * loc_alphas[: i + 1])
+                fc = self.reps["p"].get_facecolor()
+                ec = self.reps["p"].get_edgecolor()
+                fc = np.tile(fc, [n, 1])
+                ec = np.tile(ec, [n, 1])
+                fc[: i + 1, 3] = loc_alphas[: i + 1]
+                ec[: i + 1, 3] = loc_alphas[: i + 1]
+                self.reps["p"].set_facecolor(fc[: i + 1])
+                self.reps["p"].set_edgecolor(ec[: i + 1])
+
                 self.reps["g"].set_offsets([g_data[i]])
 
                 artists.extend(
@@ -451,6 +466,7 @@ class TrajectoryAnimator:
                         self.lines1[i],
                         self.lines2[i],
                         *self.reps.values(),
+                        *self.traces.values(),
                     ]
                 )
 
@@ -459,7 +475,6 @@ class TrajectoryAnimator:
                     self.scatters[i].set_sizes(sizes_arr[i])
                     self.scatters[i].set_alpha(0.2 + 0.8 * alpha)
                     artists.append(self.scatters[i])
-                artists.extend(p)
                 artists.append(self.episode_template)
                 artists.append(self.episode_label)
             return artists
