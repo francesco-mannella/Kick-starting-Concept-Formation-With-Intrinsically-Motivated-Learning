@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import argparse
 import collections
 import json
@@ -8,10 +9,6 @@ import sys
 from itertools import product
 
 import slugify
-
-
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser("Executes a parameter grid search schedule")

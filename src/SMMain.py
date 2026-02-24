@@ -1047,7 +1047,7 @@ class Main:
             trajectories["touch_y"] = controller_out.model_data["ss_p"][i, :, 1]
             trajectories["proprio_x"] = controller_out.model_data["p_p"][i, :, 0]
             trajectories["proprio_y"] = controller_out.model_data["p_p"][i, :, 1]
-            trajectories["goal_id"] = np.cumsum(policy_changed[i])
+            trajectories["goal_id"] = np.cumsum(policy_changed[i]) - 1
             trajectories["tr_id"] = trajectories.goal_id + i * 100
             trajectories["episode_id"] = i
             trajectories["e_seed"] = envs[i].seed
@@ -2283,11 +2283,7 @@ class Main:
                 context = contexts[episode]
                 obj_params = self.obj_params_space[params_ind[episode]]
             else:
-                seed = int(
-                    self.seed
-                    + episode
-                    + np.log10(self.seed) * 1e6 * (0 if e_seed is None else e_seed)
-                )
+                seed = self.seed if e_seed is None else e_seed
 
                 db_episode = episode % len(self.episode_dataset)
 

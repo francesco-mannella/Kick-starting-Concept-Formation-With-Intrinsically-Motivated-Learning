@@ -250,6 +250,7 @@ class GraphManager:
         data = data.reshape(ss_dim, internal_side, internal_side)
         data = data.transpose(1, 2, 0)
         data = data.reshape(internal_side * internal_side, ss_dim)
+        data = np.clip(data, 0, None)
         grid = self.generate_sensor_grid()
         fig = None
         if ax is None:

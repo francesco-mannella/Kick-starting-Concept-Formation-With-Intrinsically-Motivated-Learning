@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Visualization module for trajectory animation with weight maps.
 
 This module provides functionality for creating animated visualizations of
@@ -15,6 +16,8 @@ Attributes:
 """
 
 import argparse
+import sys
+import warnings
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -28,6 +31,9 @@ from scipy.interpolate import splev, splprep
 from params import Parameters
 from SMGraphs import GraphManager
 from SMMain import build_episode_dataset
+
+
+warnings.filterwarnings("error")
 
 matplotlib.use("qtagg")
 
@@ -207,8 +213,7 @@ def plot_retina(axes, weights, px, py):
     ax.set_axis_off()
 
 
-def load_and_process_data(trajectory_file="trajectories.csv",
-                          weight_file="weights.npy"):
+def load_and_process_data(trajectory_file="trajectories.csv", weight_file="weights.npy"):
     """Load trajectory and weight data, reshape weights appropriately.
 
     Loads data from files and reshapes weight arrays to expected
@@ -274,22 +279,22 @@ def create_figure_layout(g):
         axes[name] = plt.subplot2grid(gridsize, pos, 1, 1, fig=fig)
         axes[name].set_axis_off()
 
-    titles = {"proprio": "Proprioception", "ssensory": "Somatosensory",
-              "visual": "Foveal vision"}
+    titles = {
+        "proprio": "Proprioception",
+        "ssensory": "Somatosensory",
+        "visual": "Foveal vision",
+    }
     for i, (name, title) in enumerate(titles.items()):
         axes[name] = plt.subplot2grid(gridsize, [2, i], 1, 1, fig=fig)
         axes[name].set_title(title)
 
     sensor_points = g.generate_sensor_points(40)
 
-    axes["video"] = plt.subplot2grid(gridsize, [0, 1], 2, 2, fig=fig,
-                                     aspect="equal")
-    axes["label"] = plt.subplot2grid(gridsize, [0, 0], 1, 1, fig=fig,
-                                     aspect="equal")
+    axes["video"] = plt.subplot2grid(gridsize, [0, 1], 2, 2, fig=fig, aspect="equal")
+    axes["label"] = plt.subplot2grid(gridsize, [0, 0], 1, 1, fig=fig, aspect="equal")
     axes["label"].set_axis_off()
 
-    axes["traces"] = plt.subplot2grid(gridsize, [1, 0], 1, 1, fig=fig,
-                                      aspect="equal")
+    axes["traces"] = plt.subplot2grid(gridsize, [1, 0], 1, 1, fig=fig, aspect="equal")
     axes["traces"].set_xlim(-0.5, 9.5)
     axes["traces"].set_ylim(-0.5, 9.5)
     axes["traces"].set_xticks(np.arange(10), [])
@@ -327,8 +332,7 @@ def add_marker(ax, point, width, height):
         width: Width of the rectangular marker.
         height: Height of the rectangular marker.
     """
-    rp = Rectangle(point - 0.5, width=width, height=height, fc="#fff0",
-                   ec="red")
+    rp = Rectangle(point - 0.5, width=width, height=height, fc="#fff0", ec="red")
     ax.add_patch(rp)
 
 
@@ -390,8 +394,20 @@ class TrajectoryAnimator:
 
     COLORS = {"goal": "#cc4", "touch": "#c44", "proprio": "#44c"}
 
-    def __init__(self, params, font_size, axes, fig, has_sensors, xlims,
-                 ylims, episode_id, rep, fast=True):
+    def __init__(
+        self,
+        params,
+        font_size,
+        axes,
+        fig,
+        has_sensors,
+        xlims,
+        ylims,
+        episode_id,
+        rep,
+        trajectories,
+        fast=True,
+    ):
         """Initialize the trajectory animator.
 
         Args:
@@ -421,6 +437,7 @@ class TrajectoryAnimator:
         self.reps, self.traces = {}, {}
         self._initialized = False
         self.anim = None
+        self.trajectories = trajectories
 
         self.episode_df, self.conditions_df = build_episode_dataset(params)
 
@@ -437,10 +454,8 @@ class TrajectoryAnimator:
         label_ax = self.axes["label"]
 
         for i in range(n):
-            line1, = video_ax.plot([], [], c="black", marker="o",
-                                   zorder=-100 + n)
-            line2, = video_ax.plot([], [], c="black", marker="o",
-                                   zorder=-100 + n)
+            (line1,) = video_ax.plot([], [], c="black", marker="o", zorder=-100 + n)
+            (line2,) = video_ax.plot([], [], c="black", marker="o", zorder=-100 + n)
             self.lines1.append(line1)
             self.lines2.append(line2)
 
@@ -450,8 +465,7 @@ class TrajectoryAnimator:
 
         self._init_traces(traces_ax, n)
         self._init_reps(traces_ax, n)
-        traces_ax.legend(loc="center left", bbox_to_anchor=(1, 0.7),
-                         title="Reps")
+        traces_ax.legend(loc="center left", bbox_to_anchor=(1, 0.7), title="Reps")
 
         self._init_labels(label_ax, trajectory, episode_id)
         self._initialized = True
@@ -463,15 +477,20 @@ class TrajectoryAnimator:
             ax: Matplotlib Axes object for traces.
             n: Number of trajectory frames.
         """
-        colors = {"g": self.COLORS["goal"], "ss": self.COLORS["touch"],
-                  "p": self.COLORS["proprio"]}
+        colors = {
+            "g": self.COLORS["goal"],
+            "ss": self.COLORS["touch"],
+            "p": self.COLORS["proprio"],
+        }
         if self.fast:
-            self.traces = {k: ax.plot([999], [999], lw=0.5, c=c)[0]
-                           for k, c in colors.items()}
+            self.traces = {
+                k: ax.plot([999], [999], lw=0.5, c=c)[0] for k, c in colors.items()
+            }
         else:
-            self.traces = {k: [ax.plot([999], [999], c=c)[0]
-                               for _ in range(n - 1)]
-                           for k, c in colors.items()}
+            self.traces = {
+                k: [ax.plot([999], [999], c=c)[0] for _ in range(n - 1)]
+                for k, c in colors.items()
+            }
 
     def _init_reps(self, ax, n):
         """Initialize representation scatter plots.
@@ -486,8 +505,9 @@ class TrajectoryAnimator:
             ("p", "*", self.COLORS["proprio"], "proprio"),
         ]
         for key, marker, color, label in configs:
-            self.reps[key] = ax.scatter(999, 999, marker=marker, fc=color,
-                                        ec="#000", lw=0.5, s=300, label=label)
+            self.reps[key] = ax.scatter(
+                999, 999, marker=marker, fc=color, ec="#000", lw=0.5, s=300, label=label
+            )
 
     def _init_labels(self, ax, trajectory, episode_id):
         """Initialize episode labels and image.
@@ -501,13 +521,26 @@ class TrajectoryAnimator:
         ax.set_ylim(0, 10)
 
         tsl = trajectory.ets.iloc[-1]
-        gif = Image.open(f"episode_{episode_id}_{self.rep + 1}.gif")
-        frame_idx = (self.params.drop_first_n_steps +
-                     self.params.policy_selection_steps + tsl)
-        gif.seek(frame_idx)
-        self.framel = np.array(gif)[150:250, 50:150]
-        self.episode_template = ax.imshow(self.framel, extent=[0, 6, 4, 10],
-                                          zorder=900)
+        t_tot_frames = self.trajectories.shape[0]
+
+        episode_file = f"episode_{episode_id}_{self.rep + 1}.gif"
+        framel_file = f"episode_{episode_id}_{self.rep + 1}.png"
+        with Image.open(episode_file) as gif:
+
+            tot_frames = gif.n_frames
+            start = self.params.drop_first_n_steps + self.params.policy_selection_steps
+            print(tsl)
+            print(t_tot_frames)
+            print(tot_frames)
+            print(start)
+            gif.seek(
+                +start + tsl,
+            )
+            self.framel = np.array(gif)[150:250, 50:150]
+            self.episode_template = ax.imshow(
+                self.framel, extent=[0, 6, 4, 10], zorder=900
+            )
+            plt.imsave(framel_file, self.framel)
 
         query = self.episode_df.query(f"index=={episode_id}")
         objs = ["blue cube", "red triangle", "green cube"]
@@ -516,18 +549,31 @@ class TrajectoryAnimator:
         rot = np.degrees(query.rotation.iloc[0]).round(0)
 
         self.episode_label = ax.text(
-            0, 0, f" Object: {obj}\nStretch: {stretch}\nrotation: {rot}°\n",
-            fontdict={"size": self.font_size}, zorder=800,
-            verticalalignment="bottom")
+            0,
+            0,
+            f" Object: {obj}\nStretch: {stretch}\nrotation: {rot}°\n",
+            fontdict={"size": self.font_size},
+            zorder=800,
+            verticalalignment="bottom",
+        )
 
         self.axes["proprio"].set_title("Proprioception")
         self.axes["ssensory"].set_title("Somatosensory")
         self.axes["visual"].set_title("Foveal vision")
-        self.axes["proprio"].text(-1.2, 0.7, "Current prototypes",
-                                  fontdict={"size": self.font_size},
-                                  rotation=90)
-        self.axes["pmap"].text(-2.5, 1.5, "Representation grids",
-                               fontdict={"size": self.font_size}, rotation=90)
+        self.axes["proprio"].text(
+            -1.2,
+            0.7,
+            "Current prototypes",
+            fontdict={"size": self.font_size},
+            rotation=90,
+        )
+        self.axes["pmap"].text(
+            -2.5,
+            1.5,
+            "Representation grids",
+            fontdict={"size": self.font_size},
+            rotation=90,
+        )
 
     def clear(self):
         """Clear all animation artists."""
@@ -551,8 +597,7 @@ class TrajectoryAnimator:
         n = trajectory.shape[0]
         ts_vals = trajectory.ts.to_numpy()
         data = trajectory.iloc[:, 1:6].to_numpy()
-        sensor_data = (trajectory.iloc[:, 6:46].to_numpy()
-                       if self.has_sensors else None)
+        sensor_data = trajectory.iloc[:, 6:46].to_numpy() if self.has_sensors else None
 
         ss_data = trajectory.loc[:, ["touch_x", "touch_y"]].to_numpy()[:, ::-1]
         p_data = trajectory.loc[:, ["proprio_x", "proprio_y"]].to_numpy()[:, ::-1]
@@ -569,9 +614,8 @@ class TrajectoryAnimator:
 
         indices = ts_vals.astype(int)
         all_angles = np.degrees(data[indices])
-        polylines = [plot_polyline(ang, [1, 1, 1, 0.5, 0.5])
-                     for ang in all_angles]
-        alphas = np.exp(-np.linspace(-5, 0, n) ** 2)
+        polylines = [plot_polyline(ang, [1, 1, 1, 0.5, 0.5]) for ang in all_angles]
+        alphas = 0.01 + 0.99 * np.exp(-np.linspace(-50, 0, n) ** 2)
 
         offsets_pts, sizes_arr = [], []
         if self.has_sensors:
@@ -586,8 +630,7 @@ class TrajectoryAnimator:
             for i in range(frame_idx + 1):
                 arm_coords, grip_coords = polylines[i]
                 alpha = alphas[i]
-                loc_alphas = 0.01 + 0.99 * np.exp(
-                    -np.linspace(-1.8, 0, i + 1) ** 2)
+                loc_alphas = 0.01 + 0.99 * np.exp(-np.linspace(-15, 0, i + 1) ** 2)
 
                 self.lines1[i].set_data(arm_coords[:, 0], arm_coords[:, 1])
                 self.lines1[i].set_alpha(alpha)
@@ -597,8 +640,7 @@ class TrajectoryAnimator:
                 self._update_traces(i, ss_data, p_data, ss_pp, p_pp, loc_alphas)
                 self._update_reps(i, ss_data, p_data, g_data, loc_alphas, n)
 
-                artists.extend([self.lines1[i], self.lines2[i],
-                                *self.reps.values()])
+                artists.extend([self.lines1[i], self.lines2[i], *self.reps.values()])
                 artists.extend(self._get_trace_artists())
 
                 if self.has_sensors:
@@ -608,10 +650,12 @@ class TrajectoryAnimator:
                     artists.append(self.scatters[i])
 
                 artists.extend([self.episode_template, self.episode_label])
+
             return artists
 
-        self.anim = FuncAnimation(self.fig, update, frames=n, interval=50,
-                                  blit=True, repeat=False)
+        self.anim = FuncAnimation(
+            self.fig, update, frames=n, interval=50, blit=True, repeat=False
+        )
         return self.anim
 
     def _clear_artists(self):
@@ -638,14 +682,14 @@ class TrajectoryAnimator:
             loc_alphas: Alpha values for trace transparency.
         """
         if self.fast:
-            self.traces["ss"].set_data(*ss_data[:i + 1].T)
-            self.traces["p"].set_data(*p_data[:i + 1].T)
+            self.traces["ss"].set_data(*ss_data[: i + 1].T)
+            self.traces["p"].set_data(*p_data[: i + 1].T)
         else:
-            for k, tr in enumerate(self.traces["ss"][:i + 1]):
+            for k, tr in enumerate(self.traces["ss"][: i + 1]):
                 tr.set_data(*ss_pp[k].T)
                 tr.set_linewidth(0.2 + 4 * loc_alphas[k])
                 tr.set_alpha(loc_alphas[k])
-            for k, tr in enumerate(self.traces["p"][:i + 1]):
+            for k, tr in enumerate(self.traces["p"][: i + 1]):
                 tr.set_data(*p_pp[k].T)
                 tr.set_linewidth(0.2 + 4 * loc_alphas[k])
                 tr.set_alpha(loc_alphas[k])
@@ -662,16 +706,16 @@ class TrajectoryAnimator:
             n: Total number of frames.
         """
         for key, data, base_size in [("ss", ss_data, 50), ("p", p_data, 0)]:
-            self.reps[key].set_offsets(data[:i + 1])
-            sizes = base_size + (250 if key == "ss" else 300) * loc_alphas[:i + 1]
+            self.reps[key].set_offsets(data[: i + 1])
+            sizes = base_size + (250 if key == "ss" else 300) * loc_alphas[: i + 1]
             self.reps[key].set_sizes(sizes)
 
             fc = np.tile(self.reps[key].get_facecolor(), [n, 1])
             ec = np.tile(self.reps[key].get_edgecolor(), [n, 1])
-            fc[:i + 1, 3] = loc_alphas[:i + 1]
-            ec[:i + 1, 3] = loc_alphas[:i + 1]
-            self.reps[key].set_facecolor(fc[:i + 1])
-            self.reps[key].set_edgecolor(ec[:i + 1])
+            fc[: i + 1, 3] = loc_alphas[: i + 1]
+            ec[: i + 1, 3] = loc_alphas[: i + 1]
+            self.reps[key].set_facecolor(fc[: i + 1])
+            self.reps[key].set_edgecolor(ec[: i + 1])
 
         self.reps["g"].set_offsets([g_data[i]])
 
@@ -687,35 +731,93 @@ class TrajectoryAnimator:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Process episode and goal identifiers.")
-    parser.add_argument("-e", "--episode_id", type=int,
-                        help="Unique identifier for the episode")
-    parser.add_argument("-r", "--rep", type=int,
-                        help="Number of episode repetition")
-    parser.add_argument("-g", "--goal_id", type=int,
-                        help="Unique identifier for the goal")
-    parser.add_argument("-o", "--online", action="store_true",
-                        help="Render online")
-    parser.add_argument("-f", "--fast", action="store_true",
-                        help="Fast rendering of representations")
+    parser = argparse.ArgumentParser(description="Process episode and goal identifiers.")
+    parser.add_argument(
+        "-e",
+        "--episode_id",
+        type=int,
+        help="Unique identifier for the episode",
+    )
+    parser.add_argument(
+        "-r",
+        "--rep",
+        type=int,
+        help="Number of episode repetition",
+    )
+    parser.add_argument(
+        "-g",
+        "--goal_id",
+        type=int,
+        help="Unique identifier for the goal",
+    )
+    parser.add_argument(
+        "-l",
+        "--list",
+        action="store_true",
+        help="Only list the table of episodes and goals",
+    )
+    parser.add_argument(
+        "-o",
+        "--online",
+        action="store_true",
+        help="Render online",
+    )
+    parser.add_argument(
+        "-f",
+        "--fast",
+        action="store_true",
+        help="Fast rendering of representations",
+    )
     args = parser.parse_args()
 
     params = Parameters()
     g = GraphManager(None, params)
     font_size = 11
 
-    df, has_sensors, weights = load_and_process_data(
-        trajectory_file="trajectory_df.csv")
+    df, has_sensors, weights = load_and_process_data(trajectory_file="trajectory_df.csv")
+    seeds = df.e_seed.unique()
     wfile = "weights.npy"
 
-    df["ets"] = df.groupby(["episode_id", "e_seed"]).cumcount()
-    trajectory = df[(df.episode_id == args.episode_id) &
-                    (df.goal_id == args.goal_id)]
+    gdf = (
+        df.groupby(["e_seed", "episode_id", "goal_id"])
+        .first()
+        .reset_index()[["e_seed", "episode_id", "goal_id"]]
+    )
 
-    if "e_seed" in trajectory.columns:
-        seeds = trajectory.e_seed.unique()
-        trajectory = trajectory.query(f"e_seed=={seeds[args.rep]}")
+    if args.list:
+        gdf = gdf.groupby(["e_seed", "episode_id"]).count().reset_index()
+        gdf = gdf.pivot(index="episode_id", columns="e_seed").reset_index()
+        gdf.columns = [
+            "_".join(map(str, col)).strip("_") if isinstance(col, tuple) else col
+            for col in gdf.columns
+        ]
+        gdf["type"] = [["B", "R", "G"][i] for i in np.arange(18) % 3]
+        print(gdf)
+        sys.exit()
+
+    curr_episode_gdf = gdf.query(
+        f"episode_id == {args.episode_id} and e_seed == {int(seeds[args.rep])}"
+    )
+
+    curr_episode_gdf = curr_episode_gdf.copy()
+    curr_episode_gdf.loc[:, "curr_goal"] = ""
+
+    mask = curr_episode_gdf["goal_id"] == args.goal_id
+    curr_episode_gdf.loc[mask, "curr_goal"] = "*"
+
+    print()
+    print(curr_episode_gdf)
+    print()
+
+    if args.goal_id not in curr_episode_gdf["goal_id"].values:
+        raise ValueError("The current episode do not reach the this goal number")
+
+    df.loc[:, "ets"] = df.groupby(["e_seed", "episode_id"]).cumcount()
+    mask = df.e_seed == seeds[args.rep]
+    mask &= df.episode_id == args.episode_id
+    trajectories = df.loc[mask].copy()
+    mask &= df.goal_id == args.goal_id
+    trajectory = df.loc[mask].copy()
 
     fig, axes, xlims, ylims, sensor_points = create_figure_layout(g)
     setup_ax(axes, "video", xlims, ylims)
@@ -726,14 +828,28 @@ if __name__ == "__main__":
     plot_somatosensory(axes, weights, px, py, sensor_points)
     plot_retina(axes, weights, px, py)
 
-    animator = TrajectoryAnimator(params, font_size, axes, fig, has_sensors,
-                                  xlims, ylims, args.episode_id, args.rep,
-                                  fast=args.fast)
+    animator = TrajectoryAnimator(
+        params,
+        font_size,
+        axes,
+        fig,
+        has_sensors,
+        xlims,
+        ylims,
+        args.episode_id,
+        args.rep,
+        fast=args.fast,
+        trajectories=trajectories,
+    )
     anim = animator.animate(trajectory)
 
+    name = f"e{args.episode_id:02d}_g{args.goal_id:02d}_r{args.rep}_{px}{py}"
     if args.online:
         plt.show()
     else:
+        writer = matplotlib.animation.PillowWriter(fps=2, metadata=["loop", "1"])
         anim.save(
-            filename=f"postures_e{args.episode_id}_g{args.goal_id}_{args.rep}.gif",
-            writer="pillow")
+            filename=f"{name}.gif",
+            writer=writer,
+        )
+        animator.fig.savefig(f"{name}.png", dpi=300)

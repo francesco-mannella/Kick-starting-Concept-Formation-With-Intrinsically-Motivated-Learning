@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -9,6 +11,8 @@ import torch
 from SMMain import Main
 from storage import StorageManager
 
+
+os.environ["OMP_NUM_THREADS"] = "1"
 
 _ = Main
 
@@ -80,7 +84,7 @@ def parse_arguments():
         "-p",
         "--plot",
         action="store_true",
-        help="ender animations",
+        help="Render animations",
     )
     parser.add_argument(
         "-g",
