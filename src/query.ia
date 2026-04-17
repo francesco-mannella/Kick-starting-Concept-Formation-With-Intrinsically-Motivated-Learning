@@ -1,0 +1,9 @@
+>>> user
+
+Refactor SMMain.py. Encapsulate the execution and rendering of a single episode to be used in run_episodes ans evaluation_episodes, and in general whrerver  episodes are executed and/or  rendered. Use a common dataset of episode types with the defining parameters as in single_demo.py. Maintain all functionalities, docstrings, comments and interfaces of the original scripti. Do not corrupt train and train_parasite. Maintain all the existing methods. Maintain the structure of file storage
+
+>>> include
+SMController.py
+SMMain.py
+single_demo.py
+
