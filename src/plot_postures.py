@@ -1,23 +1,10 @@
 #!/usr/bin/env python
-"""Visualization module for trajectory animation with weight maps.
-
-This module provides functionality for creating animated visualizations of
-robot arm trajectories, including somatosensory, proprioceptive, and visual
-weight map representations. It supports both online rendering and saving
-animations to GIF files.
-
-Example:
-    Run from command line::
-
-        python SMAnimation.py -e 1 -r 0 -g 5 --online
-
-Attributes:
-    matplotlib: Configured to use 'qtagg' backend for rendering.
-"""
+"""Visualization module for trajectory animation with weight maps."""
 
 import argparse
 import sys
 import warnings
+from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -35,24 +22,9 @@ from SMMain import build_episode_dataset
 
 warnings.filterwarnings("error")
 
-matplotlib.use("qtagg")
-
 
 def generate_offset_points(points, distance=0.05):
-    """Generate points offset by perpendicular normals.
-
-    Computes offset points along perpendicular normals to the path defined
-    by input points. Useful for creating parallel curves.
-
-    Args:
-        points: Array-like of shape (N, 2) containing 2D point coordinates.
-        distance: Offset distance from original points. Positive values
-            offset to the left of the path direction. Defaults to 0.05.
-
-    Returns:
-        np.ndarray: Array of shape (N, 2) containing offset point
-            coordinates. Returns copy of input if N=1, empty array if N=0.
-    """
+    """Generate points offset by perpendicular normals."""
     points = np.asarray(points, dtype=float)
     n = len(points)
     if n < 2:
@@ -75,38 +47,13 @@ def generate_offset_points(points, distance=0.05):
 
 
 def interp(points, n=10):
-    """Interpolate points using B-spline.
-
-    Fits a B-spline curve through the given points and samples it at
-    uniformly spaced parameter values.
-
-    Args:
-        points: Array of shape (M, 2) containing control points.
-        n: Number of interpolated points to generate. Defaults to 10.
-
-    Returns:
-        np.ndarray: Array of shape (n, 2) containing interpolated points.
-    """
+    """Interpolate points using B-spline."""
     tck, _ = splprep(points.T, s=0)
     return np.vstack(splev(np.linspace(0, 1, n), tck)).T
 
 
 def plot_polyline(angles, lengths):
-    """Compute arm and gripper coordinates from joint angles.
-
-    Performs forward kinematics to compute the positions of arm segments
-    and gripper fingers based on joint angles and segment lengths.
-
-    Args:
-        angles: Sequence of joint angles in degrees. Last two angles
-            correspond to gripper fingers.
-        lengths: Sequence of segment lengths corresponding to each joint.
-
-    Returns:
-        tuple: A tuple containing:
-            - np.ndarray: Arm coordinates of shape (N-2, 2).
-            - np.ndarray: Gripper coordinates of shape (5, 2).
-    """
+    """Compute arm and gripper coordinates from joint angles."""
     angles = np.array(angles)
     angles[0] += 90
     angles[-2:] *= [-1, 1]
@@ -127,111 +74,173 @@ def plot_polyline(angles, lengths):
 
 
 def get_sensors_coords(grip_coords, n=20):
-    """Get sensor coordinates around gripper.
-
-    Generates sensor positions along both sides of the gripper by
-    interpolating offset curves.
-
-    Args:
-        grip_coords: Array of shape (M, 2) containing gripper coordinates.
-        n: Number of sensor points per side. Defaults to 20.
-
-    Returns:
-        np.ndarray: Array of shape (2*n, 2) containing sensor positions
-            arranged in a continuous loop around the gripper.
-    """
+    """Get sensor coordinates around gripper."""
     n_2 = n // 2
     pts1 = interp(generate_offset_points(grip_coords, -0.1), n)[::-1]
     pts2 = interp(generate_offset_points(grip_coords, 0.1), n)
     return np.vstack([pts1[n_2:], pts2, pts1[:n_2]])
 
 
-def plot_somatosensory(axes, weights, px, py, sensor_points):
-    """Plot somatosensory weight visualization.
+class ProprioceptionPlot:
+    """Handles proprioceptive weight visualization."""
 
-    Displays sensor activations as scatter points with sizes proportional
-    to weight values.
+    def __init__(self, axes, weights, g):
+        self.weights = weights
+        self.g = g
+        if isinstance(axes, dict):
+            self.ax = axes["proprio"]
+        else:
+            self.ax = axes
+        self._init_plot()
 
-    Args:
-        axes: Dictionary mapping axis names to matplotlib Axes objects.
-        weights: Dictionary containing weight arrays with 'ssensory' key.
-        px: X-coordinate index in the weight map.
-        py: Y-coordinate index in the weight map.
-        sensor_points: Array of shape (N, 2) containing sensor positions.
-    """
-    sensors = weights["ssensory"][px, py]
-    ax = axes["ssensory"]
-    ax.clear()
-    ax.set_xlim(0, 1)
-    ax.set_ylim(-0.5, 1.5)
+    def _init_plot(self):
+        self.ax.clear()
+        self.ax.set_xlim(-0.2, 0.8)
+        self.ax.set_ylim(-0.8, 0.8)
+        self.ax.set_axis_off()
+        self.scatter = self.ax.scatter([], [], c="black")
+        (self.line,) = self.ax.plot([], [], c="black")
 
-    idcs = np.where(sensors > 1e-5)
-    ax.scatter(*sensor_points[idcs].T, c="black", s=0.5 + 60 * sensors[idcs])
-    ax.scatter(*sensor_points.T, c="black", s=0.1)
-    ax.set_axis_off()
-
-
-def plot_proprioceptive(axes, weights, px, py, g):
-    """Plot proprioceptive weight visualization.
-
-    Displays gripper configuration based on proprioceptive weight values.
-
-    Args:
-        axes: Dictionary mapping axis names to matplotlib Axes objects.
-        weights: Dictionary containing weight arrays with 'proprio' key.
-        px: X-coordinate index in the weight map.
-        py: Y-coordinate index in the weight map.
-        g: GraphManager instance for generating gripper coordinates.
-    """
-    angles = weights["proprio"][px, py]
-    grip = g.generate_gripper(angles)
-    ax = axes["proprio"]
-    ax.clear()
-    ax.set_xlim(-0.2, 0.8)
-    ax.set_ylim(-0.8, 0.8)
-    ax.scatter(*grip.T, c="black")
-    ax.plot(*grip.T, c="black")
-    ax.set_axis_off()
+    def update(self, px, py):
+        angles = self.weights["proprio"][px, py]
+        grip = self.g.generate_gripper(angles)
+        self.scatter.set_offsets(grip)
+        self.line.set_data(grip[:, 0], grip[:, 1])
 
 
-def plot_retina(axes, weights, px, py):
-    """Plot visual/retina weight visualization.
+class SomatosensoryPlot:
+    """Handles somatosensory weight visualization."""
 
-    Displays normalized visual weight map as an image.
+    def __init__(self, axes, weights, sensor_points):
+        self.weights = weights
+        self.sensor_points = sensor_points
+        if isinstance(axes, dict):
+            self.ax = axes["ssensory"]
+        else:
+            self.ax = axes
+        self._init_plot()
 
-    Args:
-        axes: Dictionary mapping axis names to matplotlib Axes objects.
-        weights: Dictionary containing weight arrays with 'visual' key.
-        px: X-coordinate index in the weight map.
-        py: Y-coordinate index in the weight map.
-    """
-    retina = weights["visual"][px, py]
-    retina = (retina - retina.min()) / np.ptp(retina)
-    ax = axes["visual"]
-    ax.clear()
-    ax.imshow(retina, aspect="auto")
-    ax.set_axis_off()
+    def _init_plot(self):
+        self.ax.clear()
+        self.ax.set_xlim(0, 1)
+        self.ax.set_ylim(-0.5, 1.5)
+        self.ax.set_axis_off()
+        self.scatter_active = self.ax.scatter([], [], c="black")
+        self.scatter_base = self.ax.scatter(*self.sensor_points.T, c="black", s=0.1)
+
+    def update(self, px, py):
+        sensors = self.weights["ssensory"][px, py]
+        idcs = np.where(sensors > 1e-5)[0]
+        self.scatter_active.set_offsets(self.sensor_points[idcs])
+        self.scatter_active.set_sizes(0.5 + 60 * sensors[idcs])
+
+
+class RetinaPlot:
+    """Handles visual/retina weight visualization."""
+
+    def __init__(self, axes, weights):
+        self.weights = weights
+        self.ax = axes["visual"]
+        self._init_plot()
+
+    def _init_plot(self):
+        self.ax.clear()
+        self.ax.set_axis_off()
+        dummy = np.zeros((10, 10))
+        self.image = self.ax.imshow(dummy, aspect="auto")
+
+    def update(self, px, py):
+        retina = self.weights["visual"][py, px]
+        retina = (retina - retina.min()) / np.ptp(retina)
+        self.image.set_data(retina)
+
+
+class MapPlot:
+    """Handles weight map visualization with markers."""
+
+    def __init__(self, ax, g, wfile, map_type, font_size):
+        self.ax = ax
+        self.g = g
+        self.wfile = wfile
+        self.map_type = map_type
+        self.font_size = font_size
+        self.markers = []
+        self._init_plot()
+
+    def _init_plot(self):
+        self.ax.clear()
+        self.ax.set_axis_off()
+        if self.map_type == "visual":
+            self.g.visual_map(ax=self.ax, wfile=self.wfile)
+        elif self.map_type == "proprio":
+            self.g.proprio_map(ax=self.ax, wfile=self.wfile)
+        elif self.map_type == "somatosensory":
+            self.g.somatosensory_map(ax=self.ax, wfile=self.wfile)
+
+        self.ax.set_aspect("equal")
+        xlims = self.ax.get_xlim()
+        ylims = self.ax.get_ylim()
+        xrng = np.ptp(xlims)
+        yrng = np.ptp(ylims)
+
+        if self.map_type != "visual":
+            self.ax.set_xlim(-xrng * 0.05, xrng * 1.05)
+            self.ax.set_ylim(-yrng * 0.05, yrng * 1.05)
+        else:
+            self.ax.set_xlim(-xrng * 0.06, xrng * 1.05)
+            self.ax.set_ylim(yrng * 0.96, -yrng * 0.16)
+
+        self._create_markers()
+
+    def _create_markers(self):
+        for m in self.markers:
+            for p in m:
+                p.remove()
+        self.markers = []
+
+        colors = ["yellow", "red", "blue"]
+        for _ in range(3):
+            bg_rect = Rectangle((0, 0), 1, 1, lw=2, fc="#0000", ec="black", visible=False)
+            fg_rect = Rectangle((0, 0), 1, 1, lw=1, fc="#fff0", ec="black", visible=False)
+            self.ax.add_patch(bg_rect)
+            self.ax.add_patch(fg_rect)
+            self.markers.append((bg_rect, fg_rect))
+
+        for i, (bg, fg) in enumerate(self.markers):
+            fg.set_edgecolor(colors[i])
+
+    def _update_marker(self, idx, point, width, height, lw=None):
+        bg_rect, fg_rect = self.markers[idx]
+
+        w = width + width * 0.1 * (lw or 0)
+        h = height + height * 0.1 * (lw or 0)
+        pt = point - width * 0.05 * (lw or 0)
+
+        bg_rect.set_xy(pt - 0.5)
+        bg_rect.set_width(w)
+        bg_rect.set_height(h)
+        bg_rect.set_linewidth(2 + (lw or 0))
+        bg_rect.set_visible(True)
+
+        fg_rect.set_xy(pt - 0.5)
+        fg_rect.set_width(w)
+        fg_rect.set_height(h)
+        fg_rect.set_linewidth(1 if lw is None else lw)
+        fg_rect.set_visible(True)
+
+    def update(self, px, py, tx, ty, ax, ay):
+        if self.map_type == "visual":
+            self._update_marker(0, np.array([py, 10 - 1 - px]) * 10 + 0.5, 10, 10, lw=2)
+            self._update_marker(1, np.array([ty, 10 - 1 - tx]) * 10 + 0.5, 10, 10)
+            self._update_marker(2, np.array([ay, 10 - 1 - ax]) * 10 + 0.5, 10, 10)
+        else:
+            self._update_marker(0, np.array([py, px]) + 0.5, 1, 1, lw=2)
+            self._update_marker(1, np.array([ty, tx]) + 0.5, 1, 1)
+            self._update_marker(2, np.array([ay, ax]) + 0.5, 1, 1)
 
 
 def load_and_process_data(trajectory_file="trajectories.csv", weight_file="weights.npy"):
-    """Load trajectory and weight data, reshape weights appropriately.
-
-    Loads data from files and reshapes weight arrays to expected
-    dimensions for visualization.
-
-    Args:
-        trajectory_file: Path to CSV file containing trajectory data.
-            Defaults to "trajectories.csv".
-        weight_file: Path to NPY file containing weight arrays.
-            Defaults to "weights.npy".
-
-    Returns:
-        tuple: A tuple containing:
-            - pd.DataFrame: Trajectory data.
-            - bool: True if sensor columns ('s0') exist in data.
-            - dict: Reshaped weight arrays with keys 'proprio',
-                'ssensory', and 'visual'.
-    """
+    """Load trajectory and weight data, reshape weights appropriately."""
     df = pd.read_csv(trajectory_file)
     has_sensors = "s0" in df.columns
     weights = np.load(weight_file, allow_pickle=True)[0]
@@ -245,28 +254,13 @@ def load_and_process_data(trajectory_file="trajectories.csv", weight_file="weigh
     weights["ssensory"] = weights["ssensory"].transpose(1, 2, 0)
 
     weights["visual"] = weights["visual"].reshape(10, 10, 3, 10, 10)
-    weights["visual"] = weights["visual"].transpose(3, 4, 0, 1, 2)
+    weights["visual"] = weights["visual"].transpose(4, 3, 0, 1, 2)
 
     return df, has_sensors, weights
 
 
 def create_figure_layout(g):
-    """Create figure with subplot grid layout.
-
-    Sets up the complete figure layout with all required subplots for
-    trajectory visualization, weight maps, and sensor displays.
-
-    Args:
-        g: GraphManager instance for generating sensor points.
-
-    Returns:
-        tuple: A tuple containing:
-            - plt.Figure: The created figure.
-            - dict: Dictionary mapping axis names to Axes objects.
-            - np.ndarray: X-axis limits as [min, max].
-            - np.ndarray: Y-axis limits as [min, max].
-            - np.ndarray: Sensor point coordinates of shape (40, 2).
-    """
+    """Create figure with subplot grid layout."""
     xlims, ylims = np.array([-2, 4]), np.array([-3, 3])
     gridsize = (4, 3)
     ratio = gridsize[0] / gridsize[1]
@@ -306,14 +300,7 @@ def create_figure_layout(g):
 
 
 def setup_ax(axes, key, xlims=None, ylims=None):
-    """Clear and configure axis limits.
-
-    Args:
-        axes: Dictionary mapping axis names to matplotlib Axes objects.
-        key: Key identifying the axis to configure.
-        xlims: Optional tuple or array of (min, max) for x-axis limits.
-        ylims: Optional tuple or array of (min, max) for y-axis limits.
-    """
+    """Clear and configure axis limits."""
     ax = axes[key]
     ax.clear()
     if xlims is not None:
@@ -323,76 +310,126 @@ def setup_ax(axes, key, xlims=None, ylims=None):
     ax.set_axis_off()
 
 
-def add_marker(ax, point, width, height):
-    """Add rectangular marker to axis.
-
-    Args:
-        ax: Matplotlib Axes object to add marker to.
-        point: Array-like of (x, y) coordinates for marker center.
-        width: Width of the rectangular marker.
-        height: Height of the rectangular marker.
-    """
-    rp = Rectangle(point - 0.5, width=width, height=height, fc="#fff0", ec="red")
-    ax.add_patch(rp)
-
-
-def update_maps(g, wfile, font_size, axes, px, py):
-    """Update all weight map visualizations.
-
-    Refreshes proprioceptive, visual, and somatosensory map displays
-    with current prototype position markers.
-
-    Args:
-        g: GraphManager instance for generating map visualizations.
-        wfile: Path to weight file for map generation.
-        font_size: Font size for labels (unused in current implementation).
-        axes: Dictionary mapping axis names to matplotlib Axes objects.
-        px: X-coordinate index for marker position.
-        py: Y-coordinate index for marker position.
-    """
-    setup_ax(axes, "pmap")
-    g.proprio_map(ax=axes["pmap"], wfile=wfile)
-    add_marker(axes["pmap"], np.array([py, px]) + 0.5, 1, 1)
-
-    setup_ax(axes, "vmap")
-    g.visual_map(ax=axes["vmap"], wfile=wfile)
-    add_marker(axes["vmap"], np.array([py, 10 - px - 1]) * 10 + 0.5, 10, 10)
-
-    setup_ax(axes, "smap")
-    g.somatosensory_map(ax=axes["smap"], wfile=wfile)
-    add_marker(axes["smap"], np.array([py, px]) + 0.5, 1, 1)
-
-
-class TrajectoryAnimator:
-    """Handles trajectory animation with visual feedback.
-
-    Creates animated visualizations of robot arm trajectories including
-    arm movement, sensor activations, and representation traces on
-    weight maps.
-
-    Attributes:
-        COLORS: Class-level color definitions for visualization elements.
-        axes: Dictionary of matplotlib Axes objects.
-        fig: Matplotlib Figure object.
-        has_sensors: Whether sensor data is available.
-        xlims: X-axis limits for video display.
-        ylims: Y-axis limits for video display.
-        font_size: Font size for text labels.
-        episode_id: Current episode identifier.
-        rep: Current repetition number.
-        fast: Whether to use fast rendering mode.
-        params: Parameters instance.
-        lines1: List of arm segment line artists.
-        lines2: List of gripper segment line artists.
-        scatters: List of sensor scatter artists.
-        reps: Dictionary of representation scatter artists.
-        traces: Dictionary of trace line artists.
-        anim: Current FuncAnimation instance.
-        episode_df: DataFrame containing episode data.
-        conditions_df: DataFrame containing condition data.
-    """
+class BaseTrajectoryAnimator:
+    """Base class for trajectory animation with common functionality."""
 
     COLORS = {"goal": "#cc4", "touch": "#c44", "proprio": "#44c"}
+    GIF_NAME_TEMPLATE = "e{episode_id:02d}_g{goal_id:02d}_r{rep}_{px}{py}"
+
+    def __init__(self, fig, ax, episode_id, rep, xlims=None, ylims=None, end_steps=40):
+        self.fig = fig
+        self.ax = ax
+        self.xlims = xlims
+        self.ylims = ylims
+        self.episode_id = episode_id
+        self.rep = rep
+        self.end_steps = end_steps
+        self.lines1, self.lines2 = [], []
+        self.traces = {}
+        self._initialized = False
+        self.anim = None
+
+        if xlims is not None:
+            self.ax.set_xlim(xlims)
+        if ylims is not None:
+            self.ax.set_ylim(ylims)
+
+    def _create_arm_lines(self, ax, n):
+        """Create arm and gripper line artists."""
+        for _ in range(n):
+            (line1,) = ax.plot([], [], c="black", marker="o", zorder=-100 + n)
+            (line2,) = ax.plot([], [], c="black", marker="o", zorder=-100 + n)
+            self.lines1.append(line1)
+            self.lines2.append(line2)
+
+    def _remove_lines(self):
+        """Remove arm and gripper lines."""
+        for line in self.lines1 + self.lines2:
+            line.remove()
+        self.lines1, self.lines2 = [], []
+
+    def clear(self):
+        """Clear all animation artists."""
+        for line in self.lines1 + self.lines2:
+            line.set_data([], [])
+
+    def _prepare_animation_data(self, trajectory):
+        """Prepare common animation data from trajectory."""
+        n = trajectory.shape[0]
+        ts_vals = trajectory.ts.to_numpy()
+        data = trajectory.iloc[:, 1:6].to_numpy()
+        indices = ts_vals.astype(int)
+        all_angles = np.degrees(data[indices])
+        polylines = [plot_polyline(ang, [1, 1, 1, 0.5, 0.5]) for ang in all_angles]
+        alphas = 0.01 + 0.99 * np.exp(-np.linspace(-2.3, 0, n) ** 2)
+        return n, polylines, alphas
+
+    def get_output_name(self, goal_id, px, py):
+        """Generate output filename for animation."""
+        return self.GIF_NAME_TEMPLATE.format(
+            episode_id=self.episode_id, goal_id=goal_id, rep=self.rep, px=px, py=py
+        )
+
+    def save_animation(self, goal_id, px, py, fps=20):
+        """Save animation as GIF and PNG."""
+        name = self.get_output_name(goal_id, px, py)
+        writer = matplotlib.animation.PillowWriter(fps=fps, metadata=["loop", "1"])
+
+        demos = Path("demos")
+        self.anim.save(filename=demos / f"{name}.gif", writer=writer)
+        self.fig.savefig(demos / f"final_{name}.png", dpi=300)
+
+    def show(self):
+        """Display animation interactively."""
+        plt.show()
+
+
+class SimpleTrajectoryAnimator(BaseTrajectoryAnimator):
+    """Handles simplified trajectory animation showing only arm traces."""
+
+    def _init_artists(self, n):
+        """Initialize plot artists for animation."""
+        self._create_arm_lines(self.ax, n)
+        for line in self.lines1 + self.lines2:
+            line.set_markersize(line.get_markersize() / 5)
+        self._initialized = True
+
+    def _clear_artists(self):
+        """Remove all existing artists."""
+        self._remove_lines()
+        self._initialized = False
+
+    def animate(self, trajectory):
+        """Create and return animation for trajectory."""
+        n, polylines, alphas = self._prepare_animation_data(trajectory)
+        alphas = 0.01 + 0.99 * np.exp(-np.linspace(-2, 0, n) ** 2)
+
+        if not self._initialized or len(self.lines1) != n:
+            self._clear_artists()
+            self._init_artists(n)
+
+        total_frames = n + self.end_steps
+
+        def update(frame_idx):
+            data_idx = min(frame_idx, n - 1)
+            artists = []
+            for i in range(data_idx + 1):
+                arm_coords, grip_coords = polylines[i]
+                self.lines1[i].set_data(arm_coords[:, 0], arm_coords[:, 1])
+                self.lines1[i].set_alpha(alphas[i])
+                self.lines2[i].set_data(grip_coords[:, 0], grip_coords[:, 1])
+                self.lines2[i].set_alpha(alphas[i])
+                artists.extend([self.lines1[i], self.lines2[i]])
+            return artists
+
+        self.anim = FuncAnimation(
+            self.fig, update, frames=total_frames, interval=50, blit=True, repeat=False
+        )
+        return self.anim
+
+
+class TrajectoryAnimator(BaseTrajectoryAnimator):
+    """Handles trajectory animation with visual feedback."""
 
     def __init__(
         self,
@@ -406,141 +443,148 @@ class TrajectoryAnimator:
         episode_id,
         rep,
         trajectories,
+        weights,
+        sensor_points,
+        g,
+        wfile,
         fast=True,
+        end_steps=40,
+        online=False,
     ):
-        """Initialize the trajectory animator.
-
-        Args:
-            params: Parameters instance containing simulation settings.
-            font_size: Font size for text labels.
-            axes: Dictionary mapping axis names to matplotlib Axes.
-            fig: Matplotlib Figure object for animation.
-            has_sensors: Whether sensor data columns exist.
-            xlims: X-axis limits as (min, max) for video display.
-            ylims: Y-axis limits as (min, max) for video display.
-            episode_id: Unique identifier for the episode.
-            rep: Repetition number within the episode.
-            fast: If True, use simplified trace rendering. Defaults to True.
-        """
+        """Initialize the trajectory animator."""
+        super().__init__(fig, axes.get("video"), episode_id, rep, xlims, ylims, end_steps)
         self.axes = axes
-        self.fig = fig
         self.has_sensors = has_sensors
-        self.xlims = xlims
-        self.ylims = ylims
         self.font_size = font_size
-        self.episode_id = episode_id
-        self.rep = rep
         self.fast = fast
         self.params = params
-
-        self.lines1, self.lines2, self.scatters = [], [], []
-        self.reps, self.traces = {}, {}
-        self._initialized = False
-        self.anim = None
         self.trajectories = trajectories
+        self.weights = weights
+        self.sensor_points = sensor_points
+        self.g = g
+        self.wfile = wfile
+        self.online = online
 
+        self.scatters = []
+        self.reps = {}
         self.episode_df, self.conditions_df = build_episode_dataset(params)
 
-    def _init_artists(self, n, episode_id, trajectory):
-        """Initialize plot artists for animation.
+        self.proprio_plot = ProprioceptionPlot(axes, weights, g)
+        self.somato_plot = SomatosensoryPlot(axes, weights, sensor_points)
+        self.retina_plot = RetinaPlot(axes, weights)
 
-        Args:
-            n: Number of trajectory frames.
-            episode_id: Episode identifier for loading GIF.
-            trajectory: DataFrame containing trajectory data.
-        """
+        self.vmap_plot = MapPlot(axes["vmap"], g, wfile, "visual", font_size)
+        self.pmap_plot = MapPlot(axes["pmap"], g, wfile, "proprio", font_size)
+        self.smap_plot = MapPlot(axes["smap"], g, wfile, "somatosensory", font_size)
+
+    def _init_artists(self, n, episode_id, trajectory):
+        """Initialize plot artists for animation."""
         video_ax = self.axes["video"]
         traces_ax = self.axes["traces"]
-        label_ax = self.axes["label"]
 
-        for i in range(n):
-            (line1,) = video_ax.plot([], [], c="black", marker="o", zorder=-100 + n)
-            (line2,) = video_ax.plot([], [], c="black", marker="o", zorder=-100 + n)
-            self.lines1.append(line1)
-            self.lines2.append(line2)
+        self._create_arm_lines(video_ax, n)
 
-            if self.has_sensors:
+        if self.has_sensors:
+            for _ in range(n):
                 scatter = video_ax.scatter([], [], c="red", zorder=-100 + n - 1)
                 self.scatters.append(scatter)
 
         self._init_traces(traces_ax, n)
-        self._init_reps(traces_ax, n)
+        self._init_reps(traces_ax)
         traces_ax.legend(loc="center left", bbox_to_anchor=(1, 0.7), title="Reps")
 
-        self._init_labels(label_ax, trajectory, episode_id)
+        self._init_labels(self.axes["label"], trajectory, episode_id)
         self._initialized = True
 
     def _init_traces(self, ax, n):
-        """Initialize trace lines.
-
-        Args:
-            ax: Matplotlib Axes object for traces.
-            n: Number of trajectory frames.
-        """
-        colors = {
-            "g": self.COLORS["goal"],
-            "ss": self.COLORS["touch"],
-            "p": self.COLORS["proprio"],
-        }
+        """Initialize trace lines."""
+        trace_keys = [("g", "goal"), ("ss", "touch"), ("p", "proprio")]
         if self.fast:
             self.traces = {
-                k: ax.plot([999], [999], lw=0.5, c=c)[0] for k, c in colors.items()
+                k: ax.plot([999], [999], lw=0.5, c=self.COLORS[c])[0]
+                for k, c in trace_keys
             }
         else:
             self.traces = {
-                k: [ax.plot([999], [999], c=c)[0] for _ in range(n - 1)]
-                for k, c in colors.items()
+                k: [ax.plot([999], [999], c=self.COLORS[c])[0] for _ in range(n - 1)]
+                for k, c in trace_keys
             }
 
-    def _init_reps(self, ax, n):
-        """Initialize representation scatter plots.
-
-        Args:
-            ax: Matplotlib Axes object for representations.
-            n: Number of trajectory frames (unused).
-        """
+    def _init_reps(self, ax):
+        """Initialize representation scatter plots."""
         configs = [
-            ("g", "h", self.COLORS["goal"], "goal"),
-            ("ss", "*", self.COLORS["touch"], "somatosen"),
-            ("p", "*", self.COLORS["proprio"], "proprio"),
+            ("g", "h", "goal", "goal"),
+            ("ss", "*", "touch", "somato"),
+            ("p", "*", "proprio", "proprio"),
         ]
-        for key, marker, color, label in configs:
+        for key, marker, color_key, label in configs:
             self.reps[key] = ax.scatter(
-                999, 999, marker=marker, fc=color, ec="#000", lw=0.5, s=300, label=label
+                999,
+                999,
+                marker=marker,
+                fc=self.COLORS[color_key],
+                ec="#000",
+                lw=0.5,
+                s=300,
+                label=label,
             )
 
-    def _init_labels(self, ax, trajectory, episode_id):
-        """Initialize episode labels and image.
-
-        Args:
-            ax: Matplotlib Axes object for labels.
-            trajectory: DataFrame containing trajectory data.
-            episode_id: Episode identifier for loading GIF.
-        """
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
-
+    def _get_frame_from_trajectory(self, episode_id, trajectory, save=False):
+        """Extract frame from GIF based on trajectory data."""
+        tss = trajectory.ets.iloc[0]
         tsl = trajectory.ets.iloc[-1]
         t_tot_frames = self.trajectories.shape[0]
 
-        episode_file = f"episode_{episode_id}_{self.rep + 1}.gif"
-        framel_file = f"episode_{episode_id}_{self.rep + 1}.png"
-        with Image.open(episode_file) as gif:
+        episode_dir = Path("episodes")
+        episode_file = episode_dir / f"episode_{episode_id}_{self.rep}.gif"
 
-            tot_frames = gif.n_frames
+        frames_dir = Path("goal_frames")
+        frames_dir.mkdir(exist_ok=True)
+        print(episode_file)
+
+        with Image.open(episode_file) as gif:
             start = self.params.drop_first_n_steps + self.params.policy_selection_steps
-            print(tsl)
-            print(t_tot_frames)
-            print(tot_frames)
-            print(start)
-            gif.seek(
-                +start + tsl,
-            )
-            self.framel = np.array(gif)[150:250, 50:150]
-            self.episode_template = ax.imshow(
-                self.framel, extent=[0, 6, 4, 10], zorder=900
-            )
-            plt.imsave(framel_file, self.framel)
+
+            print("Saving first frame:")
+            print(f"     timestep: {tss}/{t_tot_frames}")
+            gif.seek(start + tss)
+            frames = np.array(gif)[150:270, 50:170]
+
+            print("Saving last frame:")
+            print(f"     timestep: {tsl}/{t_tot_frames}")
+            gif.seek(start + tsl)
+            framel = np.array(gif)[150:270, 50:170]
+
+            if save:
+                goal_id = int(trajectory.goal_id.iat[0])
+                px = int(trajectory.prototype_x.iat[0])
+                py = int(trajectory.prototype_y.iat[0])
+                frames_file = (
+                    frames_dir / f"sf_e{episode_id:02d}_g{goal_id:02d}"
+                    f"_r{self.rep}_{px}{py}.png"
+                )
+                plt.imsave(frames_file, frames)
+                framel_file = (
+                    frames_dir / f"lf_e{episode_id:02d}_g{goal_id:02d}"
+                    f"_r{self.rep}_{px}{py}.png"
+                )
+                print(framel_file)
+                plt.imsave(framel_file, framel)
+            return frames, framel
+
+    def _init_labels(self, ax, trajectory, episode_id):
+        """Initialize episode labels and image."""
+        ax.set_xlim(0, 10)
+        ax.set_ylim(0, 10)
+
+        self.frames, self.framel = self._get_frame_from_trajectory(episode_id, trajectory)
+        self.episode_templates = []
+        self.episode_templates.append(
+            ax.imshow(self.frames, extent=[0, 5, 5, 10], zorder=900)
+        )
+        self.episode_templates.append(
+            ax.imshow(self.framel, extent=[5, 10, 5, 10], zorder=900)
+        )
 
         query = self.episode_df.query(f"index=={episode_id}")
         objs = ["blue cube", "red triangle", "green cube"]
@@ -561,14 +605,14 @@ class TrajectoryAnimator:
         self.axes["ssensory"].set_title("Somatosensory")
         self.axes["visual"].set_title("Foveal vision")
         self.axes["proprio"].text(
-            -1.2,
-            0.7,
+            -0.3,
+            -0.5,
             "Current prototypes",
             fontdict={"size": self.font_size},
             rotation=90,
         )
         self.axes["pmap"].text(
-            -2.5,
+            -1.5,
             1.5,
             "Representation grids",
             fontdict={"size": self.font_size},
@@ -577,26 +621,14 @@ class TrajectoryAnimator:
 
     def clear(self):
         """Clear all animation artists."""
-        for line in self.lines1 + self.lines2:
-            line.set_data([], [])
+        super().clear()
         for scatter in self.scatters:
             scatter.set_offsets(np.empty((0, 2)))
             scatter.set_sizes([])
 
     def animate(self, trajectory):
-        """Create and return animation for trajectory.
-
-        Args:
-            trajectory: DataFrame containing trajectory data with columns
-                for timestamps, joint angles, sensor values, and
-                representation coordinates.
-
-        Returns:
-            FuncAnimation: Animation object that can be displayed or saved.
-        """
-        n = trajectory.shape[0]
-        ts_vals = trajectory.ts.to_numpy()
-        data = trajectory.iloc[:, 1:6].to_numpy()
+        """Create and return animation for trajectory."""
+        n, polylines, alphas = self._prepare_animation_data(trajectory)
         sensor_data = trajectory.iloc[:, 6:46].to_numpy() if self.has_sensors else None
 
         ss_data = trajectory.loc[:, ["touch_x", "touch_y"]].to_numpy()[:, ::-1]
@@ -612,30 +644,49 @@ class TrajectoryAnimator:
             self._clear_artists()
             self._init_artists(n, self.episode_id, trajectory)
 
-        indices = ts_vals.astype(int)
-        all_angles = np.degrees(data[indices])
-        polylines = [plot_polyline(ang, [1, 1, 1, 0.5, 0.5]) for ang in all_angles]
-        alphas = 0.01 + 0.99 * np.exp(-np.linspace(-50, 0, n) ** 2)
+        offsets_pts, sizes_arr = self._prepare_sensor_data(
+            n, polylines, sensor_data, trajectory
+        )
 
-        offsets_pts, sizes_arr = [], []
-        if self.has_sensors:
-            all_sensors = sensor_data[indices]
-            for i, (_, grip_coords) in enumerate(polylines):
-                offsets_pts.append(get_sensors_coords(grip_coords))
-                sizes_arr.append(100 * all_sensors[i])
+        px = int(trajectory.prototype_x.iat[0])
+        py = int(trajectory.prototype_y.iat[0])
+
+        total_frames = n + self.end_steps
+        self.proprio_plot.update(px, py)
+        self.somato_plot.update(px, py)
+        self.retina_plot.update(px, py)
+        if self.online:
+            tx = int(trajectory.touch_x.iloc[-1])
+            ty = int(trajectory.touch_y.iloc[-1])
+            ax = int(trajectory.proprio_x.iloc[-1])
+            ay = int(trajectory.proprio_y.iloc[-1])
+            self.vmap_plot.update(px, py, tx, ty, ax, ay)
+            self.pmap_plot.update(px, py, tx, ty, ax, ay)
+            self.smap_plot.update(px, py, tx, ty, ax, ay)
 
         def update(frame_idx):
+            data_idx = min(frame_idx, n - 1)
             print(f"frame: {frame_idx:4d}")
             artists = []
-            for i in range(frame_idx + 1):
+
+            tx = int(trajectory.touch_x.iloc[data_idx])
+            ty = int(trajectory.touch_y.iloc[data_idx])
+            ax = int(trajectory.proprio_x.iloc[data_idx])
+            ay = int(trajectory.proprio_y.iloc[data_idx])
+
+            if not self.online:
+                self.vmap_plot.update(px, py, tx, ty, ax, ay)
+                self.pmap_plot.update(px, py, tx, ty, ax, ay)
+                self.smap_plot.update(px, py, tx, ty, ax, ay)
+
+            for i in range(data_idx + 1):
                 arm_coords, grip_coords = polylines[i]
-                alpha = alphas[i]
-                loc_alphas = 0.01 + 0.99 * np.exp(-np.linspace(-15, 0, i + 1) ** 2)
+                loc_alphas = 0.01 + 0.99 * np.exp(-np.linspace(-14, 0, i + 1) ** 2)
 
                 self.lines1[i].set_data(arm_coords[:, 0], arm_coords[:, 1])
-                self.lines1[i].set_alpha(alpha)
+                self.lines1[i].set_alpha(alphas[i])
                 self.lines2[i].set_data(grip_coords[:, 0], grip_coords[:, 1])
-                self.lines2[i].set_alpha(alpha)
+                self.lines2[i].set_alpha(alphas[i])
 
                 self._update_traces(i, ss_data, p_data, ss_pp, p_pp, loc_alphas)
                 self._update_reps(i, ss_data, p_data, g_data, loc_alphas, n)
@@ -646,68 +697,63 @@ class TrajectoryAnimator:
                 if self.has_sensors:
                     self.scatters[i].set_offsets(offsets_pts[i])
                     self.scatters[i].set_sizes(sizes_arr[i])
-                    self.scatters[i].set_alpha(0.2 + 0.8 * alpha)
+                    self.scatters[i].set_alpha(0.2 + 0.8 * alphas[i])
                     artists.append(self.scatters[i])
 
-                artists.extend([self.episode_template, self.episode_label])
+                artists.extend(self.episode_templates + [self.episode_label])
+
+            self.proprio_plot.update(px, py)
+            self.somato_plot.update(px, py)
+            self.retina_plot.update(px, py)
 
             return artists
 
         self.anim = FuncAnimation(
-            self.fig, update, frames=n, interval=50, blit=True, repeat=False
+            self.fig, update, frames=total_frames, interval=50, blit=True, repeat=False
         )
         return self.anim
 
+    def _prepare_sensor_data(self, n, polylines, sensor_data, trajectory):
+        """Prepare sensor offset and size data for animation."""
+        offsets_pts, sizes_arr = [], []
+        if self.has_sensors:
+            ts_vals = trajectory.ts.to_numpy()
+            indices = ts_vals.astype(int)
+            all_sensors = sensor_data[indices]
+            for i, (_, grip_coords) in enumerate(polylines):
+                offsets_pts.append(get_sensors_coords(grip_coords))
+                sizes_arr.append(100 * all_sensors[i])
+        return offsets_pts, sizes_arr
+
     def _clear_artists(self):
         """Remove all existing artists."""
-        for line in self.lines1 + self.lines2:
-            line.remove()
+        self._remove_lines()
         for scatter in self.scatters:
             scatter.remove()
-        self.lines1.clear()
-        self.lines2.clear()
         self.scatters.clear()
         self.traces.clear()
         self.reps.clear()
+        self._initialized = False
 
     def _update_traces(self, i, ss_data, p_data, ss_pp, p_pp, loc_alphas):
-        """Update trace line data.
-
-        Args:
-            i: Current frame index.
-            ss_data: Somatosensory coordinate data.
-            p_data: Proprioceptive coordinate data.
-            ss_pp: Somatosensory point pairs for non-fast mode.
-            p_pp: Proprioceptive point pairs for non-fast mode.
-            loc_alphas: Alpha values for trace transparency.
-        """
+        """Update trace line data."""
         if self.fast:
             self.traces["ss"].set_data(*ss_data[: i + 1].T)
             self.traces["p"].set_data(*p_data[: i + 1].T)
         else:
-            for k, tr in enumerate(self.traces["ss"][: i + 1]):
-                tr.set_data(*ss_pp[k].T)
-                tr.set_linewidth(0.2 + 4 * loc_alphas[k])
-                tr.set_alpha(loc_alphas[k])
-            for k, tr in enumerate(self.traces["p"][: i + 1]):
-                tr.set_data(*p_pp[k].T)
-                tr.set_linewidth(0.2 + 4 * loc_alphas[k])
-                tr.set_alpha(loc_alphas[k])
+            trace_configs = [("ss", ss_pp, 0.2), ("p", p_pp, 0.8)]
+            for key, pp_data, base_lw in trace_configs:
+                for k, tr in enumerate(self.traces[key][: i + 1]):
+                    tr.set_data(*pp_data[k].T)
+                    tr.set_linewidth(base_lw + 4 * loc_alphas[k])
+                    tr.set_alpha(loc_alphas[k])
 
     def _update_reps(self, i, ss_data, p_data, g_data, loc_alphas, n):
-        """Update representation scatter plots.
-
-        Args:
-            i: Current frame index.
-            ss_data: Somatosensory coordinate data.
-            p_data: Proprioceptive coordinate data.
-            g_data: Goal coordinate data.
-            loc_alphas: Alpha values for marker transparency.
-            n: Total number of frames.
-        """
-        for key, data, base_size in [("ss", ss_data, 50), ("p", p_data, 0)]:
+        """Update representation scatter plots."""
+        rep_configs = [("ss", ss_data, 50, 250), ("p", p_data, 0, 300)]
+        for key, data, base_size, scale in rep_configs:
             self.reps[key].set_offsets(data[: i + 1])
-            sizes = base_size + (250 if key == "ss" else 300) * loc_alphas[: i + 1]
+            sizes = base_size + scale * loc_alphas[: i + 1]
             self.reps[key].set_sizes(sizes)
 
             fc = np.tile(self.reps[key].get_facecolor(), [n, 1])
@@ -720,11 +766,7 @@ class TrajectoryAnimator:
         self.reps["g"].set_offsets([g_data[i]])
 
     def _get_trace_artists(self):
-        """Get all trace artists as flat list.
-
-        Returns:
-            list: List of trace line artists.
-        """
+        """Get all trace artists as flat list."""
         if self.fast:
             return list(self.traces.values())
         return [seg for trace in self.traces.values() for seg in trace]
@@ -757,6 +799,12 @@ if __name__ == "__main__":
         help="Only list the table of episodes and goals",
     )
     parser.add_argument(
+        "-m",
+        "--episode_matches",
+        action="store_true",
+        help="Only list the table of episode matches",
+    )
+    parser.add_argument(
         "-o",
         "--online",
         action="store_true",
@@ -768,6 +816,18 @@ if __name__ == "__main__":
         action="store_true",
         help="Fast rendering of representations",
     )
+    parser.add_argument(
+        "-d",
+        "--last_frame",
+        action="store_true",
+        help="Only saves last frame image",
+    )
+    parser.add_argument(
+        "-s",
+        "--simplified",
+        action="store_true",
+        help="Simplified animation, trajectories only",
+    )
     args = parser.parse_args()
 
     params = Parameters()
@@ -775,7 +835,7 @@ if __name__ == "__main__":
     font_size = 11
 
     df, has_sensors, weights = load_and_process_data(trajectory_file="trajectory_df.csv")
-    seeds = df.e_seed.unique()
+    seeds = np.sort(df.e_seed.unique())
     wfile = "weights.npy"
 
     gdf = (
@@ -784,9 +844,21 @@ if __name__ == "__main__":
         .reset_index()[["e_seed", "episode_id", "goal_id"]]
     )
 
+    if args.episode_matches:
+        mdf = df
+        print(mdf)
+        sys.exit()
+
     if args.list:
-        gdf = gdf.groupby(["e_seed", "episode_id"]).count().reset_index()
-        gdf = gdf.pivot(index="episode_id", columns="e_seed").reset_index()
+        eseed_idcs = gdf.e_seed.unique()
+        eseed_idcs.sort()
+        eseed_map = {v: i for i, v in enumerate(eseed_idcs)}
+        gdf.loc[:, "rep"] = gdf.e_seed.map(eseed_map)
+        del gdf["e_seed"]
+
+        gdf = gdf.groupby(["rep", "episode_id"]).count().reset_index()
+        gdf = gdf.pivot(index="episode_id", columns="rep").reset_index()
+        print(gdf.columns)
         gdf.columns = [
             "_".join(map(str, col)).strip("_") if isinstance(col, tuple) else col
             for col in gdf.columns
@@ -819,37 +891,60 @@ if __name__ == "__main__":
     mask &= df.goal_id == args.goal_id
     trajectory = df.loc[mask].copy()
 
-    fig, axes, xlims, ylims, sensor_points = create_figure_layout(g)
-    setup_ax(axes, "video", xlims, ylims)
-    px, py = int(trajectory.prototype_x.iat[0]), int(trajectory.prototype_y.iat[0])
+    if args.online:
+        matplotlib.use("qtagg")
+    else:
+        matplotlib.use("agg")
 
-    update_maps(g, wfile, font_size, axes, px, py)
-    plot_proprioceptive(axes, weights, px, py, g)
-    plot_somatosensory(axes, weights, px, py, sensor_points)
-    plot_retina(axes, weights, px, py)
+    px = int(trajectory.prototype_x.iat[0])
+    py = int(trajectory.prototype_y.iat[0])
 
-    animator = TrajectoryAnimator(
-        params,
-        font_size,
-        axes,
-        fig,
-        has_sensors,
-        xlims,
-        ylims,
-        args.episode_id,
-        args.rep,
-        fast=args.fast,
-        trajectories=trajectories,
-    )
+    if args.simplified:
+        xlims, ylims = np.array([-2, 4]), np.array([-3, 3])
+        fig, ax = plt.subplots(1, 1, figsize=(1, 1 * (np.ptp(xlims) / np.ptp(ylims))))
+        ax.set_axis_off()
+        ax.set_axpect = "equal"
+        animator = SimpleTrajectoryAnimator(
+            fig,
+            ax,
+            args.episode_id,
+            args.rep,
+            xlims,
+            ylims,
+        )
+
+    else:
+        fig, axes, xlims, ylims, sensor_points = create_figure_layout(g)
+
+        setup_ax(axes, "video", xlims, ylims)
+
+        animator = TrajectoryAnimator(
+            params,
+            font_size,
+            axes,
+            fig,
+            has_sensors,
+            xlims,
+            ylims,
+            args.episode_id,
+            args.rep,
+            fast=args.fast,
+            trajectories=trajectories,
+            weights=weights,
+            sensor_points=sensor_points,
+            g=g,
+            wfile=wfile,
+            online=args.online,
+        )
+
+        if args.last_frame:
+            animator._get_frame_from_trajectory(args.episode_id, trajectory, save=True)
+            sys.exit()
+
     anim = animator.animate(trajectory)
 
-    name = f"e{args.episode_id:02d}_g{args.goal_id:02d}_r{args.rep}_{px}{py}"
     if args.online:
-        plt.show()
+        print(f"x: {px:< 2d} y: {py:< 2d}")
+        animator.show()
     else:
-        writer = matplotlib.animation.PillowWriter(fps=2, metadata=["loop", "1"])
-        anim.save(
-            filename=f"{name}.gif",
-            writer=writer,
-        )
-        animator.fig.savefig(f"{name}.png", dpi=300)
+        animator.save_animation(args.goal_id, px, py)

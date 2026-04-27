@@ -572,9 +572,9 @@ class Main:
         policies_dispersion = (
             ((unique_policies - unique_policies.mean(axis=0)) ** 2).sum(axis=1)
         ).mean()
-        policies_inertia_norm = (
-            km.inertia_ / unique_policies.shape[0] / policies_dispersion
-        )
+
+        divisor = unique_policies.shape[0] * policies_dispersion
+        policies_inertia_norm = km.inertia_ / divisor if divisor else 0
 
         gripper = controller.model_data["batch_p"][mask]
         gripper = gripper.reshape(-1, gripper.shape[-1])
@@ -1047,6 +1047,7 @@ class Main:
             trajectories["touch_y"] = controller_out.model_data["ss_p"][i, :, 1]
             trajectories["proprio_x"] = controller_out.model_data["p_p"][i, :, 0]
             trajectories["proprio_y"] = controller_out.model_data["p_p"][i, :, 1]
+            trajectories["match"] = controller_out.model_data["match_value"][i, :]
             trajectories["goal_id"] = np.cumsum(policy_changed[i]) - 1
             trajectories["tr_id"] = trajectories.goal_id + i * 100
             trajectories["episode_id"] = i

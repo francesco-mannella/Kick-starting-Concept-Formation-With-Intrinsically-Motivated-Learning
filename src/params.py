@@ -37,8 +37,12 @@ class Parameters(ParameterManager):
         base_internal_sigma=0.1,
         internal_sigma=10.0,
         base_lr=0.005,
-        max_lr=2.0,
+        max_lr=1.0,
         stm_lr=0.1,
+        v_lr=1.0,
+        ss_lr=1.0,
+        p_lr=1.0,
+        a_lr=1.0,
         policy_base=0.8,
         policy_base_arm=[x * np.pi for x in [0.2, -0.3, -0.4]],
         base_policy_noise=0.01,
@@ -47,7 +51,6 @@ class Parameters(ParameterManager):
         motor_noise=1.0,
         representation_sigma=2.0,
         modalities_weights=(0.0, 1.0, 1.0, 0.0),  # use only touch and proprioception
-        modalities_modulations=None,  # v,ss,p,a
         match_incr_th=0.001,
         cum_match_stop_th=1.0,
         predict_lr=0.05,
@@ -105,6 +108,10 @@ class Parameters(ParameterManager):
         self.base_lr = base_lr
         self.max_lr = max_lr
         self.stm_lr = stm_lr
+        self.v_lr = v_lr
+        self.ss_lr = ss_lr
+        self.p_lr = p_lr
+        self.a_lr = a_lr
         self.policy_base_arm = policy_base_arm
         self.policy_base = policy_base
         self.base_policy_noise = base_policy_noise
@@ -113,11 +120,6 @@ class Parameters(ParameterManager):
         self.motor_noise = motor_noise
         self.representation_sigma = representation_sigma
         self.modalities_weights = modalities_weights
-        self.modalities_modulations = modalities_modulations or dict.fromkeys(
-            ["v", "ss", "p", "a"], 1.0
-        )
-        for k, v in self.modalities_modulations.items():
-            setattr(self, f"mm_{k}", v)
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th
         self.predict_lr = predict_lr

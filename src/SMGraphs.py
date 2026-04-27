@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap
+from scipy.cluster.hierarchy import fcluster, linkage
 from shapely import LineString, MultiLineString
 from sklearn.decomposition import PCA
 
@@ -101,13 +102,12 @@ class GraphManager:
 
         side = int(np.sqrt(self.params.internal_size))
         n_sensors = self.params.somatosensory_size
-        grid = []
-        for i in range(side):
-            for j in range(side):
-                points = self.generate_sensor_points(n_sensors)
-                grid.append(points + [j, i])
-        grid = np.array(grid)
-        grid.reshape(side * side, n_sensors, 2)
+        grid = np.array(
+            [
+                [self.generate_sensor_points(n_sensors) + [i, j] for j in range(side)]
+                for i in range(side)
+            ]
+        )
         return grid
 
     def generate_gripper(self, angles):
@@ -169,23 +169,50 @@ class GraphManager:
             fig.tight_layout(pad=0.0)
             fig.savefig(self.sm.site_dir / "trajectories.png")
 
-    def policy_map(self, wfile=None, ax=None):
+    def policy_map(self, wfile=None, ax=None, local=False, plot=True, pca=False):
         side = int(np.sqrt(self.params.internal_size))
         if wfile is None:
             wfile = self.sm.site_dir / "weights.npy"
         data = np.load(wfile, allow_pickle=True)[0]["policy"].T
-        pca = PCA(n_components=3)
-        data_pca = pca.fit_transform(data)
-        data_pca = data_pca.reshape(internal_side, side, 3)
-        fig = None
-        if ax is None:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        ax.imshow(data_pca)
-        ax.set_axis_off()
-        if fig:
-            fig.tight_layout(pad=0.0)
-            dir_ = self.sm.site_dir if self.sm.site_dir.exists() else Path(".")
-            fig.savefig(dir_ / "policy_map.png")
+
+        if pca:
+            pca = PCA(n_components=3)
+            data_pca = pca.fit_transform(data)
+            data_pca = (data_pca - data_pca.min()) / np.ptp(data_pca)
+            data_clustering = data_pca.reshape(side, side, 3)
+            print("pca")
+        else:
+
+            linkage_matrix = linkage(data, method="weighted")
+            distance_threshold = 0.7 * linkage_matrix[:, 2].max()
+            cluster_labels = (
+                fcluster(linkage_matrix, distance_threshold, criterion="distance") - 1
+            )
+            num_clusters = len(set(cluster_labels))
+
+            cmap = plt.cm.get_cmap("tab20", 10)
+            palette = cmap(np.arange(num_clusters))
+
+            cluster_labels = palette[cluster_labels]
+            data_clustering = cluster_labels.reshape(side, side, -1)
+
+        if plot:
+            fig = None
+            if ax is None:
+                fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            ax.imshow(data_clustering)
+            ax.set_axis_off()
+
+            if fig:
+                dir_ = (
+                    Path(".")
+                    if local
+                    else self.site_dir if self.site_dir.exists() else Path(".")
+                )
+                fig.tight_layout(pad=0.0)
+                fig.savefig(dir_ / "policy_map.png")
+
+        return data_clustering
 
     def visual_map(self, wfile=None, ax=None):
         internal_side = int(np.sqrt(self.params.internal_size))
@@ -223,9 +250,9 @@ class GraphManager:
         grips = []
         for j in range(internal_side):
             for i in range(internal_side):
-                grip = self.generate_gripper(data[j, i][-2:])
+                grip = self.generate_gripper(data[i, j][-2:])
                 grip = (grip - [0, -1]) / [1, 2]
-                grips.append(grip + [[i, j]])
+                grips.append(grip + [[j, i]])
         grips = np.stack(grips)
         fig = None
         if ax is None:
@@ -249,15 +276,20 @@ class GraphManager:
         ss_dim, _ = data.shape
         data = data.reshape(ss_dim, internal_side, internal_side)
         data = data.transpose(1, 2, 0)
-        data = data.reshape(internal_side * internal_side, ss_dim)
         data = np.clip(data, 0, None)
         grid = self.generate_sensor_grid()
+        print(grid.shape)
         fig = None
         if ax is None:
             fig, ax = plt.subplots(1, 1)
-        for i in range(internal_side * internal_side):
-            ax.scatter(*np.array(grid[i]).T, c="grey", s=0.05)
-            ax.scatter(*np.array(grid[i]).T, c="black", s=2 * data[i])
+        for j in range(internal_side):
+            for i in range(internal_side):
+                ax.scatter(*np.array(grid[i, j]).T, c="grey", s=0.05)
+                ax.scatter(
+                    *np.array(grid[i, j]).T,
+                    c="black",
+                    s=2 * data[j, i],
+                )
         ax.set_xlim(-0.5, internal_side + 0.5)
         ax.set_ylim(-0.5, internal_side + 0.5)
         ax.set_axis_off()

@@ -1,6 +1,5 @@
 import glob
 import os
-import pathlib
 
 import numpy as np
 
@@ -30,28 +29,28 @@ class SMController:
             self.rng = np.random.RandomState()
 
         self.stm_v = SMSTM(
-            learning_rate=self.params.stm_lr,
+            learning_rate=self.params.stm_lr * self.params.v_lr,
             input_size=self.params.visual_size,
             output_size=self.params.internal_size,
             sigma=self.params.internal_sigma,
             external_radial_prop=self.params.v_eradial_prop,
         )
         self.stm_ss = SMSTM(
-            learning_rate=self.params.stm_lr,
+            learning_rate=self.params.stm_lr * self.params.ss_lr,
             input_size=self.params.somatosensory_size,
             output_size=self.params.internal_size,
             sigma=self.params.internal_sigma,
             external_radial_prop=self.params.ss_eradial_prop,
         )
         self.stm_p = SMSTM(
-            learning_rate=self.params.stm_lr,
+            learning_rate=self.params.stm_lr * self.params.p_lr,
             input_size=self.params.proprioception_size,
             output_size=self.params.internal_size,
             sigma=self.params.internal_sigma,
             external_radial_prop=self.params.p_eradial_prop,
         )
         self.stm_a = SMSTM(
-            learning_rate=self.params.stm_lr,
+            learning_rate=self.params.stm_lr * self.params.a_lr,
             input_size=self.params.policy_size,
             output_size=self.params.internal_size,
             sigma=self.params.internal_sigma,
@@ -66,10 +65,10 @@ class SMController:
         # )
         self.predict = SMPredictKDE(self.params.internal_size, lr=self.params.predict_lr)
 
-        weights_path = (
-            pathlib.Path(__file__).parent.resolve() / "policy_weights_random.npy"
-        )
-        initial_policy = np.load(weights_path, allow_pickle=True)
+        # weights_path = (
+        #     pathlib.Path(__file__).parent.resolve() / "policy_weights_random.npy"
+        # )
+        # initial_policy = np.load(weights_path, allow_pickle=True)
         # self.stm_a.set_weights(initial_policy)
 
         self.match_sigma = self.params.match_sigma

@@ -1,9 +1,38 @@
 >>> user
 
-Refactor SMMain.py. Encapsulate the execution and rendering of a single episode to be used in run_episodes ans evaluation_episodes, and in general whrerver  episodes are executed and/or  rendered. Use a common dataset of episode types with the defining parameters as in single_demo.py. Maintain all functionalities, docstrings, comments and interfaces of the original scripti. Do not corrupt train and train_parasite. Maintain all the existing methods. Maintain the structure of file storage
+Analize the project given the included files. Describe the role of run,sh. Eventually suggest a better name for it
 
 >>> include
-SMController.py
-SMMain.py
-single_demo.py
 
+
+./SMEnv.py
+./grid_search.py
+./wplot.py
+./mkvideo.py
+./query.ia
+./run_policy_map.py
+./Actuator.py
+./SMGraphs.py
+./run_eval_and_posts.sh
+./data.tar.gz
+./run_postures.py
+./SMAgent.py
+./GripMapping.py
+./single_demo.py
+./plot_match_values.py
+./SMPredict.py
+./run_simulations.sh
+./stm.py
+./tplot.py
+./extract_data.sh
+./SMMain.py
+./plot_gripmapping.py
+./SMController.py
+./parameter_manager.py
+./extract_goal_frame.py
+./params.py
+./plot_postures.py
+./run_evaluation.py
+./GripAgent.py
+./storage.py
+./run.sh

@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+
 import argparse
+import glob
 import os
-import sys
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +25,7 @@ def run_evaluation(
     render_path=None,
     plot=False,
     seed=0,
+    suffix="",
 ):
     """
     Run a set of evaluation episodes
@@ -45,7 +48,7 @@ def run_evaluation(
 
     goal_counts, trajectories = main.evaluation_episodes(
         epoch=main.epoch,
-        suffix=f"_{seed}",
+        suffix=f"_{suffix}",
         render_path=render_path,
         save_stats=False,
         n_episodes=main.params.tests,
@@ -102,17 +105,21 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() and args.gpu else "cpu"
     torch.set_default_device(device)
 
-    try:
-        # Setup output directory
-        output_dir = Path(args.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+    # Setup output directory
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    trajectory_file = output_dir / "trajectory_df.csv"
+
+    if not trajectory_file.exists():
 
         # render
         all_trajectories = []
         for i in range(args.num_reps):
+            seed = i + args.seed
             trajectories = run_evaluation(
                 "main.dump.npy",
-                seed=i + args.seed,
+                seed=seed,
+                suffix=i,
                 plot=args.plot,
                 render_path=output_dir,
                 full_render=False,
@@ -120,11 +127,11 @@ if __name__ == "__main__":
             all_trajectories.append(trajectories)
         merged_trajectories = pd.concat(all_trajectories, ignore_index=True)
 
-        merged_trajectories.to_csv(output_dir / "trajectory_df.csv")
+        merged_trajectories.to_csv(trajectory_file)
 
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error rendering episode: {e}")
-        raise
+        episode_gifs = glob.glob("episode*gif")
+        episodes = Path("episodes")
+        episodes.mkdir(exist_ok=True)
+
+        for episode_gif in episode_gifs:
+            shutil.move(episode_gif, episodes)

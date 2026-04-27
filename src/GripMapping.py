@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import box2dsim
 import matplotlib.pyplot as plt
 import numpy as np
@@ -60,7 +61,7 @@ def get_data(trials, stime, env, render):
             if render is not None and render == "human":
                 plt.pause(0.1)
     data = data.reshape(trials * stime, -1)
-    np.save("data/StoredGripGenerateData", data)
+    # np.save("data/StoredGripGenerateData", data)
     return data
 
 
@@ -149,12 +150,8 @@ class PrototypeGenerator:
         loss = []
         for epoch in range(epochs):
             # learning rate and sigma annealing
-            curr_sigma = min_sigma + initial_sigma * np.exp(
-                -epoch / decay_window
-            )
-            curr_modulation = self.initial_modulation * np.exp(
-                -epoch / decay_window
-            )
+            curr_sigma = min_sigma + initial_sigma * np.exp(-epoch / decay_window)
+            curr_modulation = self.initial_modulation * np.exp(-epoch / decay_window)
 
             # update learning rate and sigma in the graph
             som_layer.sigma = curr_sigma
@@ -180,9 +177,7 @@ class PrototypeGenerator:
         return weights
 
 
-def generate_grip_mapping(
-    inner_domain_shape, env, trials=1000, stime=50, render=None
-):
+def generate_grip_mapping(inner_domain_shape, env, trials=1000, stime=50, render=None):
     """Generates a topological mapping for grip.
 
     Args:
@@ -208,9 +203,7 @@ def generate_grip_mapping(
     touch = data[:, start : (start + touch_inp_shape)]
 
     touch = touch[touch.sum(1) > 0, :]
-    touchWeights = PrototypeGenerator(
-        touch_inp_shape, inner_domain_shape // 3, touch
-    )()
+    touchWeights = PrototypeGenerator(touch_inp_shape, inner_domain_shape // 3, touch)()
 
     # train posture SOM and get weights
     print("posture mapping")
@@ -224,22 +217,27 @@ def generate_grip_mapping(
     pos_inp_shape = 2
     start = visual_inp_shape + touch_inp_shape + posture_inp_shape
     pos = data[:, start : (start + pos_inp_shape)]
-    posWeights = PrototypeGenerator(
-        pos_inp_shape, inner_domain_shape // 3, pos
-    )()
+    posWeights = PrototypeGenerator(pos_inp_shape, inner_domain_shape // 3, pos)()
 
+    # Divide inner domain into 3 equal subdomains
     subdomain_shape = inner_domain_shape // 3
-    weights = np.zeros(
-        [touch_inp_shape + posture_inp_shape + 2, inner_domain_shape]
-    )
+
+    # Initialize weight matrix: rows = all inputs, cols = inner domain
+    total_inputs = touch_inp_shape + posture_inp_shape + pos_inp_shape
+    weights = np.zeros([total_inputs, inner_domain_shape])
+
+    # Assign touch weights to first subdomain
     weights[:touch_inp_shape, :subdomain_shape] = touchWeights
-    weights[
-        touch_inp_shape : touch_inp_shape + posture_inp_shape,
-        subdomain_shape : 2 * subdomain_shape,
-    ] = postureWeights
-    weights[touch_inp_shape + posture_inp_shape :, 2 * subdomain_shape :] = (
-        posWeights
+
+    # Assign posture weights to second subdomain
+    posture_start = touch_inp_shape
+    posture_end = touch_inp_shape + posture_inp_shape
+    weights[posture_start:posture_end, subdomain_shape : 2 * subdomain_shape] = (
+        postureWeights
     )
+
+    # Assign position weights to third subdomain
+    weights[posture_end:, 2 * subdomain_shape :] = posWeights
 
     return weights
 
