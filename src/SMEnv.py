@@ -143,13 +143,15 @@ class SMEnv:
 class SMEnvParasite(SMEnv):
 
     def __init__(self, seed, params, observations, rand_obj_params=None):
-        super(SMEnvParasite, self).__init__(seed, params, rand_obj_params=rand_obj_params)
+        self.params = params
+        self.render = None
+        self.plot = None
         self.stored_observations = observations
         self.i = 0
 
     def step(self, action):
-        self.i += 1
-        return self.stored_observations[self.i % len(self.stored_observations)]
+        self.i = min(self.i + 1, len(self.stored_observations) - 1)
+        return self.stored_observations[self.i]
 
     def reset(self):
         self.i = 0

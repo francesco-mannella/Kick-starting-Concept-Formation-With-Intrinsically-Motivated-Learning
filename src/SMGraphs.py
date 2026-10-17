@@ -214,7 +214,7 @@ class GraphManager:
 
         return data_clustering
 
-    def visual_map(self, wfile=None, ax=None):
+    def visual_map(self, wfile=None, ax=None, png_suffix=""):
         internal_side = int(np.sqrt(self.params.internal_size))
         visual_side = int(np.sqrt(self.params.visual_size // 3))
 
@@ -236,10 +236,10 @@ class GraphManager:
         ax.set_axis_off()
         if fig:
             fig.tight_layout(pad=0.0)
-            fig.savefig(self.sm.site_dir / "visual_map.png")
+            fig.savefig(self.sm.site_dir / f"visual_map{png_suffix}.png")
             plt.close("all")
 
-    def proprio_map(self, wfile=None, ax=None):
+    def proprio_map(self, wfile=None, ax=None, png_suffix=""):
         internal_side = int(np.sqrt(self.params.internal_size))
         if wfile is None:
             wfile = self.sm.site_dir / "weights.npy"
@@ -264,10 +264,10 @@ class GraphManager:
         ax.set_axis_off()
         if fig:
             fig.tight_layout(pad=0.0)
-            fig.savefig(self.sm.site_dir / "proprio_map.png")
+            fig.savefig(self.sm.site_dir / f"proprio_map{png_suffix}.png")
             plt.close("all")
 
-    def somatosensory_map(self, wfile=None, ax=None):
+    def somatosensory_map(self, wfile=None, ax=None, png_suffix=""):
 
         internal_side = int(np.sqrt(self.params.internal_size))
         if wfile is None:
@@ -295,10 +295,10 @@ class GraphManager:
         ax.set_axis_off()
         if fig:
             fig.tight_layout(pad=0.0)
-            fig.savefig(self.sm.site_dir / "ssensory_map.png")
+            fig.savefig(self.sm.site_dir / f"ssensory_map{png_suffix}.png")
             plt.close("all")
 
-    def comp_map(self, wfile=None, ax=None):
+    def comp_map(self, wfile=None, ax=None, png_suffix=""):
         internal_side = int(np.sqrt(self.params.internal_size))
         if wfile is None:
             wfile = self.sm.site_dir / "comp_grid.npy"
@@ -310,7 +310,7 @@ class GraphManager:
             ax.imshow(data_c, vmin=0, vmax=1)
             ax.set_axis_off()
             fig.tight_layout(pad=0.0)
-            fig.savefig(self.sm.site_dir / "comp_map.png")
+            fig.savefig(self.sm.site_dir / f"comp_map{png_suffix}.png")
             plt.close("all")
         else:
             ax.imshow(data_c, vmin=0, vmax=1)
@@ -360,7 +360,7 @@ class GraphManager:
         vm.mk_video(name=name, dirname=".")
         plt.close("all")
 
-    def log(self, wfile=None):
+    def log(self, wfile=None, png_suffix=""):
         if wfile is None:
             wfile = self.sm.site_dir / "log.npy"
         log_data = np.load(wfile, allow_pickle=True)
@@ -375,7 +375,7 @@ class GraphManager:
         m = log_data.max()
         if m > 0:
             ax.set_ylim([-m * 0.1, m * 1.1])
-        fig.savefig(self.sm.site_dir / "log.png")
+        fig.savefig(self.sm.site_dir / f"log{png_suffix}.png")
         plt.close("all")
 
 

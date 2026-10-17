@@ -13,7 +13,6 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import torch
-import wandb
 from sklearn.cluster import KMeans
 from sklearn.metrics import mutual_info_score
 
@@ -24,6 +23,11 @@ from SMEnv import SMEnv, SMEnvParasite
 from SMGraphs import GraphManager
 from storage import StorageManager
 from tplot import TPlotManager
+
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 
 matplotlib.use("Agg")
@@ -39,10 +43,11 @@ class TimeLimitsException(Exception):
 
 
 class SensoryMotorCircle:
-    def __init__(self, main, action_steps=5):
+    def __init__(self, main, action_steps=5, rng=None):
         self.t = 0
         self.action_steps = action_steps
         self.main = main
+        self.rng = rng if rng is not None else main.rng
 
     def step(self, env, agent, state):
         if self.t % self.action_steps == 0:
@@ -57,7 +62,7 @@ class SensoryMotorCircle:
             self.action = agent.step(state)
         state = env.step(
             self.action
-            + np.random.normal(scale=self.main.params.motor_noise, size=self.action.shape)
+            + self.rng.normal(scale=self.main.params.motor_noise, size=self.action.shape)
         )
 
         self.t += 1
@@ -333,6 +338,12 @@ class Main:
             "logs": self.logs,
             "epoch": self.epoch,
             "sm": self.sm.__getstate__(),
+            "controller_par": (
+                self.controller_par.__getstate__()
+                if hasattr(self, "controller_par")
+                else None
+            ),
+            "logs_par": getattr(self, "logs_par", None),
         }
 
     def __setstate__(self, state):
@@ -381,6 +392,12 @@ class Main:
         self.controller.__setstate__(state["controller"])
         self.env.__setstate__(state["env"])
 
+        if state.get("controller_par") is not None:
+            self.controller_par = self._build_parasite_controller()
+            self.controller_par.__setstate__(state["controller_par"])
+            self.logs_par = np.zeros([max(self.params.epochs, len(state["logs_par"])), 3])
+            self.logs_par[: len(state["logs_par"])] = state["logs_par"]
+
         self.agent = SMAgent(self.env)
         self.start = time.perf_counter()
 
@@ -388,6 +405,15 @@ class Main:
         self.episode_runner = EpisodeRunner(self)
         # if self.plots is True:
         #     remove_figs(self.epoch)
+
+    def _build_parasite_controller(self):
+        return SMController(
+            self.params,
+            self.sm,
+            np.random.RandomState([int(self.seed), 1]),
+            load=self.params.load_weights,
+            shuffle=self.params.shuffle_weights,
+        )
 
     def get_episode_config(self, episode_index):
         """
@@ -565,7 +591,7 @@ class Main:
             -1, policies.shape[-1]
         )
         policies = policies.reshape(-1, policies.shape[-1])
-        km = KMeans(n_clusters=10)
+        km = KMeans(n_clusters=10, random_state=0)
         unique_policies_ind = km.fit_predict(unique_policies)
         policies_ind = km.predict(policies)
         # policies_sscore = silhouette_score(unique_policies, unique_policies_ind)
@@ -578,7 +604,7 @@ class Main:
 
         gripper = controller.model_data["batch_p"][mask]
         gripper = gripper.reshape(-1, gripper.shape[-1])
-        km = KMeans(n_clusters=10)
+        km = KMeans(n_clusters=10, random_state=0)
         gripper_ind = km.fit_predict(gripper)
         # gripper_sscore = silhouette_score(gripper, gripper_ind)
         gripper_dispersion = (((gripper - gripper.mean(axis=0)) ** 2).sum(axis=1)).mean()
@@ -740,7 +766,9 @@ class Main:
         goal_activation = np.zeros((batch_size, self.params.stime))
 
         # Main loop through time steps and episodes
-        smcycles = [SensoryMotorCircle(self, self.params.action_steps)] * batch_size
+        smcycles = [
+            SensoryMotorCircle(self, self.params.action_steps, rng=controller.rng)
+        ] * batch_size
         for t in range(1, self.params.stime + 1):
             if t < self.params.stime:
                 for episode in range(batch_size):
@@ -1490,14 +1518,10 @@ class Main:
         )
         params_ind = np.array([next(gen) for _ in range(self.params.batch_size)])
 
-        self.controller_par = SMController(
-            self.params,
-            self.sm,
-            self.rng,
-            load=self.params.load_weights,
-            shuffle=self.params.shuffle_weights,
-        )
-        logs_par = np.zeros([self.params.epochs, 3])
+        if not hasattr(self, "controller_par"):
+            self.controller_par = self._build_parasite_controller()
+            self.logs_par = np.zeros([self.params.epochs, 3])
+        logs_par = self.logs_par
 
         self.initialize_model_data(self.controller)
         self.initialize_model_data(self.controller_par)
@@ -1931,6 +1955,16 @@ class Main:
                                 "match_value_per_mod"
                             ][matches, 3].mean(),
                             "touch_freq": touch_freq,
+                            "goal_activation": goal_activation[policy_ended].mean(),
+                            "goal_activation_blue": goal_activation[contexts == 1, :][
+                                policy_ended[contexts == 1, :]
+                            ].mean(),
+                            "goal_activation_red": goal_activation[contexts == 2, :][
+                                policy_ended[contexts == 2, :]
+                            ].mean(),
+                            "goal_activation_green": goal_activation[contexts == 3, :][
+                                policy_ended[contexts == 3, :]
+                            ].mean(),
                         },
                         step=epoch,
                     )
@@ -1970,16 +2004,6 @@ class Main:
                             "match_value_a_par": self.controller_par.model_data[
                                 "match_value_per_mod"
                             ][matches_par, 3].mean(),
-                            "goal_activation": goal_activation[policy_ended].mean(),
-                            "goal_activation_blue": goal_activation[contexts == 1, :][
-                                policy_ended[contexts == 1, :]
-                            ].mean(),
-                            "goal_activation_red": goal_activation[contexts == 2, :][
-                                policy_ended[contexts == 2, :]
-                            ].mean(),
-                            "goal_activation_green": goal_activation[contexts == 3, :][
-                                policy_ended[contexts == 3, :]
-                            ].mean(),
                             "goal_activation_par": goal_activation_par[
                                 policy_ended_par
                             ].mean(),
@@ -2002,28 +2026,17 @@ class Main:
                 self.params.epochs - 1
             ):
 
-                np.save(self.sm.epoch_dir / "main.dump", [self], allow_pickle=True)
-
-                self.diagnose(controller=self.controller_par, suffix="_par")
+                self.diagnose()
+                self.diagnose(
+                    controller=self.controller_par,
+                    suffix="_par",
+                    tag="parasite",
+                    logs=logs_par,
+                )
 
                 time_elapsed = time.perf_counter() - epoch_start
                 print("---- TIME: %10.4f" % time_elapsed, flush=True)
                 epoch_start = time.perf_counter()
-
-                self.controller_par.save(epoch, tag="parasite")
-                self.gm.visual_map(wfile=self.sm.site_dir / "visual_weights-parasite.npy")
-                self.gm.comp_map(wfile=self.sm.site_dir / "comp_grid-parasite.npy")
-
-                if use_wandb:
-                    log_data = {
-                        "visual_map_par": wandb.Image(
-                            str(self.sm.site_dir / "visual_map.png")
-                        ),
-                        "comp_map_par": wandb.Image(
-                            str(self.sm.site_dir / "comp_map.png")
-                        ),
-                    }
-                    wandb.log(log_data, step=epoch)
 
             epoch += 1
             self.epoch = epoch
@@ -2043,32 +2056,33 @@ class Main:
         )
         df_final_par.to_csv("internal_trajectory_data_parasite.csv")
 
-    def diagnose(self, controller=None, suffix=None):
+    def diagnose(self, controller=None, suffix=None, tag=None, logs=None):
 
         np.save(self.sm.epoch_dir / "main.dump", [self], allow_pickle=True)
 
         controller = controller or self.controller
         suffix = suffix or ""
-        logs = self.logs
+        logs = self.logs if logs is None else logs
         epoch = self.epoch
+        tag_suffix = f"-{tag}" if tag else ""
 
         data = {}
-        data["match_value"] = self.controller.model_data["match_value"]
-        data["match_value_per_mod"] = self.controller.model_data["match_value_per_mod"]
-        data["v_r"] = self.controller.model_data["v_r"]
-        data["ss_r"] = self.controller.model_data["ss_r"]
-        data["p_r"] = self.controller.model_data["p_r"]
-        data["a_r"] = self.controller.model_data["a_r"]
-        data["v"] = self.controller.model_data["batch_v"]
-        data["ss"] = self.controller.model_data["batch_ss"]
-        data["p"] = self.controller.model_data["batch_p"]
-        data["a"] = self.controller.model_data["batch_a"]
+        data["match_value"] = controller.model_data["match_value"]
+        data["match_value_per_mod"] = controller.model_data["match_value_per_mod"]
+        data["v_r"] = controller.model_data["v_r"]
+        data["ss_r"] = controller.model_data["ss_r"]
+        data["p_r"] = controller.model_data["p_r"]
+        data["a_r"] = controller.model_data["a_r"]
+        data["v"] = controller.model_data["batch_v"]
+        data["ss"] = controller.model_data["batch_ss"]
+        data["p"] = controller.model_data["batch_p"]
+        data["a"] = controller.model_data["batch_a"]
 
-        controller.save(epoch)
+        controller.save(epoch, tag=tag)
 
-        np.save(self.sm.epoch_dir / "data", [data])
-        np.save(self.sm.site_dir / "log", logs[: epoch + 1])
-        np.save(self.sm.epoch_dir / "log", logs[: epoch + 1])
+        np.save(self.sm.epoch_dir / f"data{suffix}", [data])
+        np.save(self.sm.site_dir / f"log{suffix}", logs[: epoch + 1])
+        np.save(self.sm.epoch_dir / f"log{suffix}", logs[: epoch + 1])
 
         print("----> Evaluation tests  ...", flush=True)
         gc, tr = self.evaluation_episodes(
@@ -2080,21 +2094,32 @@ class Main:
             orig_controller=controller,
         )
 
-        tr.to_csv(self.sm.epoch_dir / "trajectories.csv")
+        tr.to_csv(self.sm.epoch_dir / f"trajectories{suffix}.csv")
 
         print("----> Map renderings  ...", flush=True)
-        self.gm.log()
-        self.gm.visual_map()
-        self.gm.comp_map()
-        self.gm.somatosensory_map()
-        self.gm.proprio_map()
+        weights_file = self.sm.site_dir / f"weights{tag_suffix}.npy"
+        self.gm.log(wfile=self.sm.site_dir / f"log{suffix}.npy", png_suffix=suffix)
+        self.gm.visual_map(wfile=weights_file, png_suffix=suffix)
+        self.gm.comp_map(
+            wfile=self.sm.site_dir / f"comp_grid{tag_suffix}.npy", png_suffix=suffix
+        )
+        self.gm.somatosensory_map(wfile=weights_file, png_suffix=suffix)
+        self.gm.proprio_map(wfile=weights_file, png_suffix=suffix)
 
         if use_wandb:
             log_data = {
-                "visual_map": wandb.Image(self.sm.site_dir / "visual_map.png"),
-                "comp_map": wandb.Image(self.sm.site_dir / "comp_map.png"),
-                "ssensory_map": wandb.Image(self.sm.site_dir / "ssensory_map.png"),
-                "proprio_map": wandb.Image(self.sm.site_dir / "proprio_map.png"),
+                f"visual_map{suffix}": wandb.Image(
+                    self.sm.site_dir / f"visual_map{suffix}.png"
+                ),
+                f"comp_map{suffix}": wandb.Image(
+                    self.sm.site_dir / f"comp_map{suffix}.png"
+                ),
+                f"ssensory_map{suffix}": wandb.Image(
+                    self.sm.site_dir / f"ssensory_map{suffix}.png"
+                ),
+                f"proprio_map{suffix}": wandb.Image(
+                    self.sm.site_dir / f"proprio_map{suffix}.png"
+                ),
             }
             wandb.log(log_data, step=epoch)
 
@@ -2716,6 +2741,18 @@ def parse_arguments():
         help="Store simulations results to Weights" " and Biases",
         action="store_true",
     )
+    parser.add_argument(
+        "--local",
+        help="Store simulation results in a local database"
+        " (alternative to wandb; see localwandb_server.py)",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--db",
+        help="Path of the local database (default: ./localwandb.db)",
+        action="store",
+        default=None,
+    )
     parser.add_argument("-x", "--plots", help="Plot graphs", action="store_true")
     parser.add_argument(
         "-n",
@@ -2799,7 +2836,8 @@ if __name__ == "__main__":
     gpu = bool(args.gpu)
     seed = int(args.seed)
     plots = bool(args.plots)
-    use_wandb = bool(args.wandb)
+    use_local = bool(args.local)
+    use_wandb = bool(args.wandb) or use_local
     train_parasite = bool(args.parasite)
     demo = bool(args.demo)
     render = bool(args.render)
@@ -2821,6 +2859,9 @@ if __name__ == "__main__":
     params.use_wandb = use_wandb
     print(f"Updated params: {params}")
 
+    if use_local:
+        import localwandb as wandb
+
     if use_wandb:
         config = {k: v for k, v in vars(params).items() if not k.startswith("_")}
         config["seed"] = seed
@@ -2830,6 +2871,7 @@ if __name__ == "__main__":
             name=simulation_name,
             group=args.group if args.group else None,
             config=config,
+            **({"db": args.db} if use_local else {}),
         )
 
     if os.path.isfile(sm.sim_dir / "main.dump.npy"):
@@ -2845,6 +2887,7 @@ if __name__ == "__main__":
         weights = np.load(args.load_weights, allow_pickle=True)[0]
         main.controller.load(weights=weights)
 
+        main.sm.update(main.epoch)
         main.controller.save(main.epoch)
 
     print(main.epoch)
