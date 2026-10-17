@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local runs</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #667085; --line: #e1e5ec;
+  --accent: #2f6fed; --good: #1f9d55; --warn: #c27b0e; --bad: #d1344a;
+  --c0: #2f6fed; --c1: #e8590c; --c2: #1f9d55; --c3: #9c36b5; --c4: #0b8aa8;
+  --c5: #c2255c; --c6: #8a6d00; --c7: #5c7cfa; --c8: #2b8a3e; --c9: #6b7280;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151b; --panel: #1a1f28; --ink: #e6e9ef; --muted: #98a2b3; --line: #2a313d;
+    --accent: #6c9bff; --good: #4cc27a; --warn: #e0a43a; --bad: #ff6b81;
+    --c0: #6c9bff; --c1: #ff922b; --c2: #4cc27a; --c3: #d08af0; --c4: #3bc9db;
+    --c5: #f783ac; --c6: #e0c34a; --c7: #91a7ff; --c8: #8ce99a; --c9: #adb5bd;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151b; --panel: #1a1f28; --ink: #e6e9ef; --muted: #98a2b3; --line: #2a313d;
+  --accent: #6c9bff; --good: #4cc27a; --warn: #e0a43a; --bad: #ff6b81;
+  --c0: #6c9bff; --c1: #ff922b; --c2: #4cc27a; --c3: #d08af0; --c4: #3bc9db;
+  --c5: #f783ac; --c6: #e0c34a; --c7: #91a7ff; --c8: #8ce99a; --c9: #adb5bd;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; padding: 10px 16px;
+  background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+header .spacer { flex: 1; }
+label.inline { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+button, select, input[type=text] { font: inherit; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.sidebar { padding: 12px; position: sticky; top: 8px; max-height: calc(100vh - 80px);
+  display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 860px) { .sidebar { position: static; max-height: 360px; } }
+.sidebar .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.sidebar input[type=text] { flex: 1; min-width: 0; }
+.runlist { overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.run { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; padding: 6px; border-radius: 6px;
+  cursor: pointer; border-left: 4px solid transparent; }
+.run:hover { background: var(--bg); }
+.run .name { font-weight: 600; overflow-wrap: anywhere; }
+.run .meta { color: var(--muted); font-size: 12px; grid-column: 2; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; background: var(--muted); }
+.dot.running { background: var(--good); } .dot.finished { background: var(--accent); }
+.dot.crashed { background: var(--bad); } .dot.stale { background: var(--warn); }
+.main { min-width: 0; }
+.tabs { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; align-items: center; }
+.tabs .spacer { flex: 1; }
+.content { padding: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 10px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 18px; height: 0; border-top: 3px solid; }
+.swatch.dashed { border-top-style: dashed; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+@media (max-width: 500px) { .grid { grid-template-columns: 1fr; } }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 8px; position: relative; min-width: 0; }
+.card h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+canvas { width: 100%; height: 220px; display: block; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.18); z-index: 5; display: none; white-space: nowrap; }
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+.imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 10px; }
+.imgs figure { margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.imgs img { width: 100%; height: auto; display: block; background: #fff; }
+.imgs figcaption { color: var(--muted); font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+.controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+.figgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 12px; }
+@media (max-width: 500px) { .figgrid { grid-template-columns: 1fr; } }
+.fig { border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.fig img { width: 100%; height: auto; display: block; background: #fcfcfb; cursor: zoom-in; border-radius: 4px; }
+.fig .cap { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 6px; flex-wrap: wrap; }
+.fig .cap a { color: var(--accent); }
+.section { margin: 18px 0 8px; font-size: 13px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.tablewrap { overflow: auto; max-height: 60vh; border: 1px solid var(--line); border-radius: 8px; }
+.pager { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none; align-items: center; justify-content: center; z-index: 20; cursor: zoom-out; }
+.lightbox img { max-width: 96vw; max-height: 94vh; background: #fcfcfb; }
+td.diff { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Local runs</h1>
+  <span id="count" style="color:var(--muted)"></span>
+  <span class="spacer"></span>
+  <label class="inline"><input type="checkbox" id="auto" checked> auto-refresh</label>
+  <button id="refresh">Refresh</button>
+  <button id="theme" title="Toggle theme">Theme</button>
+</header>
+<div class="layout">
+  <aside class="panel sidebar">
+    <div class="row">
+      <input type="text" id="runfilter" placeholder="Filter runs (name, group, id)">
+    </div>
+    <div class="row">
+      <select id="project"><option value="">All projects</option></select>
+      <button id="selvisible">Select shown</button>
+      <button id="selnone">None</button>
+    </div>
+    <div class="runlist" id="runlist"></div>
+  </aside>
+  <section class="panel main">
+    <div class="tabs" id="tabs">
+      <button data-tab="charts" class="on">Charts</button>
+      <button data-tab="images">Images</button>
+      <button data-tab="config">Config</button>
+      <button data-tab="figures">Figures</button>
+      <span class="spacer"></span>
+      <span id="selinfo" style="color:var(--muted)"></span>
+    </div>
+    <div class="content" id="content"></div>
+  </section>
+</div>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const state = {
+  figs: { list: [], table: "", rows: {}, filters: {}, search: "", page: 0, sortCol: null, sortDir: 1 },
+  runs: [], selected: new Set(), keys: {}, configs: {}, series: {},
+  tab: "charts", smooth: 0.6, pair: true, metricFilter: "", limit: 24,
+  imgKey: "", imgStep: null, imgData: {}, diffOnly: true,
+};
+
+function store(key, value) { try { localStorage.setItem("lw_" + key, JSON.stringify(value)); } catch (e) {} }
+function load(key, fallback) {
+  try { const v = localStorage.getItem("lw_" + key); return v === null ? fallback : JSON.parse(v); }
+  catch (e) { return fallback; }
+}
+
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (v !== false && v !== null && v !== undefined) el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+
+async function api(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(url + " " + r.status);
+  return r.json();
+}
+
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function runColor(id) { return cssVar("--c" + (id % 10)); }
+function runById(id) { return state.runs.find((r) => r.id === id); }
+function runLabel(r) { return r ? r.name + " #" + r.id : "#?"; }
+
+function fmt(v) {
+  if (v === 0) return "0";
+  const a = Math.abs(v);
+  if (a >= 1e5 || a < 1e-3) return v.toExponential(1);
+  if (a >= 100) return v.toFixed(0);
+  if (a >= 10) return v.toFixed(1);
+  return v.toFixed(3).replace(/\.?0+$/, "");
+}
+
+function smoothSeries(pts, s) {
+  if (s <= 0 || pts.length < 2) return pts;
+  const alpha = 1 - s;
+  let prev = pts[0][1];
+  return pts.map(([x, y]) => { prev = alpha * y + (1 - alpha) * prev; return [x, prev]; });
+}
+
+/* ---------- runs sidebar ---------- */
+
+function visibleRuns() {
+  const q = $("#runfilter").value.trim().toLowerCase();
+  const project = $("#project").value;
+  return state.runs.filter((r) => {
+    if (project && r.project !== project) return false;
+    if (!q) return true;
+    return [r.name, r.group, String(r.id), r.project].join(" ").toLowerCase().includes(q);
+  });
+}
+
+function renderProjects() {
+  const sel = $("#project");
+  const current = sel.value;
+  const projects = [...new Set(state.runs.map((r) => r.project).filter(Boolean))].sort();
+  sel.replaceChildren(h("option", { value: "" }, "All projects"),
+    projects.map((p) => h("option", { value: p }, p)));
+  sel.value = projects.includes(current) ? current : "";
+}
+
+function renderRuns() {
+  const list = $("#runlist");
+  const runs = visibleRuns();
+  list.replaceChildren(...runs.map((r) => {
+    const on = state.selected.has(r.id);
+    const cb = h("input", { type: "checkbox" });
+    cb.checked = on;
+    const item = h("div", { class: "run", style: on ? "border-left-color:" + runColor(r.id) : "" },
+      cb,
+      h("div", { class: "name" }, r.name),
+      h("div", { class: "meta" },
+        h("span", { class: "dot " + r.status }), r.status,
+        " · #", r.id, r.group ? " · " + r.group : "",
+        r.last_step !== null && r.last_step !== undefined ? " · step " + r.last_step : ""));
+    item.addEventListener("click", (e) => {
+      if (e.target !== cb) cb.checked = !cb.checked;
+      toggleRun(r.id, cb.checked);
+    });
+    return item;
+  }));
+  $("#count").textContent = state.runs.length + " runs";
+  $("#selinfo").textContent = state.selected.size + " selected";
+}
+
+function toggleRun(id, on) {
+  if (on) state.selected.add(id); else state.selected.delete(id);
+  store("selected", [...state.selected]);
+  renderRuns();
+  refreshData(true);
+}
+
+async function loadRuns() {
+  state.runs = await api("/api/runs");
+  const ids = new Set(state.runs.map((r) => r.id));
+  for (const id of [...state.selected]) if (!ids.has(id)) state.selected.delete(id);
+  renderProjects();
+  renderRuns();
+}
+
+/* ---------- data ---------- */
+
+function selectedIds() { return [...state.selected].sort((a, b) => a - b); }
+
+async function refreshData(rebuild) {
+  const ids = selectedIds();
+  await Promise.all(ids.map(async (id) => {
+    state.keys[id] = await api("/api/keys?run=" + id);
+    const run = runById(id);
+    if (!(id in state.configs) || (run && run.status === "running" && rebuild)) {
+      state.configs[id] = await api("/api/config?run=" + id);
+    }
+  }));
+  render(rebuild);
+}
+
+function unionKeys(kind) {
+  const set = new Set();
+  for (const id of state.selected) for (const k of (state.keys[id] || {})[kind] || []) set.add(k);
+  return [...set].sort();
+}
+
+function chartGroups() {
+  const keys = unionKeys("metrics");
+  const all = new Set(keys);
+  const q = state.metricFilter.toLowerCase();
+  const groups = [];
+  for (const k of keys) {
+    const isPar = k.endsWith("_par");
+    const base = isPar ? k.slice(0, -4) : k;
+    if (state.pair && isPar && all.has(base)) continue;
+    const members = [k];
+    if (state.pair && !isPar && all.has(k + "_par")) members.push(k + "_par");
+    if (q && !k.toLowerCase().includes(q)) continue;
+    groups.push({ title: k, members });
+  }
+  return groups;
+}
+
+/* ---------- charts ---------- */
+
+function drawChart(canvas, tip, series) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, hgt = canvas.clientHeight;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(hgt * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, hgt);
+  const ink = cssVar("--muted"), line = cssVar("--line");
+  const pad = { l: 46, r: 10, t: 8, b: 22 };
+
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  for (const s of series) for (const [x, y] of s.pts) {
+    if (x < xmin) xmin = x; if (x > xmax) xmax = x;
+    if (y < ymin) ymin = y; if (y > ymax) ymax = y;
+  }
+  if (!isFinite(xmin)) return;
+  if (xmin === xmax) { xmin -= 1; xmax += 1; }
+  if (ymin === ymax) { const d = Math.abs(ymin) * 0.1 || 1; ymin -= d; ymax += d; }
+  const span = ymax - ymin; ymin -= span * 0.05; ymax += span * 0.05;
+
+  const X = (x) => pad.l + ((x - xmin) / (xmax - xmin)) * (w - pad.l - pad.r);
+  const Y = (y) => pad.t + (1 - (y - ymin) / (ymax - ymin)) * (hgt - pad.t - pad.b);
+
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.fillStyle = ink; ctx.strokeStyle = line; ctx.lineWidth = 1;
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++) {
+    const v = ymin + ((ymax - ymin) * i) / 4, y = Math.round(Y(v)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.fillText(fmt(v), pad.l - 6, y);
+  }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let i = 0; i <= 4; i++) {
+    const v = xmin + ((xmax - xmin) * i) / 4;
+    ctx.fillText(fmt(v), X(v), hgt - pad.b + 5);
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.8;
+    ctx.setLineDash(s.dashed ? [5, 4] : []);
+    ctx.beginPath();
+    s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const x = xmin + ((px - pad.l) / (w - pad.l - pad.r)) * (xmax - xmin);
+    const lines = [];
+    let nearest = null;
+    for (const s of series) {
+      let best = null;
+      for (const p of s.pts) if (best === null || Math.abs(p[0] - x) < Math.abs(best[0] - x)) best = p;
+      if (best) {
+        lines.push({ s, p: best });
+        if (nearest === null || Math.abs(best[0] - x) < Math.abs(nearest - x)) nearest = best[0];
+      }
+    }
+    if (nearest === null) return;
+    tip.replaceChildren(h("div", { style: "color:var(--muted)" }, "step " + nearest),
+      lines.filter((l) => l.p[0] === nearest).map((l) =>
+        h("div", {}, h("span", { style: "color:" + l.s.color }, "● "), l.s.label + ": " + fmt(l.p[1]))));
+    tip.style.display = "block";
+    const left = Math.min(Math.max(X(nearest) + 12, 0), canvas.clientWidth - tip.offsetWidth);
+    tip.style.left = left + "px";
+    tip.style.top = "26px";
+  };
+  canvas.onmouseleave = () => { tip.style.display = "none"; };
+}
+
+async function renderCharts(rebuild) {
+  const content = $("#content");
+  const ids = selectedIds();
+  if (!ids.length) { content.replaceChildren(h("div", { class: "empty" }, "Select one or more runs.")); return; }
+
+  const groups = chartGroups();
+  const shown = groups.slice(0, state.limit);
+  const keys = [...new Set(shown.flatMap((g) => g.members))];
+  const data = keys.length
+    ? await api("/api/metrics?runs=" + ids.join(",") + "&keys=" + encodeURIComponent(keys.join(",")))
+    : {};
+
+  const legend = h("div", { class: "legend" }, ids.map((id) =>
+    h("span", {}, h("span", { class: "swatch", style: "border-color:" + runColor(id) }), runLabel(runById(id)))));
+  if (state.pair) legend.append(h("span", {}, h("span", { class: "swatch dashed", style: "border-color:var(--muted)" }), "dashed: parasite (_par)"));
+
+  const controls = h("div", { class: "controls" },
+    h("input", { type: "text", placeholder: "Filter metrics", value: state.metricFilter, id: "mfilter",
+      oninput: (e) => { state.metricFilter = e.target.value; state.limit = 24; renderCharts(); } }),
+    h("label", { class: "inline" }, "smoothing",
+      h("input", { type: "range", min: 0, max: 0.95, step: 0.05, value: state.smooth,
+        oninput: (e) => { state.smooth = parseFloat(e.target.value); store("smooth", state.smooth); renderCharts(); } })),
+    h("label", { class: "inline" },
+      h("input", { type: "checkbox", checked: state.pair,
+        onchange: (e) => { state.pair = e.target.checked; store("pair", state.pair); renderCharts(); } }),
+      "overlay _par metrics"));
+
+  const grid = h("div", { class: "grid" });
+  const toDraw = [];
+  for (const g of shown) {
+    const series = [];
+    for (const id of ids) for (const key of g.members) {
+      const pts = ((data[id] || {})[key]) || [];
+      if (pts.length) series.push({ label: runLabel(runById(id)) + (key.endsWith("_par") && g.members.length > 1 ? " (par)" : ""),
+        color: runColor(id), dashed: g.members.length > 1 && key.endsWith("_par"), pts: smoothSeries(pts, state.smooth) });
+    }
+    if (!series.length) continue;
+    const canvas = h("canvas");
+    const tip = h("div", { class: "tip" });
+    grid.append(h("div", { class: "card" }, h("h3", {}, g.title), canvas, tip));
+    toDraw.push([canvas, tip, series]);
+  }
+  const children = [legend, controls, grid.children.length ? grid : h("div", { class: "empty" }, "No matching metrics.")];
+  if (groups.length > shown.length) {
+    children.push(h("div", { style: "margin-top:12px" },
+      h("button", { onclick: () => { state.limit += 24; renderCharts(); } }, "Show more (" + (groups.length - shown.length) + " left)")));
+  }
+  const hadFocus = document.activeElement && document.activeElement.id === "mfilter";
+  content.replaceChildren(...children);
+  if (hadFocus) { const f = $("#mfilter"); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+  for (const [canvas, tip, series] of toDraw) drawChart(canvas, tip, series);
+}
+
+/* ---------- images ---------- */
+
+async function renderImages() {
+  const content = $("#content");
+  const ids = selectedIds();
+  if (!ids.length) { content.replaceChildren(h("div", { class: "empty" }, "Select one or more runs.")); return; }
+  const keys = unionKeys("images");
+  if (!keys.length) { content.replaceChildren(h("div", { class: "empty" }, "No images logged for the selected runs.")); return; }
+  if (!keys.includes(state.imgKey)) state.imgKey = keys[0];
+
+  const per = {};
+  await Promise.all(ids.map(async (id) => {
+    per[id] = (state.keys[id].images || []).includes(state.imgKey)
+      ? await api("/api/images?run=" + id + "&key=" + encodeURIComponent(state.imgKey)) : [];
+  }));
+  const steps = [...new Set(ids.flatMap((id) => per[id].map((i) => i.step)))].sort((a, b) => a - b);
+  if (state.imgStep === null || !steps.includes(state.imgStep)) state.imgStep = steps[steps.length - 1];
+  const idx = steps.indexOf(state.imgStep);
+
+  const select = h("select", { onchange: (e) => { state.imgKey = e.target.value; renderImages(); } },
+    keys.map((k) => h("option", { value: k, selected: k === state.imgKey }, k)));
+  const slider = h("input", { type: "range", min: 0, max: Math.max(0, steps.length - 1), step: 1, value: idx,
+    oninput: (e) => { state.imgStep = steps[parseInt(e.target.value, 10)]; renderImages(); } });
+  const controls = h("div", { class: "controls" }, select, h("label", { class: "inline" }, "step", slider, state.imgStep));
+
+  const figs = ids.map((id) => {
+    const list = per[id].filter((i) => i.step <= state.imgStep);
+    const pick = list.length ? list[list.length - 1] : per[id][0];
+    if (!pick) return null;
+    return h("figure", { style: "border-left:4px solid " + runColor(id) }, h("img", { src: pick.url, loading: "lazy" }),
+      h("figcaption", {}, runLabel(runById(id)) + " · step " + pick.step));
+  });
+  content.replaceChildren(controls, h("div", { class: "imgs" }, figs));
+}
+
+/* ---------- config ---------- */
+
+function renderConfig() {
+  const content = $("#content");
+  const ids = selectedIds();
+  if (!ids.length) { content.replaceChildren(h("div", { class: "empty" }, "Select one or more runs.")); return; }
+  const keys = [...new Set(ids.flatMap((id) => Object.keys(state.configs[id] || {})))].sort();
+  const val = (id, k) => { const v = (state.configs[id] || {})[k]; return v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v); };
+  const differs = (k) => new Set(ids.map((id) => val(id, k))).size > 1;
+  const rows = keys.filter((k) => !state.diffOnly || ids.length < 2 || differs(k));
+
+  const controls = h("div", { class: "controls" },
+    h("label", { class: "inline" },
+      h("input", { type: "checkbox", checked: state.diffOnly,
+        onchange: (e) => { state.diffOnly = e.target.checked; renderConfig(); } }),
+      "only parameters that differ between selected runs"));
+  const table = h("table", {},
+    h("thead", {}, h("tr", {}, h("th", {}, "parameter"), ids.map((id) => h("th", {}, runLabel(runById(id)))))),
+    h("tbody", {}, rows.map((k) => h("tr", {}, h("td", {}, k),
+      ids.map((id) => h("td", { class: differs(k) && ids.length > 1 ? "diff" : "" }, val(id, k)))))));
+  content.replaceChildren(controls, rows.length ? table : h("div", { class: "empty" }, "No differing parameters."));
+}
+
+/* ---------- figures and tables ---------- */
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+    else if (c !== "\r") cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return { header: rows[0] || [], body: rows.slice(1) };
+}
+
+function fmtCell(v) {
+  const n = Number(v);
+  if (v === "" || Number.isNaN(n)) return v;
+  return Number.isInteger(n) ? String(n) : Number(n.toPrecision(4)).toString();
+}
+
+function showLightbox(src) {
+  const box = h("div", { class: "lightbox", onclick: () => box.remove() }, h("img", { src }));
+  box.style.display = "flex";
+  document.body.append(box);
+}
+
+async function renderFigures() {
+  const content = $("#content");
+  const f = state.figs;
+  f.list = await api("/api/figures");
+  const images = f.list.filter((x) => x.type === "image");
+  const tables = f.list.filter((x) => x.type === "table");
+  const others = f.list.filter((x) => x.type === "other");
+  if (!f.list.length) {
+    content.replaceChildren(h("div", { class: "empty" }, "No figures found. Pass --figures DIR to the server, or put files in <db folder>/figures."));
+    return;
+  }
+  const url = (x) => "/figures/" + encodeURIComponent(x.name) + "?v=" + Math.floor(x.mtime);
+  const parts = [];
+  if (images.length) {
+    parts.push(h("div", { class: "section" }, "Figures"),
+      h("div", { class: "figgrid" }, images.map((x) =>
+        h("div", { class: "fig" },
+          h("img", { src: url(x), loading: "lazy", alt: x.name, onclick: () => showLightbox(url(x)) }),
+          h("div", { class: "cap" }, h("span", {}, x.name),
+            h("a", { href: url(x), download: x.name }, "download"))))));
+  }
+  if (tables.length) {
+    if (!tables.some((x) => x.name === f.table)) f.table = tables[0].name;
+    const current = tables.find((x) => x.name === f.table);
+    const key = current.name + current.mtime;
+    if (!f.rows[key]) f.rows[key] = parseCsv(await (await fetch(url(current))).text());
+    parts.push(h("div", { class: "section" }, "Tables"), tableView(tables, current, f.rows[key]));
+  }
+  if (others.length) {
+    parts.push(h("div", { class: "section" }, "Other files"),
+      h("div", {}, others.map((x) => h("div", {}, h("a", { href: url(x), target: "_blank" }, x.name)))));
+  }
+  content.replaceChildren(...parts);
+}
+
+function tableView(tables, current, data) {
+  const f = state.figs;
+  const cols = data.header;
+  const uniques = cols.map((_, i) => [...new Set(data.body.map((r) => r[i]))]);
+  const filterCols = cols.map((c, i) => i).filter((i) => uniques[i].length > 1 && uniques[i].length <= 12);
+  const fkey = (i) => current.name + ":" + cols[i];
+  const q = f.search.toLowerCase();
+  let rows = data.body.filter((r) =>
+    filterCols.every((i) => !f.filters[fkey(i)] || r[i] === f.filters[fkey(i)]) &&
+    (!q || r.some((v) => v.toLowerCase().includes(q))));
+  if (f.sortCol !== null && f.sortCol < cols.length) {
+    const c = f.sortCol;
+    const num = rows.length && rows.every((r) => r[c] !== "" && !Number.isNaN(Number(r[c])));
+    rows = rows.slice().sort((a, b) => (num ? Number(a[c]) - Number(b[c]) : a[c].localeCompare(b[c])) * f.sortDir);
+  }
+  const per = 50, pages = Math.max(1, Math.ceil(rows.length / per));
+  f.page = Math.min(f.page, pages - 1);
+  const rerender = () => { const t = $("#tableholder"); t.replaceWith(tableView(tables, current, data)); };
+  const controls = h("div", { class: "controls" },
+    h("select", { onchange: (e) => { f.table = e.target.value; f.page = 0; f.filters = {}; f.sortCol = null; renderFigures(); } },
+      tables.map((x) => h("option", { value: x.name, selected: x.name === current.name }, x.name))),
+    filterCols.map((i) => h("select", { onchange: (e) => { f.filters[fkey(i)] = e.target.value; f.page = 0; rerender(); } },
+      h("option", { value: "" }, "all " + cols[i]),
+      uniques[i].map((v) => h("option", { value: v, selected: f.filters[fkey(i)] === v }, v)))),
+    h("input", { type: "text", id: "tsearch", placeholder: "Search", value: f.search,
+      oninput: (e) => { f.search = e.target.value; f.page = 0; rerender(); $("#tsearch").focus(); } }),
+    h("a", { href: "/figures/" + encodeURIComponent(current.name), download: current.name, style: "color:var(--accent)" }, "download csv"));
+  const head = h("tr", {}, cols.map((c, i) => h("th", { style: "cursor:pointer",
+    onclick: () => { f.sortDir = f.sortCol === i ? -f.sortDir : 1; f.sortCol = i; rerender(); } },
+    c + (f.sortCol === i ? (f.sortDir > 0 ? " ▲" : " ▼") : ""))));
+  const body = rows.slice(f.page * per, (f.page + 1) * per).map((r) =>
+    h("tr", {}, r.map((v) => h("td", { class: v !== "" && !Number.isNaN(Number(v)) ? "num" : "" }, fmtCell(v)))));
+  const pager = h("div", { class: "pager" },
+    h("button", { disabled: f.page === 0, onclick: () => { f.page--; rerender(); } }, "Prev"),
+    "page " + (f.page + 1) + " / " + pages + " · " + rows.length + " rows",
+    h("button", { disabled: f.page >= pages - 1, onclick: () => { f.page++; rerender(); } }, "Next"));
+  return h("div", { id: "tableholder" }, controls,
+    h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, head), h("tbody", {}, body))), pager);
+}
+
+function render() {
+  if (state.tab === "charts") return renderCharts();
+  if (state.tab === "images") return renderImages();
+  if (state.tab === "figures") return renderFigures();
+  return renderConfig();
+}
+
+/* ---------- wiring ---------- */
+
+let timer = null;
+function setAuto() {
+  clearInterval(timer);
+  if ($("#auto").checked) timer = setInterval(async () => {
+    try { await loadRuns(); if (state.tab !== "figures") await refreshData(false); } catch (e) {}
+  }, 5000);
+}
+
+function applyTheme(t) {
+  if (t) document.documentElement.setAttribute("data-theme", t);
+  else document.documentElement.removeAttribute("data-theme");
+}
+
+async function main() {
+  state.selected = new Set(load("selected", []));
+  state.smooth = load("smooth", 0.6);
+  state.pair = load("pair", true);
+  applyTheme(load("theme", null));
+  $("#tabs").addEventListener("click", (e) => {
+    const tab = e.target.dataset && e.target.dataset.tab;
+    if (!tab) return;
+    state.tab = tab;
+    for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.tab === tab);
+    render();
+  });
+  $("#runfilter").addEventListener("input", renderRuns);
+  $("#project").addEventListener("change", renderRuns);
+  $("#selvisible").addEventListener("click", () => {
+    for (const r of visibleRuns()) state.selected.add(r.id);
+    store("selected", [...state.selected]); renderRuns(); refreshData(true);
+  });
+  $("#selnone").addEventListener("click", () => {
+    state.selected.clear(); store("selected", []); renderRuns(); refreshData(true);
+  });
+  $("#refresh").addEventListener("click", async () => { await loadRuns(); await refreshData(true); });
+  $("#auto").addEventListener("change", setAuto);
+  $("#theme").addEventListener("click", () => {
+    const dark = cssVar("--bg") === "#12151b";
+    const next = dark ? "light" : "dark";
+    store("theme", next); applyTheme(next); renderRuns(); render();
+  });
+  window.addEventListener("resize", () => { if (state.tab === "charts") renderCharts(); });
+  try { await loadRuns(); await refreshData(true); }
+  catch (e) { $("#content").replaceChildren(h("div", { class: "empty" }, "Cannot reach the server: " + e.message)); }
+  setAuto();
+}
+main();
+</script>
+</body>
+</html>
