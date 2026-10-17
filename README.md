@@ -50,6 +50,24 @@ Example:
 
 runs a simulation lasting 4 hours with graphics swithed on and using the gpu. If the simulation does not end in the required time, all data are recorded in the folder and the simulation can be restarted from the current time just by running again the script. 
             
+## Local run tracking (alternative to wandb)
+
+Add `--local` to `SMMain.py` (or `-l` to `grid_search.py`) to store metrics and images in a local SQLite database instead of wandb. `--db PATH` selects the file (default `./localwandb.db`; images go to `<db name>_media/`).
+
+        python SMMain.py -n myrun --local --db runs.db
+        python localwandb_server.py --db runs.db --port 8080
+
+Open http://127.0.0.1:8080 to compare runs (metric charts with `_par` parasite curves overlaid, map images by step, parameter differences). Runs from several processes can write to the same database. The Figures tab lists the images and CSV tables in `--figures DIR` (default `<db folder>/figures`), for example the output of `plot_fig567.py`.
+
+## Parasite experiment launchers
+
+`src/launch_run.py` starts one run in its own folder (`--mode parasite|former|agent`, `-s SEED`; `former` loads the maps of the same seed's parasite run). `src/launch_experiment.py` runs all seeds (default 0-9: a parasite run, then a former-parasite run per seed) with a job pool. Both log to `<root>/runs.db` (`--local`), so `localwandb_server.py --db <root>/runs.db` shows them.
+
+        python launch_experiment.py --root ../test/figs567 -p 8 --epochs 1000
+        python launch_run.py --mode parasite -s 3 --root ../test/figs567 --dry-run
+
+Finished runs are skipped on relaunch; an incomplete run folder needs `--force` (it is deleted and rerun).
+
 ## License
 
 Shield: [![CC BY 4.0][cc-by-shield]][cc-by]

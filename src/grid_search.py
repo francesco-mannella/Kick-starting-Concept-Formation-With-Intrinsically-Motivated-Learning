@@ -40,6 +40,23 @@ def parse_arguments():
         help="JSON of combinations parameters",
     )
     parser.add_argument(
+        "--parasite",
+        action="store_true",
+        help="Train a parasite alongside each active agent",
+    )
+    parser.add_argument(
+        "-l",
+        "--local",
+        action="store_true",
+        help="Store results in the local database instead of wandb",
+    )
+    parser.add_argument(
+        "--db",
+        type=str,
+        default=None,
+        help="Path of the local database",
+    )
+    parser.add_argument(
         "-x",
         "--plot",
         action="store_true",
@@ -116,6 +133,12 @@ for i, p in enumerate(get_combinations(params)):
 
     if args.wandb:
         command.append("-w")
+    if args.parasite:
+        command.append("--parasite")
+    if args.local:
+        command.append("--local")
+        if args.db:
+            command.extend(["--db", os.path.abspath(args.db)])
     command.extend(options)
 
     print(f"Running: {' '.join(command)}")
