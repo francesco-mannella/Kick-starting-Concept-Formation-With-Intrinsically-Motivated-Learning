@@ -160,7 +160,7 @@ class Box2DSimOneArmEnv(gym.Env):
         joints = np.array([self.sim.joints[name].angle for name in self.joint_names])
         sensors = np.array(
             [
-                np.sum(
+                sum(
                     [
                         self.sim.contacts(sensor_name, object_name)
                         for object_name in self.object_names
@@ -652,6 +652,7 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
         self.flts.append(np.outer([0, 0, 1], ones))
 
         self.flts = np.array([(flt - np.mean(flt)) / flt.sum() for flt in self.flts])
+        self.flts_sum = self.flts.sum(axis=0)
 
     def handPosInSpace(self):
         hand_pos = np.array(
@@ -686,7 +687,7 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
         )
         img[arm > 0.3] = [1, 1, 1]
         img = 1 - np.mean(img, axis=2)
-        sal = np.maximum(0, np.sum([ndimage.convolve(img, flt) for flt in self.flts], 0))
+        sal = np.maximum(0, ndimage.convolve(img, self.flts_sum))
 
         if self.hand_pos_sal:
 

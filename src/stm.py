@@ -69,9 +69,9 @@ def radial2d(mean, sigma, size):
         torch.Tensor: each row is a flattened radial basis in
                  the (sqrt(size), sqrt(size)) space
     """
-    grid_points = make_grid(np.sqrt(size))
+    grid_points = cached_grid(np.sqrt(size))
     diff = grid_points.unsqueeze(0) - mean.unsqueeze(1)
-    radial_basis = torch.exp(-0.5 * (sigma**-2) * torch.norm(diff, dim=-1) ** 2)
+    radial_basis = torch.exp(-0.5 * (sigma**-2) * diff.pow(2).sum(dim=-1))
 
     return radial_basis
 
@@ -80,6 +80,16 @@ def make_grid(side):
     """Creates a grid of points in 2D space."""
     ranges = torch.arange(0, side, dtype=torch.float)
     return torch.cartesian_prod(ranges, ranges)
+
+
+_grid_cache = {}
+
+
+def cached_grid(side):
+    key = (int(round(side)), str(torch.get_default_device()))
+    if key not in _grid_cache:
+        _grid_cache[key] = make_grid(side)
+    return _grid_cache[key]
 
 
 class STM(torch.nn.Module):
@@ -137,8 +147,11 @@ class STM(torch.nn.Module):
 
     def get_norms_and_activation(self, x):
         # compute norms
-        norms = torch.norm(x.unsqueeze(-1) - self.kernel.unsqueeze(0), dim=1)
-        norms2 = norms.pow(2)
+        norms2 = (
+            x.pow(2).sum(dim=1, keepdim=True)
+            - 2 * x @ self.kernel
+            + self.kernel.pow(2).sum(dim=0)
+        ).clamp_min(0)
 
         # compute activation
         wta = norms2.argmin(dim=-1).detach().float()
