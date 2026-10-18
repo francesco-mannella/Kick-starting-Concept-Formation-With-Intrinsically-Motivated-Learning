@@ -43,6 +43,7 @@ class Actuator:
             self.input_scale = stats["scale"]
             self.gain = np.repeat(stats[f"gain_{self.encoding}"], self.block_units)
             self.rbf_sigma = stats["rbf_sigma"]
+            self.gain[: self.block_units] *= kargs.get("touch_gain", 1.0)
         if self.encoding in ("wta_block", "rbf_block"):
             side = int(round(np.sqrt(self.block_units)))
             coords = grid(side)

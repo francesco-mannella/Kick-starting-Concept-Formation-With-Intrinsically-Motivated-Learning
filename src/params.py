@@ -25,6 +25,7 @@ class Parameters(ParameterManager):
         grip_input_norm="none",
         grip_out_fn="clip",
         grip_norm_name="data/StoredGripActuatorNorm",
+        grip_touch_gain=1.0,
         internal_size=100,
         visual_size=300,
         somatosensory_size=40,
@@ -98,6 +99,7 @@ class Parameters(ParameterManager):
         self.grip_input_norm = grip_input_norm
         self.grip_out_fn = grip_out_fn
         self.grip_norm_name = grip_norm_name
+        self.grip_touch_gain = grip_touch_gain
         self.internal_size = internal_size
         self.visual_size = visual_size
         self.somatosensory_size = somatosensory_size

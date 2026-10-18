@@ -20,15 +20,15 @@ def series(con, names, key):
     out = []
     for name in names:
         df = pd.read_sql("SELECT m.step, m.value FROM metrics m JOIN runs r ON r.id = m.run_id"
-                         " WHERE r.name = ? AND m.key = ? ORDER BY m.step", con, params=(name,))
+                         " WHERE r.name = ? AND m.key = ? ORDER BY m.step", con, params=(name, key))
         out.append(df.set_index("step").value)
-    return pd.concat(out, axis=1)
+    return pd.concat(out, axis=1).sort_index()
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Learning curves of actuator pilot conditions vs baseline")
     parser.add_argument("--db", default="test/demo_local/runs.db")
-    parser.add_argument("--prefix", required=True, help="e.g. pilot2: run names agent_<prefix>_<cond>_<seed>")
+    parser.add_argument("--prefix", default="", help="e.g. pilot2: run names agent_<prefix>_<cond>_<seed>")
     parser.add_argument("--conditions", default="A_oldmap,A,B,C,D")
     parser.add_argument("--seeds", default="0,1,2")
     parser.add_argument("--epochs", type=int, default=150)
@@ -44,8 +44,8 @@ if __name__ == "__main__":
     seeds = [int(s) for s in args.seeds.split(",")]
     groups = {"baseline (old actuator)": [args.baseline.format(seed=s) for s in seeds]}
     for c in args.conditions.split(","):
-        groups[c] = [f"agent_{args.prefix}_{c}_{s:03d}" for s in seeds]
-    label = args.label or args.prefix
+        groups[c] = ["_".join(filter(None, ["agent", args.prefix, c])) + f"_{s:03d}" for s in seeds]
+    label = args.label or args.prefix or "pilot"
     fig, axes = plt.subplots(1, 4, figsize=(17, 4), facecolor=SURFACE)
     rows = []
     for ax, (title, key) in zip(axes, PANELS):
@@ -74,10 +74,10 @@ if __name__ == "__main__":
         ax.set_xlim(0, args.epochs)
     axes[0].set_ylim(0, 1)
     fig.legend(*axes[0].get_legend_handles_labels(), loc="upper right", ncol=len(groups), frameon=False,
-               labelcolor=INK, fontsize=9, bbox_to_anchor=(0.995, 1.04))
+               labelcolor=INK, fontsize=9, bbox_to_anchor=(0.995, 1.0))
     fig.text(0.005, 0.01, f"Mean and sd over {len(seeds)} seeds; touch frequency and alignment smoothed over 5 epochs.",
              color=INK2, fontsize=8)
-    fig.tight_layout(rect=(0, 0.04, 1, 0.95))
+    fig.tight_layout(rect=(0, 0.04, 1, 0.92))
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     fig.savefig(out / f"actuator_{label}_fig.png", dpi=170, facecolor=SURFACE)

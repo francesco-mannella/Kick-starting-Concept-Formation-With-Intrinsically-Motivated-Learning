@@ -22,6 +22,7 @@ class SMAgent:
             input_norm=self.params.grip_input_norm,
             output=self.params.grip_out_fn,
             norm_name=self.params.grip_norm_name,
+            touch_gain=self.params.grip_touch_gain,
             input_blocks=(self.params.somatosensory_size, self.params.proprioception_size, 2),
             *args,
             **kargs
