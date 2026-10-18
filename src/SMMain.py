@@ -2857,7 +2857,7 @@ if __name__ == "__main__":
 
     print(AppendParamsAction.params_string)
     params.update(AppendParamsAction.params_string)
-    params.policy_size = params.grip_hidden * params.grip_output
+    params.policy_size = (params.grip_policy_dim or params.grip_hidden) * params.grip_output
     params.use_wandb = use_wandb
     print(f"Updated params: {params}")
 
@@ -2880,7 +2880,7 @@ if __name__ == "__main__":
         main = np.load("main.dump.npy", allow_pickle=True)[0]
         main.plots = plots
         main.params.update(AppendParamsAction.params_string)
-        main.params.policy_size = main.params.grip_hidden * main.params.grip_output
+        main.params.policy_size = (main.params.grip_policy_dim or main.params.grip_hidden) * main.params.grip_output
         params.use_wandb = use_wandb
         main.sm = sm
     else:

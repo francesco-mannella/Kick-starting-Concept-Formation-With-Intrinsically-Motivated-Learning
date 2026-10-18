@@ -29,7 +29,7 @@ def subspace(hidden, share=0.95):
 
 
 def nodes(w):
-    return w.T.reshape(-1, 75, 5)
+    return w.T.reshape(w.shape[1], -1, 5)
 
 
 def worker(args):
@@ -49,10 +49,12 @@ def worker(args):
     q, participation, k95 = subspace(hidden)
     proj = q @ q.T
     out = {"cond": cond, "seed": seed, "participation_ratio": participation, "components_95": k95,
-           "random_share_outside": 1 - k95 / 75}
-    m = grip.map
-    rank = int(np.linalg.matrix_rank(m))
-    rows = np.linalg.svd(m, full_matrices=False)[2][:rank].T
+           "random_share_outside": 1 - k95 / hidden.shape[1]}
+    rows = None
+    if grip.basis is None:
+        m = grip.map
+        rank = int(np.linalg.matrix_rank(m))
+        rows = np.linalg.svd(m, full_matrices=False)[2][:rank].T
     rng = np.random.default_rng(seed)
     pairs = rng.integers(0, SIDE * SIDE, (500, 2))
     for epoch in args.epochs:
@@ -61,7 +63,8 @@ def worker(args):
         inside = np.einsum("ij,njo->nio", proj, p)
         outside = p - inside
         out[f"null_share_data_{epoch}"] = float((outside ** 2).sum() / (p ** 2).sum())
-        out[f"null_share_map_{epoch}"] = float(((p - np.einsum("ij,njo->nio", rows @ rows.T, p)) ** 2).sum() / (p ** 2).sum())
+        if rows is not None:
+            out[f"null_share_map_{epoch}"] = float(((p - np.einsum("ij,njo->nio", rows @ rows.T, p)) ** 2).sum() / (p ** 2).sum())
         diff = p[pairs[:, 0]] - p[pairs[:, 1]]
         diff_out = diff - np.einsum("ij,njo->nio", proj, diff)
         out[f"inert_distance_share_{epoch}"] = float((diff_out ** 2).sum() / (diff ** 2).sum())

@@ -48,7 +48,7 @@ class GripAgent:
         self.grip = Actuator(
             env, actuator_map, actuator_weights, *args, **kargs
         )
-        self.num_params = self.grip.num_hidden * self.grip.num_outputs
+        self.num_params = self.grip.num_policy * self.grip.num_outputs
 
     def step(self, state):
         out = self.grip.step(state)
@@ -62,7 +62,7 @@ class GripAgent:
 
     def updatePolicy(self, params):
         self.grip.params = np.reshape(
-            params, [self.grip.num_hidden, self.grip.num_outputs]
+            params, [self.grip.num_policy, self.grip.num_outputs]
         )
 
 

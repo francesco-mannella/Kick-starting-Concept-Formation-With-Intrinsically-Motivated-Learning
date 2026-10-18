@@ -44,6 +44,13 @@ class Actuator:
             self.gain = np.repeat(stats[f"gain_{self.encoding}"], self.block_units)
             self.rbf_sigma = stats["rbf_sigma"]
             self.gain[: self.block_units] *= kargs.get("touch_gain", 1.0)
+        self.basis = None
+        self.num_policy = self.num_hidden
+        if kargs.get("basis_name"):
+            stats = np.load((Path(__file__).parent / kargs["basis_name"]).with_suffix(".npz"))
+            self.basis, self.basis_scale = stats["basis"], stats["scale"]
+            self.num_policy = self.basis.shape[1]
+            self.params = np.zeros((self.num_policy, self.num_outputs))
         if self.encoding in ("wta_block", "rbf_block"):
             side = int(round(np.sqrt(self.block_units)))
             coords = grid(side)
@@ -82,6 +89,8 @@ class Actuator:
             hidden = np.dot(state, self.map)
         if self.gain is not None:
             hidden = hidden * self.gain
+        if self.basis is not None:
+            hidden = hidden @ self.basis / self.basis_scale
         return hidden
 
     def step(self, state):

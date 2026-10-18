@@ -37,7 +37,7 @@ def topology(features):
 
 
 def policy_features(w, probes, grip):
-    policies = w.reshape(75, 5, -1)
+    policies = w.reshape(probes.shape[1], 5, -1)
     raw = np.einsum("nh,hok->nko", probes, policies)
     act = np.tanh(raw) if grip.output == "tanh" else np.clip(raw, -1, 1)
     per_node = lambda x: x.transpose(1, 0, 2).reshape(x.shape[1], -1)

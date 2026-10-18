@@ -26,6 +26,8 @@ class Parameters(ParameterManager):
         grip_out_fn="clip",
         grip_norm_name="data/StoredGripActuatorNorm",
         grip_touch_gain=1.0,
+        grip_basis_name=None,
+        grip_policy_dim=None,
         policy_winner="argmin",
         policy_update="adam",
         policy_ema_eta=0.05,
@@ -103,6 +105,8 @@ class Parameters(ParameterManager):
         self.grip_out_fn = grip_out_fn
         self.grip_norm_name = grip_norm_name
         self.grip_touch_gain = grip_touch_gain
+        self.grip_basis_name = grip_basis_name
+        self.grip_policy_dim = grip_policy_dim
         self.policy_winner = policy_winner
         self.policy_update = policy_update
         self.policy_ema_eta = policy_ema_eta
@@ -110,7 +114,7 @@ class Parameters(ParameterManager):
         self.visual_size = visual_size
         self.somatosensory_size = somatosensory_size
         self.proprioception_size = proprioception_size
-        self.policy_size = grip_hidden * grip_output
+        self.policy_size = (grip_policy_dim or grip_hidden) * grip_output
         self.num_objects = num_objects
         self.v_eradial_prop = v_eradial_prop
         self.ss_eradial_prop = ss_eradial_prop
