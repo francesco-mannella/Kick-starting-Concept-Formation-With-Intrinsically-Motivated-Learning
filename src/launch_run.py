@@ -10,16 +10,16 @@ SRC = Path(__file__).resolve().parent
 MODES = ("parasite", "former", "agent")
 
 
-def run_name(mode, seed):
-    return f"{mode}_{seed:03d}"
+def run_name(mode, seed, tag=None):
+    return f"{mode}_{tag}_{seed:03d}" if tag else f"{mode}_{seed:03d}"
 
 
-def run_dir(root, mode, seed):
-    return Path(root).resolve() / run_name(mode, seed)
+def run_dir(root, mode, seed, tag=None):
+    return Path(root).resolve() / run_name(mode, seed, tag)
 
 
-def final_files(root, mode, seed, epochs):
-    storage = run_dir(root, mode, seed) / "simulations" / run_name(mode, seed) / "storage"
+def final_files(root, mode, seed, epochs, tag=None):
+    storage = run_dir(root, mode, seed, tag) / "simulations" / run_name(mode, seed, tag) / "storage"
     last = storage / f"{epochs - 1:06d}"
     files = [last / "weights.npy"]
     if mode == "parasite":
@@ -27,17 +27,17 @@ def final_files(root, mode, seed, epochs):
     return files
 
 
-def is_done(root, mode, seed, epochs):
-    return all(f.is_file() for f in final_files(root, mode, seed, epochs))
+def is_done(root, mode, seed, epochs, tag=None):
+    return all(f.is_file() for f in final_files(root, mode, seed, epochs, tag))
 
 
 def plan_run(root, mode, seed, epochs, epochs_to_test, options=(), weights=None,
-             parasite_epochs=None, check_weights=True):
-    name = run_name(mode, seed)
+             parasite_epochs=None, check_weights=True, tag=None, db=None):
+    name = run_name(mode, seed, tag)
     command = [
         sys.executable, str(SRC / "SMMain.py"),
-        "-s", str(seed), "-n", name, "--group", mode,
-        "--local", "--db", str(Path(root).resolve() / "runs.db"),
+        "-s", str(seed), "-n", name, "--group", tag or mode,
+        "--local", "--db", str(Path(db).resolve() if db else Path(root).resolve() / "runs.db"),
         "-o", f"epochs={epochs}", "-o", f"epochs_to_test={epochs_to_test}",
     ]
     if mode == "parasite":
@@ -50,7 +50,7 @@ def plan_run(root, mode, seed, epochs, epochs_to_test, options=(), weights=None,
         command += ["-l", str(weights)]
     for option in options:
         command += ["-o", option]
-    return {"name": name, "command": command, "cwd": run_dir(root, mode, seed)}
+    return {"name": name, "command": command, "cwd": run_dir(root, mode, seed, tag)}
 
 
 def start(plan, force=False):
@@ -88,6 +88,8 @@ def parse_arguments():
     parser.add_argument("--weights", default=None, help="Explicit weights file (former)")
     parser.add_argument("-o", "--opt", action="append", default=[], metavar="KEY=VALUE",
                         help="Extra SMMain option")
+    parser.add_argument("--db", default=None, help="Database file (default: <root>/runs.db)")
+    parser.add_argument("--tag", default=None, help="Condition label added to the run name and used as group")
     parser.add_argument("--force", action="store_true", help="Delete an incomplete run folder")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -95,12 +97,12 @@ def parse_arguments():
 
 if __name__ == "__main__":
     args = parse_arguments()
-    if is_done(args.root, args.mode, args.seed, args.epochs):
-        print(f"{run_name(args.mode, args.seed)}: already done")
+    if is_done(args.root, args.mode, args.seed, args.epochs, args.tag):
+        print(f"{run_name(args.mode, args.seed, args.tag)}: already done")
         sys.exit(0)
     plan = plan_run(args.root, args.mode, args.seed, args.epochs, args.epochs_to_test,
                     args.opt, args.weights, args.parasite_epochs,
-                    check_weights=not args.dry_run)
+                    check_weights=not args.dry_run, tag=args.tag, db=args.db)
     print(f"cd {plan['cwd']} && {' '.join(plan['command'])}")
     if args.dry_run:
         sys.exit(0)
@@ -110,6 +112,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         process.terminate()
         code = process.wait()
-    status = finish(plan, code, is_done(args.root, args.mode, args.seed, args.epochs))
+    status = finish(plan, code, is_done(args.root, args.mode, args.seed, args.epochs, args.tag))
     print(f"{plan['name']}: {status} (log: {plan['cwd'] / 'sim.log'})")
     sys.exit(0 if status == "done" else 1)

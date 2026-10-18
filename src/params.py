@@ -20,6 +20,11 @@ class Parameters(ParameterManager):
         grip_input=47,
         grip_hidden=75,
         grip_output=5,
+        grip_map_name="data/StoredGripActuatorMap",
+        grip_encoding="linear",
+        grip_input_norm="none",
+        grip_out_fn="clip",
+        grip_norm_name="data/StoredGripActuatorNorm",
         internal_size=100,
         visual_size=300,
         somatosensory_size=40,
@@ -88,6 +93,11 @@ class Parameters(ParameterManager):
         self.grip_input = grip_input
         self.grip_hidden = grip_hidden
         self.grip_output = grip_output
+        self.grip_map_name = grip_map_name
+        self.grip_encoding = grip_encoding
+        self.grip_input_norm = grip_input_norm
+        self.grip_out_fn = grip_out_fn
+        self.grip_norm_name = grip_norm_name
         self.internal_size = internal_size
         self.visual_size = visual_size
         self.somatosensory_size = somatosensory_size

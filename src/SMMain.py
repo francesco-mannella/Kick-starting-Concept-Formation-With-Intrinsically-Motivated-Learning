@@ -391,6 +391,7 @@ class Main:
 
         self.controller.__setstate__(state["controller"])
         self.env.__setstate__(state["env"])
+        self.env.params = self.params
 
         if state.get("controller_par") is not None:
             self.controller_par = self._build_parasite_controller()
@@ -2856,6 +2857,7 @@ if __name__ == "__main__":
 
     print(AppendParamsAction.params_string)
     params.update(AppendParamsAction.params_string)
+    params.policy_size = params.grip_hidden * params.grip_output
     params.use_wandb = use_wandb
     print(f"Updated params: {params}")
 
@@ -2878,6 +2880,7 @@ if __name__ == "__main__":
         main = np.load("main.dump.npy", allow_pickle=True)[0]
         main.plots = plots
         main.params.update(AppendParamsAction.params_string)
+        main.params.policy_size = main.params.grip_hidden * main.params.grip_output
         params.use_wandb = use_wandb
         main.sm = sm
     else:

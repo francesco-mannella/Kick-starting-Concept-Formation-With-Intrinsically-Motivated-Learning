@@ -17,7 +17,12 @@ class SMAgent:
             num_inputs=self.params.grip_input,
             num_hidden=self.params.grip_hidden,
             num_outputs=self.params.grip_output,
-            actuator_map_name="data/StoredGripActuatorMap",
+            actuator_map_name=self.params.grip_map_name,
+            encoding=self.params.grip_encoding,
+            input_norm=self.params.grip_input_norm,
+            output=self.params.grip_out_fn,
+            norm_name=self.params.grip_norm_name,
+            input_blocks=(self.params.somatosensory_size, self.params.proprioception_size, 2),
             *args,
             **kargs
         )

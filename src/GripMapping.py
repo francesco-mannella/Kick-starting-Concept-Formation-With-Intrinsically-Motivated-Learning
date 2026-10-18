@@ -163,7 +163,7 @@ class PrototypeGenerator:
                 batch_range = idcs[
                     np.arange(batch_size * batch, batch_size * (1 + batch))
                 ]
-                curr_data = torch.tensor(data[batch_range])
+                curr_data = torch.tensor(data[batch_range], dtype=torch.float)
                 optimizer.zero_grad()
                 output = som_layer(curr_data)
                 loss_ = curr_modulation * som_layer.loss(output)
@@ -243,8 +243,17 @@ def generate_grip_mapping(inner_domain_shape, env, trials=1000, stime=50, render
 
 
 if __name__ == "__main__":
-    num_hidden = 25 * 3
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate the grip input map (3 SOMs of side x side units)")
+    parser.add_argument("--side", type=int, default=5)
+    parser.add_argument("--out", default=None, help="Output path (default data/StoredGripActuatorMap_k<side>)")
+    parser.add_argument("--seed", type=int, default=0)
+    args = parser.parse_args()
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    num_hidden = args.side**2 * 3
     params.internal_size = num_hidden
-    env = SMEnv(0, params)
+    env = SMEnv(args.seed, params)
     weights = generate_grip_mapping(num_hidden, env, trials=1000)
-    np.save("/tmp/StoredGripActuatorMap", weights)
+    np.save(args.out or f"data/StoredGripActuatorMap_k{args.side}", weights)
