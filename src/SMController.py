@@ -327,6 +327,17 @@ class SMController:
         self.stm_a.update_params(sigma=sigma, lr=lr)
         self.sigma = sigma
 
+    def update_policy_map(self, policies, modulate, goals, lr):
+        mode = self.params.policy_winner
+        winners = goals.argmax(1) if mode == "forced" else None
+        anchor = goals if mode == "anchored" else None
+        if self.params.policy_update == "ema":
+            weights = goals / goals.max(1, keepdims=True) * lr
+            return self.stm_a.update(
+                policies, weights, winners=winners, ema_eta=self.params.policy_ema_eta, anchor=anchor
+            ).item()
+        return self.stm_a.update(policies, modulate, winners=winners, anchor=anchor).item()
+
     def update(
         self,
         visuals,
@@ -386,7 +397,9 @@ class SMController:
                 self.stm_v.update(visuals[cond_ind], modulate_cond).item(),
                 self.stm_ss.update(ssensories[match_ind], modulate_effect).item(),
                 self.stm_p.update(proprios[match_ind], modulate_effect).item(),
-                self.stm_a.update(policies[match_ind], modulate_effect).item(),
+                self.update_policy_map(
+                    policies[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
+                ),
             )
 
         # Update predictor: predictor predicts cumulated matches for a

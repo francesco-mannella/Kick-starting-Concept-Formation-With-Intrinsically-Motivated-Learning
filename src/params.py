@@ -26,6 +26,9 @@ class Parameters(ParameterManager):
         grip_out_fn="clip",
         grip_norm_name="data/StoredGripActuatorNorm",
         grip_touch_gain=1.0,
+        policy_winner="argmin",
+        policy_update="adam",
+        policy_ema_eta=0.05,
         internal_size=100,
         visual_size=300,
         somatosensory_size=40,
@@ -100,6 +103,9 @@ class Parameters(ParameterManager):
         self.grip_out_fn = grip_out_fn
         self.grip_norm_name = grip_norm_name
         self.grip_touch_gain = grip_touch_gain
+        self.policy_winner = policy_winner
+        self.policy_update = policy_update
+        self.policy_ema_eta = policy_ema_eta
         self.internal_size = internal_size
         self.visual_size = visual_size
         self.somatosensory_size = somatosensory_size

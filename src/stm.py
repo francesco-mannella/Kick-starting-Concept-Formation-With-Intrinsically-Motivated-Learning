@@ -123,6 +123,7 @@ class STM(torch.nn.Module):
         self.sigma = sigma
         self.learn_intrinsic_distances = learn_intrinsic_distances
         self.extrinsic_distances = extrinsic_distances
+        self.forced_winners = None
         self.radial_fun = radial_fun
         self.side = np.sqrt(output_size)
         self.grid = make_grid(self.side)
@@ -155,6 +156,8 @@ class STM(torch.nn.Module):
 
         # compute activation
         wta = norms2.argmin(dim=-1).detach().float()
+        if self.forced_winners is not None:
+            wta = self.forced_winners
         wta = torch.stack((wta // self.side, wta % self.side)).T
         radials = self.radial_fun(wta, self.sigma, self.output_size)
         radials = radials / (self.sigma * np.sqrt(np.pi * 2))
@@ -255,17 +258,43 @@ class SMSTM(STM):
         if lr is not None:
             self.modulate = lr
 
-    def update(self, data, dists):
+    def anchored_winners(self, norms2, anchor):
+        proximity = anchor / anchor.amax(dim=1, keepdim=True)
+        return (norms2 / proximity.clamp_min(1e-12)).argmin(dim=-1).float()
+
+    def update(self, data, dists, winners=None, ema_eta=None, anchor=None):
         assert len(data.shape) == 2
         assert data.shape[1] == self.input_size
         data = torch.tensor(data, dtype=torch.float)
         dists = torch.tensor(dists, dtype=torch.float)
-        self.optimizer.zero_grad()
-        out = self(data)
-        loss = self.loss(out, dists) * self.modulate
-        loss.backward()
-        self.optimizer.step()
-        return loss
+        self.forced_winners = None if winners is None else torch.tensor(winners, dtype=torch.float)
+        if anchor is not None:
+            with torch.no_grad():
+                norms2, _ = self.get_norms_and_activation(data)
+                self.forced_winners = self.anchored_winners(norms2, torch.tensor(anchor, dtype=torch.float))
+        try:
+            if ema_eta is not None:
+                return self.ema_step(data, dists, ema_eta)
+            self.optimizer.zero_grad()
+            out = self(data)
+            loss = self.loss(out, dists) * self.modulate
+            loss.backward()
+            self.optimizer.step()
+            return loss
+        finally:
+            self.forced_winners = None
+
+    def ema_step(self, data, dists, eta):
+        with torch.no_grad():
+            norms2, _ = self.get_norms_and_activation(data)
+            wta = norms2.argmin(dim=-1).float() if self.forced_winners is None else self.forced_winners
+            wta = torch.stack((wta // self.side, wta % self.side)).T
+            phi = (self.radial_fun(wta, self.sigma, self.output_size) * dists).float()
+            mass = phi.sum(0)
+            mean = (phi.T @ data) / mass.clamp_min(1e-12).unsqueeze(1)
+            gain = eta * mass / (1 + mass)
+            self.kernel += gain.unsqueeze(0) * (mean.T - self.kernel)
+            return (phi * norms2).mean()
 
     def set_weights(self, weights):
         with torch.no_grad():
