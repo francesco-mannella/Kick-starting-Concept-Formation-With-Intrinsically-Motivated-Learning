@@ -1,0 +1,5 @@
+cond,participation_ratio,components_95,random_share_outside,null_share_data_0,null_share_map_0,inert_distance_share_0,ratio_inside_0,rho_inside_0,ratio_outside_0,rho_outside_0,null_share_data_149,null_share_map_149,inert_distance_share_149,ratio_inside_149,rho_inside_149,ratio_outside_149,rho_outside_149
+K3_noise_ema_nosub,1.517,9.333,0.876,0.877,0.57,0.875,0.998,-0.017,1.0,0.003,0.872,0.553,0.875,0.344,0.86,0.348,0.832
+L1_subspace,8.429,14.333,0.469,0.467,,0.465,0.984,0.1,0.983,0.098,0.465,,0.468,0.25,0.919,0.248,0.911
+L2_subspace_noise,6.558,10.333,0.617,0.619,,0.618,0.994,0.059,0.992,0.064,0.625,,0.651,0.337,0.622,0.323,0.629
+L3_subspace_noise_ema,5.53,8.667,0.679,0.68,,0.681,1.005,-0.017,0.998,-0.007,0.676,,0.689,0.787,0.343,0.773,0.352

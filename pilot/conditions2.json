@@ -1,0 +1,46 @@
+{
+ "C_tanh": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='wta_block'",
+  "grip_out_fn='tanh'"
+ ],
+ "C_tg3": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='wta_block'",
+  "grip_touch_gain=3.0"
+ ],
+ "C_tanh_tg3": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='wta_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0"
+ ],
+ "D_tanh": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'"
+ ],
+ "D_tg3": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_touch_gain=3.0"
+ ],
+ "D_tanh_tg3": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0"
+ ]
+}

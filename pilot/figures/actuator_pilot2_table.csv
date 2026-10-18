@@ -1,0 +1,85 @@
+condition,metric,window,mean,sd,seeds
+baseline (old actuator),eval_episode_success_rate,epochs 0-50,0.2593,0.1893,3
+baseline (old actuator),eval_episode_success_rate,epochs 50-100,0.5296,0.2206,3
+baseline (old actuator),eval_episode_success_rate,epochs 100-150,0.8086,0.0719,3
+C,eval_episode_success_rate,epochs 0-50,0.3407,0.1723,3
+C,eval_episode_success_rate,epochs 50-100,0.5667,0.433,3
+C,eval_episode_success_rate,epochs 100-150,0.7006,0.2328,3
+D,eval_episode_success_rate,epochs 0-50,0.4741,0.3278,3
+D,eval_episode_success_rate,epochs 50-100,0.6741,0.2376,3
+D,eval_episode_success_rate,epochs 100-150,0.7315,0.2154,3
+C_tanh,eval_episode_success_rate,epochs 0-50,0.3667,0.1711,3
+C_tanh,eval_episode_success_rate,epochs 50-100,0.5741,0.1326,3
+C_tanh,eval_episode_success_rate,epochs 100-150,0.6173,0.1158,3
+D_tanh,eval_episode_success_rate,epochs 0-50,0.4185,0.1906,3
+D_tanh,eval_episode_success_rate,epochs 50-100,0.5,0.1392,3
+D_tanh,eval_episode_success_rate,epochs 100-150,0.713,0.1068,3
+C_tg3,eval_episode_success_rate,epochs 0-50,0.3481,0.1864,3
+C_tg3,eval_episode_success_rate,epochs 50-100,0.3741,0.2727,3
+C_tg3,eval_episode_success_rate,epochs 100-150,0.5401,0.1405,3
+D_tg3,eval_episode_success_rate,epochs 0-50,0.5111,0.1495,3
+D_tg3,eval_episode_success_rate,epochs 50-100,0.7,0.2882,3
+D_tg3,eval_episode_success_rate,epochs 100-150,0.7315,0.2422,3
+baseline (old actuator),grid_comp_mean,epochs 0-50,0.0121,0.0077,3
+baseline (old actuator),grid_comp_mean,epochs 50-100,0.0635,0.0329,3
+baseline (old actuator),grid_comp_mean,epochs 100-150,0.1563,0.0392,3
+C,grid_comp_mean,epochs 0-50,0.0159,0.0046,3
+C,grid_comp_mean,epochs 50-100,0.0734,0.0234,3
+C,grid_comp_mean,epochs 100-150,0.1473,0.0556,3
+D,grid_comp_mean,epochs 0-50,0.0224,0.006,3
+D,grid_comp_mean,epochs 50-100,0.0907,0.036,3
+D,grid_comp_mean,epochs 100-150,0.1696,0.0439,3
+C_tanh,grid_comp_mean,epochs 0-50,0.0177,0.0114,3
+C_tanh,grid_comp_mean,epochs 50-100,0.0835,0.0369,3
+C_tanh,grid_comp_mean,epochs 100-150,0.1559,0.0248,3
+D_tanh,grid_comp_mean,epochs 0-50,0.0169,0.0143,3
+D_tanh,grid_comp_mean,epochs 50-100,0.0645,0.0563,3
+D_tanh,grid_comp_mean,epochs 100-150,0.1426,0.0609,3
+C_tg3,grid_comp_mean,epochs 0-50,0.0169,0.0113,3
+C_tg3,grid_comp_mean,epochs 50-100,0.0642,0.0351,3
+C_tg3,grid_comp_mean,epochs 100-150,0.1353,0.0479,3
+D_tg3,grid_comp_mean,epochs 0-50,0.024,0.0132,3
+D_tg3,grid_comp_mean,epochs 50-100,0.1053,0.0256,3
+D_tg3,grid_comp_mean,epochs 100-150,0.1804,0.0116,3
+baseline (old actuator),touch_freq,epochs 0-50,0.0441,0.0028,3
+baseline (old actuator),touch_freq,epochs 50-100,0.0571,0.0062,3
+baseline (old actuator),touch_freq,epochs 100-150,0.0674,0.0039,3
+C,touch_freq,epochs 0-50,0.0366,0.0031,3
+C,touch_freq,epochs 50-100,0.0389,0.0018,3
+C,touch_freq,epochs 100-150,0.0516,0.0168,3
+D,touch_freq,epochs 0-50,0.031,0.004,3
+D,touch_freq,epochs 50-100,0.0372,0.0026,3
+D,touch_freq,epochs 100-150,0.0437,0.0015,3
+C_tanh,touch_freq,epochs 0-50,0.0351,0.0062,3
+C_tanh,touch_freq,epochs 50-100,0.0371,0.0093,3
+C_tanh,touch_freq,epochs 100-150,0.0485,0.0064,3
+D_tanh,touch_freq,epochs 0-50,0.0338,0.0052,3
+D_tanh,touch_freq,epochs 50-100,0.0465,0.0153,3
+D_tanh,touch_freq,epochs 100-150,0.0558,0.003,3
+C_tg3,touch_freq,epochs 0-50,0.041,0.009,3
+C_tg3,touch_freq,epochs 50-100,0.05,0.0101,3
+C_tg3,touch_freq,epochs 100-150,0.0574,0.0058,3
+D_tg3,touch_freq,epochs 0-50,0.0386,0.0091,3
+D_tg3,touch_freq,epochs 50-100,0.0457,0.0097,3
+D_tg3,touch_freq,epochs 100-150,0.0654,0.0213,3
+baseline (old actuator),mi_score_context_touch,epochs 0-50,0.0959,0.1193,3
+baseline (old actuator),mi_score_context_touch,epochs 50-100,0.1295,0.0474,3
+baseline (old actuator),mi_score_context_touch,epochs 100-150,0.1686,0.0787,3
+C,mi_score_context_touch,epochs 0-50,0.0709,0.0308,3
+C,mi_score_context_touch,epochs 50-100,0.1574,0.0326,3
+C,mi_score_context_touch,epochs 100-150,0.1151,0.0469,3
+D,mi_score_context_touch,epochs 0-50,0.1204,0.029,3
+D,mi_score_context_touch,epochs 50-100,0.1172,0.0507,3
+D,mi_score_context_touch,epochs 100-150,0.1133,0.0582,3
+C_tanh,mi_score_context_touch,epochs 0-50,0.1104,0.0498,3
+C_tanh,mi_score_context_touch,epochs 50-100,0.1352,0.0553,3
+C_tanh,mi_score_context_touch,epochs 100-150,0.1228,0.0636,3
+D_tanh,mi_score_context_touch,epochs 0-50,0.0893,0.0631,3
+D_tanh,mi_score_context_touch,epochs 50-100,0.1012,0.0183,3
+D_tanh,mi_score_context_touch,epochs 100-150,0.1245,0.0415,3
+C_tg3,mi_score_context_touch,epochs 0-50,0.1095,0.0242,3
+C_tg3,mi_score_context_touch,epochs 50-100,0.0813,0.0216,3
+C_tg3,mi_score_context_touch,epochs 100-150,0.1285,0.0522,3
+D_tg3,mi_score_context_touch,epochs 0-50,0.1121,0.0561,3
+D_tg3,mi_score_context_touch,epochs 50-100,0.146,0.0304,3
+D_tg3,mi_score_context_touch,epochs 100-150,0.1624,0.0308,3

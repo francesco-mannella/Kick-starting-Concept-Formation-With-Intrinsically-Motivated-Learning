@@ -1,0 +1,5 @@
+cond,success_mean,success_std,touch_freq_mean,touch_freq_std,match_mean,match_std
+intact,0.784,0.062,0.244,0.015,0.083,0.017
+no touch (zeros),0.769,0.058,0.241,0.024,0.085,0.018
+posture frozen at mean,0.778,0.056,0.236,0.005,0.087,0.015
+eye frozen at mean,0.753,0.066,0.226,0.014,0.088,0.011

@@ -1,0 +1,8 @@
+{
+ "base": [],
+ "A_oldmap": ["grip_map_name='data/StoredGripActuatorMap_oldnorm'", "grip_norm_name='data/StoredGripActuatorNorm_oldnorm'", "grip_input_norm='block_rms'"],
+ "A": ["grip_map_name='data/StoredGripActuatorMap_v3'", "grip_norm_name='data/StoredGripActuatorNorm_v3'", "grip_input_norm='block_rms'"],
+ "B": ["grip_map_name='data/StoredGripActuatorMap_v3s'", "grip_norm_name='data/StoredGripActuatorNorm_v3s'", "grip_input_norm='block_rms'"],
+ "C": ["grip_map_name='data/StoredGripActuatorMap_v3'", "grip_norm_name='data/StoredGripActuatorNorm_v3'", "grip_input_norm='block_rms'", "grip_encoding='wta_block'"],
+ "D": ["grip_map_name='data/StoredGripActuatorMap_v3'", "grip_norm_name='data/StoredGripActuatorNorm_v3'", "grip_input_norm='block_rms'", "grip_encoding='rbf_block'"]
+}

@@ -1,0 +1,50 @@
+{
+ "L1_subspace": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0",
+  "grip_basis_name='data/StoredGripBasis_v3_rbf'",
+  "grip_policy_dim=27"
+ ],
+ "L2_subspace_noise": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0",
+  "grip_basis_name='data/StoredGripBasis_v3_rbf'",
+  "grip_policy_dim=27",
+  "policy_params_amplitude=1.0",
+  "max_policy_noise=0.3"
+ ],
+ "L3_subspace_noise_ema": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0",
+  "grip_basis_name='data/StoredGripBasis_v3_rbf'",
+  "grip_policy_dim=27",
+  "policy_params_amplitude=1.0",
+  "max_policy_noise=0.3",
+  "policy_winner='anchored'",
+  "policy_update='ema'"
+ ],
+ "K3_noise_ema_nosub": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0",
+  "policy_params_amplitude=1.0",
+  "max_policy_noise=0.3",
+  "policy_winner='anchored'",
+  "policy_update='ema'"
+ ]
+}

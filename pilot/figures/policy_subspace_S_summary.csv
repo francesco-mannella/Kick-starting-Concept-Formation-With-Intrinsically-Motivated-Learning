@@ -1,0 +1,4 @@
+cond,participation_ratio,components_95,random_share_outside,null_share_data_0,null_share_map_0,inert_distance_share_0,ratio_inside_0,rho_inside_0,ratio_outside_0,rho_outside_0,null_share_data_149,null_share_map_149,inert_distance_share_149,ratio_inside_149,rho_inside_149,ratio_outside_149,rho_outside_149
+S2_amp2_noise0.15,1.56,10.667,0.858,0.857,0.57,0.856,0.999,-0.014,0.999,0.005,0.854,0.564,0.862,0.537,0.614,0.527,0.646
+S4_amp4_noise0.075,1.705,11.333,0.849,0.848,0.57,0.846,0.995,0.006,1.0,-0.005,0.845,0.569,0.836,0.396,0.693,0.4,0.71
+S8_amp8_noise0.0375,1.576,8.333,0.889,0.888,0.57,0.887,0.995,0.012,1.0,0.002,0.889,0.557,0.89,0.603,0.501,0.598,0.498

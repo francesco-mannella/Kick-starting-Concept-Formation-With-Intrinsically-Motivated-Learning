@@ -1,0 +1,32 @@
+{
+ "LD_ctrl": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0"
+ ],
+ "LD_U1": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0",
+  "policy_winner='anchored'",
+  "policy_update='ema'"
+ ],
+ "LD_S4": [
+  "grip_map_name='data/StoredGripActuatorMap_v3'",
+  "grip_norm_name='data/StoredGripActuatorNorm_v3'",
+  "grip_input_norm='block_rms'",
+  "grip_encoding='rbf_block'",
+  "grip_out_fn='tanh'",
+  "grip_touch_gain=3.0",
+  "policy_winner='anchored'",
+  "policy_update='ema'",
+  "policy_params_amplitude=4.0",
+  "max_policy_noise=0.075"
+ ]
+}

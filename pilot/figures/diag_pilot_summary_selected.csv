@@ -1,0 +1,16 @@
+metric,base,A_oldmap,A,B,C,D
+map_rank_total,32.0,32.0,32.0,32.0,32.0,32.0
+map_rank_touch,25.0,25.0,25.0,25.0,25.0,25.0
+map_rank_posture,5.0,5.0,5.0,5.0,5.0,5.0
+map_rank_eye,2.0,2.0,2.0,2.0,2.0,2.0
+policy_null_share_final,0.5715,0.5723,0.5672,0.5708,0.5721,0.567
+policy_null_share_init,0.5653,0.5761,0.5703,0.5702,0.5689,0.5648
+frac_clipped_with_policy,0.9999,0.9791,0.9884,0.9865,0.985,0.9897
+frac_all_outputs_clipped_with_policy,0.9993,0.9002,0.9442,0.9344,0.9266,0.9504
+unique_clipped_sign_patterns,17.0,31.6667,30.6667,31.0,26.6667,28.6667
+variance_share_touch,0.0,0.2761,0.0995,0.1228,0.331,0.3765
+variance_share_posture,0.0001,0.3421,0.4483,0.3107,0.3398,0.2029
+variance_share_eye,0.9999,0.3818,0.4522,0.5665,0.3291,0.4206
+touch_frames,642.3333,306.6667,236.6667,240.0,524.0,592.0
+touch_unique_patterns,245.0,161.6667,114.0,118.3333,189.0,275.6667
+touch_r2_in_prototype_span,0.8256,0.8992,0.8258,0.913,0.7332,0.7613
