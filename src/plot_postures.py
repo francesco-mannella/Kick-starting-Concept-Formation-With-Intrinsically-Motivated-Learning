@@ -22,6 +22,8 @@ from SMMain import build_episode_dataset
 
 warnings.filterwarnings("error")
 
+RENDER_CROP = (slice(99, 280), slice(52, 233))
+
 
 def generate_offset_points(points, distance=0.05):
     """Generate points offset by perpendicular normals."""
@@ -259,9 +261,26 @@ def load_and_process_data(trajectory_file="trajectories.csv", weight_file="weigh
     return df, has_sensors, weights
 
 
-def create_figure_layout(g):
+def arm_points(df):
+    angles = np.degrees(df[["d1", "d2", "d3", "d4", "d5"]].to_numpy())
+    return np.vstack(
+        [np.vstack(plot_polyline(a.copy(), [1, 1, 1, 0.5, 0.5])) for a in angles]
+    )
+
+
+def arm_limits(trajectory, margin=0.15):
+    """Square limits fitted to the arm and gripper over all frames of the displayed trajectory."""
+    points = arm_points(trajectory)
+    lo, hi = points.min(0), points.max(0)
+    half = (hi - lo).max() / 2 + margin
+    cx, cy = (lo + hi) / 2
+    return np.array([cx - half, cx + half]), np.array([cy - half, cy + half])
+
+
+def create_figure_layout(g, xlims=None, ylims=None):
     """Create figure with subplot grid layout."""
-    xlims, ylims = np.array([-2, 4]), np.array([-3, 3])
+    if xlims is None:
+        xlims, ylims = np.array([-2, 4]), np.array([-3, 3])
     gridsize = (4, 3)
     ratio = gridsize[0] / gridsize[1]
     dim = 8
@@ -491,7 +510,10 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
 
         self._init_traces(traces_ax, n)
         self._init_reps(traces_ax)
-        traces_ax.legend(loc="center left", bbox_to_anchor=(1, 0.7), title="Reps")
+        traces_ax.legend(
+            loc="lower center", bbox_to_anchor=(0.5, 1.01), ncol=3, frameon=False,
+            fontsize=8, handletextpad=0.2, columnspacing=0.8,
+        )
 
         self._init_labels(self.axes["label"], trajectory, episode_id)
         self._initialized = True
@@ -548,12 +570,12 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
             print("Saving first frame:")
             print(f"     timestep: {tss}/{t_tot_frames}")
             gif.seek(start + tss)
-            frames = np.array(gif)[150:270, 50:170]
+            frames = np.array(gif)[RENDER_CROP]
 
             print("Saving last frame:")
             print(f"     timestep: {tsl}/{t_tot_frames}")
             gif.seek(start + tsl)
-            framel = np.array(gif)[150:270, 50:170]
+            framel = np.array(gif)[RENDER_CROP]
 
             if save:
                 goal_id = int(trajectory.goal_id.iat[0])
@@ -683,10 +705,14 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
                 arm_coords, grip_coords = polylines[i]
                 loc_alphas = 0.01 + 0.99 * np.exp(-np.linspace(-14, 0, i + 1) ** 2)
 
-                self.lines1[i].set_data(arm_coords[:, 0], arm_coords[:, 1])
-                self.lines1[i].set_alpha(alphas[i])
-                self.lines2[i].set_data(grip_coords[:, 0], grip_coords[:, 1])
-                self.lines2[i].set_alpha(alphas[i])
+                age = data_idx - i
+                alpha = 1.0 if age == 0 else 0.03 + 0.97 * np.exp(-((age / 12) ** 2))
+                width = 3.0 if age == 0 else 1.2
+                for line, coords in ((self.lines1[i], arm_coords), (self.lines2[i], grip_coords)):
+                    line.set_data(coords[:, 0], coords[:, 1])
+                    line.set_alpha(alpha)
+                    line.set_linewidth(width)
+                    line.set_zorder(-100 + n + i / n)
 
                 self._update_traces(i, ss_data, p_data, ss_pp, p_pp, loc_alphas)
                 self._update_reps(i, ss_data, p_data, g_data, loc_alphas, n)
@@ -697,7 +723,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
                 if self.has_sensors:
                     self.scatters[i].set_offsets(offsets_pts[i])
                     self.scatters[i].set_sizes(sizes_arr[i])
-                    self.scatters[i].set_alpha(0.2 + 0.8 * alphas[i])
+                    self.scatters[i].set_alpha(0.2 + 0.8 * alpha)
                     artists.append(self.scatters[i])
 
                 artists.extend(self.episode_templates + [self.episode_label])
@@ -914,7 +940,8 @@ if __name__ == "__main__":
         )
 
     else:
-        fig, axes, xlims, ylims, sensor_points = create_figure_layout(g)
+        xlims, ylims = arm_limits(trajectory)
+        fig, axes, xlims, ylims, sensor_points = create_figure_layout(g, xlims, ylims)
 
         setup_ax(axes, "video", xlims, ylims)
 
