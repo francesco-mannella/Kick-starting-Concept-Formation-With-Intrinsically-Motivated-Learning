@@ -377,15 +377,21 @@ class SMController:
         cond_ind = np.zeros(match_ind.shape, dtype=np.bool)
         local_sigma_cond = np.zeros(local_sigma.shape)
         cgoals_cond = np.zeros(cgoals.shape)
+        goals_cond = np.zeros(goals.shape)
         for i in np.where(policy_changed == 1)[0]:
             cond_ind[i - self.params.policy_selection_steps : i] = 1
             local_sigma_cond[i - self.params.policy_selection_steps : i] = local_sigma[
                 i, None
             ]
             cgoals_cond[i - self.params.policy_selection_steps : i] = cgoals[i, None]
+            goals_cond[i - self.params.policy_selection_steps : i] = goals[i, None]
 
         local_sigma_cond = local_sigma_cond[cond_ind]
         modulate_cond = cgoals_cond[cond_ind]
+
+        anchored = self.params.map_winner == "anchored"
+        anchor_cond = goals_cond[cond_ind] if anchored else None
+        anchor_effect = goals[match_ind] if anchored else None
 
         # update maps
         if n_items > 0:
@@ -394,9 +400,9 @@ class SMController:
             self.stm_p.update_params(sigma=local_sigma_effect)
             self.stm_a.update_params(sigma=local_sigma_effect)
             curr_loss = (
-                self.stm_v.update(visuals[cond_ind], modulate_cond).item(),
-                self.stm_ss.update(ssensories[match_ind], modulate_effect).item(),
-                self.stm_p.update(proprios[match_ind], modulate_effect).item(),
+                self.stm_v.update(visuals[cond_ind], modulate_cond, anchor=anchor_cond).item(),
+                self.stm_ss.update(ssensories[match_ind], modulate_effect, anchor=anchor_effect).item(),
+                self.stm_p.update(proprios[match_ind], modulate_effect, anchor=anchor_effect).item(),
                 self.update_policy_map(
                     policies[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
                 ),

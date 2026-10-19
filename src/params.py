@@ -29,6 +29,7 @@ class Parameters(ParameterManager):
         grip_basis_name=None,
         grip_policy_dim=None,
         policy_winner="argmin",
+        map_winner="argmin",
         policy_update="adam",
         policy_ema_eta=0.05,
         internal_size=100,
@@ -108,6 +109,7 @@ class Parameters(ParameterManager):
         self.grip_basis_name = grip_basis_name
         self.grip_policy_dim = grip_policy_dim
         self.policy_winner = policy_winner
+        self.map_winner = map_winner
         self.policy_update = policy_update
         self.policy_ema_eta = policy_ema_eta
         self.internal_size = internal_size

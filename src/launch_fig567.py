@@ -22,6 +22,7 @@ def parse_arguments():
     parser.add_argument("--pretrain-epoch", type=int, default=1000, help="Parasite checkpoint the former parasite loads")
     parser.add_argument("--epochs-to-test", type=int, default=50)
     parser.add_argument("-o", "--opt", action="append", default=[], metavar="KEY=VALUE")
+    parser.add_argument("--stages", default="parasite,former", help="Comma separated subset of parasite,former")
     parser.add_argument("--min-free-gb", type=float, default=8.0)
     parser.add_argument("--force", action="store_true", help="Delete incomplete run folders")
     return parser.parse_args()
@@ -77,7 +78,8 @@ if __name__ == "__main__":
     root = Path(args.root)
     root.mkdir(parents=True, exist_ok=True)
     pretrained = f"{args.pretrain_epoch:06d}"
-    pending = [("parasite", s) for s in seeds] + [("former", s) for s in seeds]
+    stages = args.stages.split(",")
+    pending = [(stage, s) for stage in ("parasite", "former") if stage in stages for s in seeds]
     running, plans, state, started = {}, {}, {}, {}
     last_janitor = last_progress = 0.0
 
@@ -146,6 +148,6 @@ if __name__ == "__main__":
     write_progress(root, state, running, args.epochs)
     failed = [lr.run_name(m, s) for (m, s), st in state.items() if st != "done"]
     log(f"finished: {sum(st == 'done' for st in state.values())} done, {len(failed)} not done: {failed}")
-    if not failed:
+    if not failed and "former" in stages:
         subprocess.run([sys.executable, str(SRC / "plot_fig567.py"), "--db", str(root / "runs.db"), "--out", str(root / "figures")])
     sys.exit(1 if failed else 0)
