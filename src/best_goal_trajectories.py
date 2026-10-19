@@ -22,7 +22,7 @@ def segment_stats(segment, tail=5):
     return out
 
 
-def score_segments(df, min_steps, max_end, min_gain, min_directness):
+def score_segments(df, min_steps, max_end, min_gain, min_directness, max_ratio=1.0):
     df = df.copy()
     df["rep"] = df.e_seed.map({s: i for i, s in enumerate(sorted(df.e_seed.unique()))})
     rows = []
@@ -38,6 +38,7 @@ def score_segments(df, min_steps, max_end, min_gain, min_directness):
     seg["score"] = 0.0
     for name in MODALITIES:
         good &= (seg[f"{name}_end"] <= max_end) & (seg[f"{name}_gain"] >= min_gain) & (seg[f"{name}_directness"] >= min_directness)
+        good &= seg[f"{name}_end"] <= max_ratio * seg[f"{name}_start"]
         seg["score"] += seg[f"{name}_gain"] - seg[f"{name}_end"] + seg[f"{name}_directness"]
     seg["good"] = good
     return seg
@@ -48,8 +49,9 @@ def parse_arguments():
     parser.add_argument("--root", default="experiments/gifs/seeds")
     parser.add_argument("--seeds", default="0-9")
     parser.add_argument("--min-steps", type=int, default=15)
-    parser.add_argument("--max-end", type=float, default=2.5)
-    parser.add_argument("--min-gain", type=float, default=2.0)
+    parser.add_argument("--max-end", type=float, default=3.5)
+    parser.add_argument("--min-gain", type=float, default=1.5)
+    parser.add_argument("--max-ratio", type=float, default=0.6, help="End distance at most this fraction of the start distance")
     parser.add_argument("--min-directness", type=float, default=0.0)
     parser.add_argument("--eval-dir", default="eval20", help="Folder with trajectory_df.csv inside the checkpoint folder")
     return parser.parse_args()
@@ -61,7 +63,7 @@ if __name__ == "__main__":
     summary = []
     for k in range(int(lo), int(hi or lo) + 1):
         path = Path(args.root) / f"seed_{k}" / f"parasite_{k:03d}" / "simulations" / f"parasite_{k:03d}" / "storage" / "001499"
-        seg = score_segments(pd.read_csv(path / args.eval_dir / "trajectory_df.csv"), args.min_steps, args.max_end, args.min_gain, args.min_directness)
+        seg = score_segments(pd.read_csv(path / args.eval_dir / "trajectory_df.csv"), args.min_steps, args.max_end, args.min_gain, args.min_directness, args.max_ratio)
         seg.round(3).to_csv(path / args.eval_dir / "segment_scores.csv", index=False)
         good = seg[seg.good]
         best = good.sort_values("score").groupby("episode").tail(1)
