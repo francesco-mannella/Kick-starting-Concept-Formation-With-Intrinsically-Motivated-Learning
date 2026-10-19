@@ -190,7 +190,7 @@ class GraphManager:
             )
             num_clusters = len(set(cluster_labels))
 
-            cmap = plt.cm.get_cmap("tab20", 10)
+            cmap = plt.get_cmap("tab20").resampled(10)
             palette = cmap(np.arange(num_clusters))
 
             cluster_labels = palette[cluster_labels]
