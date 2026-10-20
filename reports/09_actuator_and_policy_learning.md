@@ -11,6 +11,7 @@ Period: 2026-10-17 to 2026-10-19. Branch `all_maps_anchored` (on top of `speed_c
 5. A full Figs 5-7 sweep (10 seeds, 1500 epochs) with the improved configuration reproduces the draft's qualitative claims: the parasite aligns its maps as well as the active agent (0.59 against 0.59) but does not gain control (success 0.26 against 0.79), and the former parasite does not learn faster than the agent (its mean success reaches 0.6 at epoch 500, the agent's at epoch 50).
 6. Applying the anchored winner rule to all maps (visual, touch, proprioception, as already done for the policy map) raises final alignment by about 8% (0.640 against 0.592) and context-policy information by 0.15, leaves final success equal, and lowers context-touch information by 0.02 to 0.03. It also makes 4 of 10 former parasites fail to recover (success 0.04 to 0.16, against 0.55 to 0.87 for every former parasite in the previous sweep).
 7. The four stuck former parasites are consistent with the draft's account that alignment learned in a yoked condition is not grounded in action: their effect maps are rewritten by more than their own norm, but their policy map stays frozen (1% change at epoch 51) because high imported competence switches off exploration while their loaded policies hardly touch the object.
+8. Giving all four maps one equation (the anchored winner plus the averaged update for the visual, touch and proprioception maps as well as the policy map) lowers alignment relative to Adam on the sensory maps: 0.34 at an averaging rate of 0.05 and 0.46 at 0.2, against 0.59 to 0.64 for the Adam-based sweeps. Both variants keep the parasite-equals-agent alignment and the parasite's low success, and both leave 3 to 6 of 10 former parasites stuck. The comparison confounds the equation with the effective step size, which the averaged update leaves smaller than Adam's.
 
 ## 2. Context and question
 
@@ -45,6 +46,8 @@ Files: `src/stm.py`, `src/SMController.py`, `src/params.py`.
 | `policy_update` | `adam`, `ema` | optimiser step or averaged update for the policy map |
 | `policy_ema_eta` | 0.05 | rate of the averaged update |
 | `map_winner` | `argmin`, `anchored` | the anchored rule for the visual, touch and proprioception maps (policy map unaffected) |
+| `map_update` | `adam`, `ema` | optimiser step or averaged update for the visual, touch and proprioception maps |
+| `map_ema_eta` | 0.05 | rate of the averaged update of those maps |
 
 Winner rules. `argmin` is the previous behaviour (nearest prototype of the noisy executed policy). `forced` makes the goal node the winner. `anchored` takes the nearest prototype under a penalty for distance from the goal: the winner is `argmin_k ||x - w_k||^2 / (A_k / max A)`, where `A` is the goal representation (a Gaussian of width `representation_sigma` = 2 around the goal node). With strong noise the data term carries no information and `anchored` equals `forced`; with weak noise it equals `argmin`. At the noise used in the first experiments the anchored and forced runs gave identical weights.
 
@@ -52,7 +55,7 @@ Correction to the formalisation. Taken literally, eq. 5 (the exact E-step) minim
 
 Averaged update. `policy_update = ema` implements the online rule of eq. 9, `w_j += eta phi_ij (d - w_j)`, in a bounded batch form: with `phi` the neighbourhood around the winner times the anchor weight, `S_j = sum_i phi_ij`, the weights move by `eta S_j / (1 + S_j)` toward the `phi`-weighted mean of the executed policies at node j. The Adam step it replaces rescales every gradient to a step of about the learning rate, so it cancels the local learning-rate modulation: the mean absolute weight change was 0.100 for modulation scales 0.1, 1 and 10 (this is the check of `reports/05` item 2, now confirmed; a loaded optimiser state was not available, so it was tested with a fresh optimiser).
 
-Anchored winner on all maps. For the touch and proprioception maps the anchor rows are `goals[match_ind]`; for the visual map they are the goal at the moment each condition window was selected (`goals_cond`). The M-step of the sensory maps is unchanged (Adam).
+Anchored winner on all maps. For the touch and proprioception maps the anchor rows are `goals[match_ind]`; for the visual map they are the goal at the moment each condition window was selected (`goals_cond`). With `map_update = adam` (the default) the M-step of the sensory maps is unchanged (Adam). With `map_update = ema` the three sensory maps take exactly the averaged update of the policy map, with the same anchor weights (`goals / max(goals) x local learning rate`) and the rate `map_ema_eta`, so one equation applies to all four maps. Smoke tests (11 epochs, seed 0, parasite mode): the default reproduces the improved sweep's seed-0 weights exactly (maximum difference 0.0 in all maps), the refactored all-maps configuration reproduces the earlier all-maps smoke run exactly, and the same-equation configuration stays finite and differs from the all-maps run from epoch 10 (visual 0.69, touch 0.65, proprioception 0.79), with a smaller weight spread than under Adam (visual 0.15 against 0.29, proprioception 0.16 against 0.37).
 
 Policy noise and scale (parameters unchanged, relevant for the findings). Executed policy = prototype + noise with standard deviation `0.01 + 20 x local incompetence`; the result is multiplied by `policy_params_amplitude` = 8 before it reaches the actuator.
 
@@ -67,6 +70,7 @@ Policy noise and scale (parameters unchanged, relevant for the findings). Execut
 | `diagnose_input_layer.py`, `saturation_touch.py`, `policy_controls.py`, `policy_topology.py`, `policy_subspace.py` | input-layer, saturation, control, topography and null-space diagnostics |
 | `best_goal_trajectories.py`, `policy_demos.py`, `green_demos.py` | find segments in which touch and proprioception converge on the goal, rank seeds, render demo animations |
 | `fig4_seed.py` | Figure 4 (goal-posture grid) for the active agent of one seed |
+| `merge_runs_db.py` | merges several local run databases (names and groups prefixed by source, images copied, refresh loop) so that one viewer shows several sweeps and smoke tests together |
 | `plot_postures.py` (changed) | sketch window fitted to the arm over all frames; poses fade by age so the current pose and gripper stay opaque; legend above the small grid; larger crop of the environment render; thumbnails scaled to the whole scene |
 | `SMGraphs.py` (changed) | `plt.get_cmap("tab20").resampled(10)` (the old `plt.cm.get_cmap` is gone in Matplotlib 3.9) |
 
@@ -133,7 +137,7 @@ U1 is the only variant that improves on the control in every window and was chos
 
 ## 9. Full Figs 5-7 sweeps (10 seeds, 1500 epochs, former parasites from the epoch-1000 parasite weights)
 
-Two configurations, both with the D_tanh_tg3 actuator and the U1 policy rule (EMA, anchored winner). "Improved" has `map_winner = argmin`; "all-maps" has `map_winner = anchored`. The original actuator with the default rule was not rebuilt: its first full sweep was stopped (12 minutes in) when the configuration was changed, and the earlier `parasite_NNN` runs had been lost.
+Four configurations, all with the D_tanh_tg3 actuator and the U1 policy rule (EMA, anchored winner) for the policy map. "Improved" has `map_winner = argmin` and Adam on the sensory maps; "all-maps" has `map_winner = anchored` and Adam on the sensory maps; "same-eq 0.05" and "same-eq 0.2" have `map_winner = anchored` and `map_update = ema` (section 9.2). The original actuator with the default rule was not rebuilt: its first full sweep was stopped (12 minutes in) when the configuration was changed, and the earlier `parasite_NNN` runs had been lost.
 
 Improved configuration (`experiments/fig567_improved`), mean +- sd over seeds, epochs 1000 to 1500:
 
@@ -175,6 +179,40 @@ Mechanism. The imported maps are well aligned, so the competence estimate starts
 
 Map displacement from the loaded state (`||W_t - W_0|| / ||W_0||`, recovering seeds, epochs 51 and 1500): touch 1.10 and 1.19, proprioception 0.62 and 0.56, visual 0.21 and 0.30, policy 0.08 and 0.50. In the stuck seeds the policy map moves 0.01 (epoch 51), 0.03 (201), 0.07 (501) and 0.22 (1500), while their touch and proprioception maps move even more (1.5 to 1.8 and 0.8). The effect maps are rewritten from the first epochs, the condition (visual) map is largely kept, and the policy map is rebuilt only where real contact produces success events. Displacement alone cannot separate reorganisation from drift.
 
+### 9.2 One equation for all four maps (`map_update = ema`)
+
+The all-maps sweep applies the anchored E-step to every map but the policy map still learns with a different M-step (averaged update) from the sensory maps (Adam), and with differently normalised weights. The same-equation sweeps remove that difference: the visual, touch, proprioception and policy maps all use the anchored winner and the averaged update with identical weights. Two rates: `policy_ema_eta = map_ema_eta` = 0.05 (the policy map's value so far) and 0.2 (the value that was better for the policy map in the probe). Epochs 1000 to 1500, mean +- sd over 10 seeds:
+
+| | improved | all-maps (Adam) | same-eq 0.05 | same-eq 0.2 |
+|---|---|---|---|---|
+| agent alignment | 0.592 +- 0.044 | 0.640 +- 0.048 | 0.342 +- 0.166 | 0.457 +- 0.109 |
+| parasite alignment | 0.589 | 0.644 | 0.398 | 0.483 |
+| former alignment | 0.601 | 0.623 | 0.408 | 0.494 |
+| agent success | 0.794 | 0.784 | 0.770 | 0.740 +- 0.238 |
+| parasite success | 0.259 | 0.342 | 0.236 | 0.226 |
+| former success | 0.719 +- 0.120 | 0.510 +- 0.361 | 0.314 +- 0.337 | 0.451 +- 0.301 |
+| agent MI context-policy | 0.793 | 0.944 | 0.712 | 0.881 |
+| agent MI context-touch | 0.181 | 0.160 | 0.133 | 0.135 |
+| agent touch frequency | 0.169 | 0.164 | 0.125 | 0.142 |
+| former seeds with success below 0.3 | 0 | 4 | 6 | 3 |
+
+Agent alignment in epochs 0-100 and 100-400: improved 0.082 and 0.393, all-maps 0.084 and 0.419, same-eq 0.05 0.067 and 0.215, same-eq 0.2 0.113 and 0.269. Former success per seed (epochs 1000 to 1500): same-eq 0.05 0.81, 0.29, 0.52, 0.01, 0.00, 0.02, 0.56, 0.04, 0.08, 0.83; same-eq 0.2 0.66, 0.52, 0.08, 0.00, 0.75, 0.12, 0.79, 0.31, 0.56, 0.72.
+
+Findings.
+- With one equation for all maps the alignment is lower than with Adam on the sensory maps and depends on the rate (0.34 at 0.05, 0.46 at 0.2, against 0.59 to 0.64). A larger rate speeds up the first 100 epochs (0.113 against 0.067) but the curve flattens at a lower level.
+- The structure of the dissociation is unchanged: in both variants the parasite's alignment equals the agent's (0.40 against 0.34 and 0.48 against 0.46) while the parasite's success stays low (0.23 to 0.24, against 0.74 to 0.77 for the agent).
+- Context-policy information is nearly recovered at the larger rate (0.88) but context-touch information stays low (0.135) and touch frequency is below the Adam-based sweeps.
+- The former parasite is worse than in the improved sweep in both variants, and its mean success never reaches 0.6. The number of stuck former parasites (success below 0.3) is 0, 4, 6 and 3 for the four sweeps and does not follow the alignment (0.59, 0.64, 0.34, 0.46), so the competence-trap explanation of section 9.1 does not account for it on its own.
+- The equation and the step size are confounded. Adam steps every weight by about its learning rate (0.1) whatever the gradient; the averaged update moves a node by `eta S / (1 + S)` of the distance to its weighted mean, which is smaller for nodes with little anchor mass. A rate-matched comparison (for example a rate that reproduces the displacement of the sensory maps under Adam) has not been run.
+
+### 9.3 What this means for the Topographic Gating formalisation
+
+Topographic Gating (`knowledgebase/topographic_gating.pdf`) uses the same weight family, phi_ij = neighbourhood(r_i) x anchor(t_i), with r_i the best-matching unit of the input, a leaky-integrator model of the update to bound learning leakage, and a closed-form weighted-mean M-step whose energy descent is Theorem 1; its section 5.5 states that the shared anchor across modalities has not been tested beyond one modality.
+- Anchored E-step. Moving the winner toward the anchor sets the scatter radius between the winner and the anchor to zero, which is the idealised case of the leakage bound (the two Gaussians fuse into one of width sigma_eff, centred on the anchor). The cost is that the "evidence and anchor must agree" reading of the gate is relaxed: evidence whose best-matching unit is far from the anchor still updates the anchor region. This suits the noisy policy map; for the sensory maps it moves goal formation toward the supervised regime of Topographic Gating, with the goal acting as the class label, so alignment is partly imposed.
+- Averaged M-step. The averaged update is a damped move toward the closed-form minimiser of Theorem 1, so the descent for fixed winners carries over (for fixed winners each node's energy is a strictly convex quadratic). Adam gives no such guarantee and rescales every gradient to a step of about the learning rate, so far nodes move as much as near ones and the leaky-integrator model behind the leakage bound does not describe it. Whether this affects Topographic Gating's own Adam-trained decoder is a hypothesis that has not been tested.
+- Multimodal test. The all-maps and same-equation sweeps are runs of the shared anchor across several modalities, which section 5.5 of that document lists as untested there; they are one agent and one task, not a benchmark.
+- Unchanged: the energy family and its convexity, the fused-kernel form, and the argmax readout (the soft Gaussian readout of the document is a separate matter). Topographic Gating modulates only sigma_r by maturity, while here the learning rate and the exploration noise are modulated too.
+
 ## 10. Demonstrations and Figure 4
 
 Seed selection (`best_goal_trajectories.py`). A policy segment is a good trajectory when touch and proprioception both start away from the goal node, gain at least 1.5 grid units, end within 3.5 units and end at most 0.6 times their starting distance. Such segments are rare: with the strict thresholds (end at most 1.5, gain at least 3) only 2 of 1323 segments qualified in a first 54-episode evaluation, and about 2 to 4% qualify with the relaxed criterion on 360 evaluation episodes per seed (257 of 9411 segments in the all-maps sweep, 196 in the improved sweep).
@@ -194,12 +232,14 @@ Figure 4 (best final posture per grid node, cluster-coloured by the policy-weigh
 - The criteria for good trajectories and the seed ranking are ad hoc thresholds; the ranking changes with them.
 - Success measures vigorous movement as much as learning (a constant policy reaches 0.64); alignment is the better learning signal.
 - The former-parasite pretraining length is 1001 epochs; the comparison with the original actuator and default rule is missing.
-- The stuck-seed mechanism is inferred from correlations; the competence-reset and map-reinitialisation tests have not been run.
+- The stuck-seed mechanism is inferred from correlations; the competence-reset and map-reinitialisation tests have not been run. The number of stuck former parasites does not follow the alignment across the four sweeps (section 9.2).
+- In the same-equation sweeps the equation is confounded with the step size of the sensory-map update (averaged update at rate 0.05 or 0.2 against Adam), so they do not show that one equation is worse than two.
 - `plot_postures.py` fails for a few segments whose environment render has fewer frames than the trajectory (merged duplicate frames); those were skipped.
 
 ## 12. Open questions and next steps
 
-1. Reset the competence predictor when loading the parasite's weights (or put a floor under the policy noise) and rerun the four stuck seeds; test the same for the earlier sweep's seeds.
+1. Reset the competence predictor when loading the parasite's weights (or put a floor under the policy noise) and rerun the stuck seeds of the all-maps and same-equation sweeps; test the same for the earlier sweep's seeds.
+1b. Run a rate-matched same-equation comparison: choose the averaged-update rate of the sensory maps so that their displacement matches Adam's, and rerun, to separate the equation from the step size.
 2. Reinitialise only the touch and proprioception maps of the former parasite and compare recovery with the normal case, to test whether the yoked effect structure helps or must be rebuilt.
 3. Decide on the model change parked as "hint 5": since the actuator output is effectively a joint-target posture, a low-dimensional posture-target policy, bootstrapped from the proprioception map, would replace noise discovery of 375 weights.
 4. A structured prior for the policy map in the new coordinates (the old interpolated weights are in the old 100x5 layout and unusable).
@@ -217,11 +257,11 @@ python src/launch_fig567.py --root experiments/fig567_improved --seeds 0-9 --epo
   -o "policy_winner='anchored'" -o "policy_update='ema'"
 ```
 
-For the all-maps configuration add `-o "map_winner='anchored'"`; `--stages parasite` or `--stages former` runs one stage (the former stage needs the parasite checkpoint at the chosen epoch). Demos: `python src/policy_demos.py --sweep <root> --work <dir> --out <dir>`, `python src/green_demos.py --work <dir> --out <dir>`, `python src/fig4_seed.py --seed K`. Condition definitions of all probes are in `pilot/conditions*.json` and their tables and figures in `pilot/figures`.
+For the all-maps configuration add `-o "map_winner='anchored'"`; for the same-equation configurations add also `-o "map_update='ema'" -o map_ema_eta=0.05` (default) or `-o policy_ema_eta=0.2 -o map_ema_eta=0.2`; `--stages parasite` or `--stages former` runs one stage (the former stage needs the parasite checkpoint at the chosen epoch). Demos: `python src/policy_demos.py --sweep <root> --work <dir> --out <dir>`, `python src/green_demos.py --work <dir> --out <dir>`, `python src/fig4_seed.py --seed K`. Condition definitions of all probes are in `pilot/conditions*.json` and their tables and figures in `pilot/figures`.
 
-Runs, databases and demos are untracked (`experiments/`); compressed trajectory files and the actuator maps are archived under `/workspace/home/kss_archive/` (`pilot_20261018`, `fig567_improved_20261019`, `fig567_all_maps_anchored_20261019`, `actuator_maps`). Figures of this report: `reports/figures_09/` (Figs 5 to 7 of both sweeps, Figure 4 for seed 9).
+Runs, databases and demos are untracked (`experiments/`); compressed trajectory files and the actuator maps are archived under `/workspace/home/kss_archive/` (`pilot_20261018`, `fig567_improved_20261019`, `fig567_all_maps_anchored_20261019`, `fig567_same_equation_20261020`, `fig567_same_equation_eta02_20261020`, `actuator_maps`; the trajectory files are gzipped, about 10 times smaller, and `pandas.read_csv` reads them directly). The local copies of those trajectory files were deleted after a SHA-256 check of each against its archived copy. Figures of this report: `reports/figures_09/` (Figs 5 to 7 of all four sweeps, Figure 4 for seed 9). The combined viewer (`merge_runs_db.py` plus `localwandb_server.py`) shows all sweeps and smoke tests with their map images.
 
-Commits (oldest first): `c490bf3` actuator encodings and diagnostics; `07a3968` touch gain; `7af1a42` saturation and topography analyses; `eaf703d` null-space analysis; `e2d7c38` winner modes and averaged update; `02f5084` subspace policy; `9c81f9b` pilot conditions and figures; `52f096f` sweep launcher and v3 map; `9c06cc0` animation framing; `7d29807` seed selection and colormap fix; `cd57867` anchored sensory maps and stage option; `0cb9808` policy demos; `f1e0c56` green demos.
+Commits (oldest first): `c490bf3` actuator encodings and diagnostics; `07a3968` touch gain; `7af1a42` saturation and topography analyses; `eaf703d` null-space analysis; `e2d7c38` winner modes and averaged update; `02f5084` subspace policy; `9c81f9b` pilot conditions and figures; `52f096f` sweep launcher and v3 map; `9c06cc0` animation framing; `7d29807` seed selection and colormap fix; `cd57867` anchored sensory maps and stage option; `0cb9808` policy demos; `f1e0c56` green demos; `05270d2` this report; `ecd0c74` averaged update for the sensory maps and the database merge tool.
 
 ## 14. Figures
 
@@ -236,6 +276,18 @@ All-maps anchored (`map_winner = anchored`): the same three figures.
 ![all-maps Fig 5](figures_09/allmaps_fig5.png)
 ![all-maps Fig 6](figures_09/allmaps_fig6.png)
 ![all-maps Fig 7](figures_09/allmaps_fig7.png)
+
+Same-equation, averaged update on all maps at rate 0.05 (`map_update = ema`): the same three figures.
+
+![same-eq 0.05 Fig 5](figures_09/sameeq005_fig5.png)
+![same-eq 0.05 Fig 6](figures_09/sameeq005_fig6.png)
+![same-eq 0.05 Fig 7](figures_09/sameeq005_fig7.png)
+
+Same-equation at rate 0.2: the same three figures.
+
+![same-eq 0.2 Fig 5](figures_09/sameeq02_fig5.png)
+![same-eq 0.2 Fig 6](figures_09/sameeq02_fig6.png)
+![same-eq 0.2 Fig 7](figures_09/sameeq02_fig7.png)
 
 Figure 4 for the active agent of seed 9 of the improved sweep (28 of 100 grid nodes filled, two policy clusters).
 
