@@ -338,6 +338,13 @@ class SMController:
             ).item()
         return self.stm_a.update(policies, modulate, winners=winners, anchor=anchor).item()
 
+    def update_sensory_map(self, stm, data, modulate, goals, lr):
+        anchor = goals if self.params.map_winner == "anchored" else None
+        if self.params.map_update == "ema":
+            weights = goals / goals.max(1, keepdims=True) * lr
+            return stm.update(data, weights, ema_eta=self.params.map_ema_eta, anchor=anchor).item()
+        return stm.update(data, modulate, anchor=anchor).item()
+
     def update(
         self,
         visuals,
@@ -378,6 +385,7 @@ class SMController:
         local_sigma_cond = np.zeros(local_sigma.shape)
         cgoals_cond = np.zeros(cgoals.shape)
         goals_cond = np.zeros(goals.shape)
+        lr_cond = np.zeros(local_lr.shape)
         for i in np.where(policy_changed == 1)[0]:
             cond_ind[i - self.params.policy_selection_steps : i] = 1
             local_sigma_cond[i - self.params.policy_selection_steps : i] = local_sigma[
@@ -385,13 +393,10 @@ class SMController:
             ]
             cgoals_cond[i - self.params.policy_selection_steps : i] = cgoals[i, None]
             goals_cond[i - self.params.policy_selection_steps : i] = goals[i, None]
+            lr_cond[i - self.params.policy_selection_steps : i] = local_lr[i, None]
 
         local_sigma_cond = local_sigma_cond[cond_ind]
         modulate_cond = cgoals_cond[cond_ind]
-
-        anchored = self.params.map_winner == "anchored"
-        anchor_cond = goals_cond[cond_ind] if anchored else None
-        anchor_effect = goals[match_ind] if anchored else None
 
         # update maps
         if n_items > 0:
@@ -400,9 +405,15 @@ class SMController:
             self.stm_p.update_params(sigma=local_sigma_effect)
             self.stm_a.update_params(sigma=local_sigma_effect)
             curr_loss = (
-                self.stm_v.update(visuals[cond_ind], modulate_cond, anchor=anchor_cond).item(),
-                self.stm_ss.update(ssensories[match_ind], modulate_effect, anchor=anchor_effect).item(),
-                self.stm_p.update(proprios[match_ind], modulate_effect, anchor=anchor_effect).item(),
+                self.update_sensory_map(
+                    self.stm_v, visuals[cond_ind], modulate_cond, goals_cond[cond_ind], lr_cond[cond_ind]
+                ),
+                self.update_sensory_map(
+                    self.stm_ss, ssensories[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
+                ),
+                self.update_sensory_map(
+                    self.stm_p, proprios[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
+                ),
                 self.update_policy_map(
                     policies[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
                 ),
