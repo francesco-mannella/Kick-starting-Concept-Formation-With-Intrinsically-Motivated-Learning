@@ -23,6 +23,8 @@ FIGURES = {
     5: [("agent", "parasite", "")],
     6: [("agent", "parasite", ""), ("parasite", "parasite", "_par")],
     7: [("agent", "parasite", ""), ("former parasite", "former", "")],
+    "6_noagent": [("parasite", "parasite", "_par")],
+    "7_noagent": [("former parasite", "former", "")],
 }
 
 
@@ -49,7 +51,17 @@ def style(ax):
     ax.tick_params(colors=INK2, labelsize=9)
 
 
-def make_figure(con, number, out_dir, table):
+def panel_tops(con):
+    tops = {}
+    for _, key, _ in PANELS:
+        for series_list in FIGURES.values():
+            for _, group, suffix in series_list:
+                mean, sd, _ = series(con, group, key + suffix)
+                tops[key] = max(tops.get(key, 0), (mean + sd).max())
+    return tops
+
+
+def make_figure(con, number, out_dir, table, tops):
     fig, axes = plt.subplots(1, 4, figsize=(16, 3.8), facecolor=SURFACE)
     handles, nseeds = {}, set()
     for ax, (title, key, ylim) in zip(axes, PANELS):
@@ -71,7 +83,7 @@ def make_figure(con, number, out_dir, table):
         if ylim:
             ax.set_ylim(*ylim)
         else:
-            ax.set_ylim(bottom=0)
+            ax.set_ylim(0, tops[key] * 1.02)
     fig.legend(handles.values(), handles.keys(), loc="upper right", ncol=len(handles),
                frameon=False, labelcolor=INK, fontsize=10, bbox_to_anchor=(0.995, 1.02))
     fig.text(0.005, 0.01, f"Mean and standard deviation over {max(nseeds)} replications.",
@@ -96,8 +108,9 @@ if __name__ == "__main__":
     out_dir.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(args.db)
     table = []
+    tops = panel_tops(con)
     for number in FIGURES:
-        print(make_figure(con, number, out_dir, table))
+        print(make_figure(con, number, out_dir, table, tops))
     columns = ["figure", "panel", "series", "epoch", "mean", "sd", "replications"]
     pd.DataFrame(table, columns=columns).to_csv(out_dir / "fig567_table.csv", index=False)
     print(out_dir / "fig567_table.csv")
