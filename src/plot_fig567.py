@@ -24,6 +24,8 @@ FIGURES = {
     6: [("agent", "parasite", ""), ("parasite", "parasite", "_par")],
     7: [("agent", "parasite", ""), ("former parasite", "former", "")],
     "6_noagent": [("parasite", "parasite", "_par")],
+    "7_all": [("agent", "parasite", ""), ("parasite", "parasite", "_par"),
+              ("former parasite", "former", "")],
     "7_noagent": [("former parasite", "former", "")],
 }
 
