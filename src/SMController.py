@@ -210,7 +210,17 @@ class SMController:
         mods = np.stack([v_p, ss_p, p_p, a_p])
         diffs = np.moveaxis(np.linalg.norm(mods - g_p, axis=-1), 0, -1)
         match_per_mod = np.exp(-(self.match_sigma**-2) * (diffs**2))
-        match = np.average(match_per_mod, axis=-1, weights=self.params.modalities_weights)
+        weights = self.params.modalities_weights
+        match = np.average(match_per_mod, axis=-1, weights=weights)
+        if self.params.match_mode != "arithmetic":
+            log_match = np.log(np.maximum(match_per_mod, 1e-300))
+            geometric = np.exp(np.average(log_match, axis=-1, weights=weights))
+            if self.params.match_mode == "geometric":
+                match = geometric
+            elif self.params.match_mode == "mixed":
+                match = 0.5 * match + 0.5 * geometric
+            else:
+                raise ValueError(f"unknown match_mode {self.params.match_mode!r}")
         return match, match_per_mod
 
     # TODO: This method is outdated and is kept for reference
