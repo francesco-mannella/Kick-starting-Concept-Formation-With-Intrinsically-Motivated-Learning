@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import mutual_info_score
+from sklearn.metrics import adjusted_mutual_info_score, mutual_info_score
 from sklearn.model_selection import GroupKFold, cross_val_score
 
 SRC = Path(__file__).resolve().parent
@@ -51,9 +51,10 @@ def segments(data, episodes):
             if not v.any() or (last is not None and np.allclose(v, last)):
                 continue
             policies.append(v.copy())
-            rows.append((ep, episodes.context[ep], episodes.stretch[ep], round(episodes.rotation[ep], 2), k))
+            rows.append((ep, episodes.context[ep], episodes.stretch[ep], round(episodes.rotation[ep], 2), k,
+                         int(data["v_r"][ep, t].argmax())))
             last, k = v, k + 1
-    return np.array(policies), pd.DataFrame(rows, columns=["ep", "ctx", "stretch", "rot", "k"])
+    return np.array(policies), pd.DataFrame(rows, columns=["ep", "ctx", "stretch", "rot", "k", "node"])
 
 
 def eta2(policies, labels):
@@ -69,14 +70,23 @@ def participation(x):
     return ev.sum() ** 2 / (ev**2).sum()
 
 
-def unit_null(policies, units, label, rng, n_perm):
+def permute_units(units, label, rng):
     # permute labels over whole (epoch, episode) units so repeated policies of one episode stay together
     first = pd.DataFrame({"unit": units, "label": label}).groupby("unit").label.first()
-    values = []
-    for _ in range(n_perm):
-        mapping = dict(zip(first.index, rng.permutation(first.values)))
-        values.append(eta2(policies, pd.Series(units).map(mapping).values))
+    mapping = dict(zip(first.index, rng.permutation(first.values)))
+    return pd.Series(units).map(mapping).values
+
+
+def unit_null(policies, units, label, rng, n_perm):
+    values = [eta2(policies, permute_units(units, label, rng)) for _ in range(n_perm)]
     return float(np.mean(values)), float(np.percentile(values, 95))
+
+
+def residual_node(policies, nodes):
+    out = policies.copy()
+    for n in np.unique(nodes):
+        out[nodes == n] -= policies[nodes == n].mean(0)
+    return out
 
 
 def mi_time_weighted(data, main, policies, rng, n_shuffle):
@@ -87,15 +97,16 @@ def mi_time_weighted(data, main, policies, rng, n_shuffle):
     index = KMeans(10, n_init=5, random_state=0).fit(policies).predict(actions[mask])
     contexts = main.episode_dataset.context.values
 
-    def mi(ctx):
-        return mutual_info_score(np.repeat(ctx[:, None], actions.shape[1], 1)[mask], index)
+    def mi(ctx, score=mutual_info_score):
+        return score(np.repeat(ctx[:, None], actions.shape[1], 1)[mask], index)
 
-    return mi(contexts), float(np.mean([mi(rng.permutation(contexts)) for _ in range(n_shuffle)]))
+    return (mi(contexts), float(np.mean([mi(rng.permutation(contexts)) for _ in range(n_shuffle)])),
+            mi(contexts, adjusted_mutual_info_score))
 
 
 def static_stats(args, rng):
-    pooled, labels, protos = [], [], None
-    mi_raw, mi_null = [], []
+    pooled, labels, protos, goal_protos = [], [], None, []
+    mi_raw, mi_null, mi_adj = [], [], []
     for epoch in parse_epochs(args.epochs):
         main, data = load(args.storage, epoch, args.data)
         policies, label = segments(data, main.episode_dataset)
@@ -105,9 +116,11 @@ def static_stats(args, rng):
         pooled.append(policies)
         labels.append(label)
         protos = getattr(main, args.controller).stm_a.get_weights().T
-        raw, null = mi_time_weighted(data, main, policies, rng, args.n_perm_mi)
+        goal_protos.append(protos[label.node.values])
+        raw, null, adjusted = mi_time_weighted(data, main, policies, rng, args.n_perm_mi)
         mi_raw.append(raw)
         mi_null.append(null)
+        mi_adj.append(adjusted)
     policies, label = np.vstack(pooled), pd.concat(labels, ignore_index=True)
     units = (label.epoch.astype(str) + "_" + label.ep.astype(str)).values
     first = (label.k == 0).values
@@ -153,6 +166,26 @@ def static_stats(args, rng):
 
     out["mi_context_policy"] = float(np.mean(mi_raw))
     out["mi_context_policy_shuffled"] = float(np.mean(mi_null))
+    out["mi_context_policy_excess"] = out["mi_context_policy"] - out["mi_context_policy_shuffled"]
+    out["ami_context_policy"] = float(np.mean(mi_adj))
+
+    nodes, contexts = label.node.values, label.ctx.values
+    goal_protos = np.vstack(goal_protos)
+    out["mi_context_goal_node"] = float(mutual_info_score(contexts, nodes))
+    out["mi_context_goal_node_shuffled"] = float(np.mean(
+        [mutual_info_score(permute_units(units, contexts, rng), nodes) for _ in range(args.n_perm_mi)]))
+    out["goal_nodes_used"] = int(len(np.unique(nodes)))
+    out["eta2_goal_node"] = float(eta2(policies, nodes))
+    out["eta2_goal_node_null"] = float(np.mean([eta2(policies, rng.permutation(nodes)) for _ in range(args.n_perm)]))
+    residual = residual_node(policies, nodes)
+    out["eta2_context_given_node"] = float(eta2(residual, contexts))
+    out["eta2_context_given_node_null"], out["eta2_context_given_node_p95"] = unit_null(
+        residual, units, contexts, rng, args.n_perm)
+    total = ((policies - policies.mean(0)) ** 2).sum()
+    out["noise_share"] = float(((policies - goal_protos) ** 2).sum() / total)
+    out["eta2_context_goal_prototype"] = float(eta2(goal_protos, contexts))
+    out["eta2_context_goal_prototype_null"], out["eta2_context_goal_prototype_p95"] = unit_null(
+        goal_protos, units, contexts, rng, args.n_perm)
 
     epochs_first = label.epoch.values[first]
     if len(np.unique(epochs_first)) >= 5:
