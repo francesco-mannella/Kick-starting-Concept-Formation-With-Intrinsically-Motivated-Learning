@@ -203,6 +203,12 @@ def static_stats(args, rng):
     out["eta2_context_goal_prototype_null"], out["eta2_context_goal_prototype_p95"] = unit_null(
         goal_protos, units, contexts, rng, args.n_perm)
 
+    components = np.linalg.svd(protos - protos.mean(0), full_matrices=False)[2]
+    for k in map(int, args.dims.split(",")):
+        low = policies @ components[:k].T
+        out[f"eta2_context_pc{k}"] = float(eta2(low, contexts))
+        out[f"eta2_context_pc{k}_null"], out[f"eta2_context_pc{k}_p95"] = unit_null(low, units, contexts, rng, args.n_perm)
+
     for name, rows in (("posture", posture_rows), ("posture_contact", [r for r in posture_rows if r[3] is not None])):
         ids = np.array([r[0] for r in rows])
         ctx = np.array([r[1] for r in rows])
@@ -307,6 +313,7 @@ def parse_arguments():
     parser.add_argument("--data", default="data.npy", help="data.npy or data_par.npy")
     parser.add_argument("--controller", default="controller", help="controller or controller_par")
     parser.add_argument("--out", default=None, help="Prefix of the output files")
+    parser.add_argument("--dims", default="3,10", help="Prototype principal components kept for the low-dimensional eta2")
     parser.add_argument("--counterfactual", action="store_true")
     parser.add_argument("--eseeds", default="101,102,103")
     parser.add_argument("--n-episodes", type=int, default=36)
