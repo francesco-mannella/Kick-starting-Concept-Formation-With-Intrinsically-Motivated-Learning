@@ -856,6 +856,7 @@ class Main:
                     data["p_p"][sa],
                     data["a_p"][sa],
                     data["g_p"][sa],
+                    ss_contact=np.linalg.norm(data["batch_ss"][sa], axis=-1) > 1e-6,
                 )
 
                 # update cumulative match only after the first policy was selected

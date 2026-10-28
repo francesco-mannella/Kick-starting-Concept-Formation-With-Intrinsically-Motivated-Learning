@@ -66,6 +66,7 @@ class Parameters(ParameterManager):
         representation_sigma=2.0,
         modalities_weights=(0.0, 1.0, 1.0, 0.0),  # use only touch and proprioception
         match_mode="arithmetic",
+        touch_gate=False,
         match_incr_th=0.001,
         cum_match_stop_th=1.0,
         predict_lr=0.05,
@@ -150,6 +151,7 @@ class Parameters(ParameterManager):
         self.representation_sigma = representation_sigma
         self.modalities_weights = modalities_weights
         self.match_mode = match_mode
+        self.touch_gate = touch_gate
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th
         self.predict_lr = predict_lr

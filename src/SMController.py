@@ -206,10 +206,12 @@ class SMController:
             0 if len(noise_sigma) == 0 else noise_sigma.mean(),
         )
 
-    def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p):
+    def computeMatchSimple(self, v_p, ss_p, p_p, a_p, g_p, ss_contact=None):
         mods = np.stack([v_p, ss_p, p_p, a_p])
         diffs = np.moveaxis(np.linalg.norm(mods - g_p, axis=-1), 0, -1)
         match_per_mod = np.exp(-(self.match_sigma**-2) * (diffs**2))
+        if self.params.touch_gate and ss_contact is not None:
+            match_per_mod[..., 1] *= ss_contact
         weights = self.params.modalities_weights
         match = np.average(match_per_mod, axis=-1, weights=weights)
         if self.params.match_mode != "arithmetic":
