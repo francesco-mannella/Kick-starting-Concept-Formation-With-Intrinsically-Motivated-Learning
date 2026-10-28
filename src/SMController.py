@@ -197,6 +197,13 @@ class SMController:
         )
 
         noise = self.rng.randn(*policies.shape)
+        k = self.params.policy_noise_subspace_k
+        if k > 0:
+            protos = self.stm_a.get_weights().T
+            basis = np.linalg.svd(protos - protos.mean(0), full_matrices=False)[2][:k]
+            sub = (noise @ basis.T) @ basis * np.sqrt(noise.shape[-1] / k)
+            floor = self.params.policy_noise_floor
+            noise = np.sqrt(1 - floor) * sub + np.sqrt(floor) * noise
         policies = policies + noise_sigma * noise
 
         return (
@@ -371,6 +378,7 @@ class SMController:
         policy_ended,
         local_lr,
         local_sigma,
+        match_per_mod=None,
     ):
         curr_loss = None
         mean_modulation = None
@@ -416,6 +424,14 @@ class SMController:
             self.stm_ss.update_params(sigma=local_sigma_effect)
             self.stm_p.update_params(sigma=local_sigma_effect)
             self.stm_a.update_params(sigma=local_sigma_effect)
+            policy_sel = np.asarray(match_ind, bool) & (
+                match_value >= self.params.policy_update_min_match
+            )
+            th = self.params.policy_update_min_mod_match
+            if th > 0 and match_per_mod is not None:
+                policy_sel &= (match_per_mod[:, 1] >= th) & (match_per_mod[:, 2] >= th)
+            if policy_sel.any():
+                self.stm_a.update_params(sigma=local_sigma[policy_sel])
             curr_loss = (
                 self.update_sensory_map(
                     self.stm_v, visuals[cond_ind], modulate_cond, goals_cond[cond_ind], lr_cond[cond_ind]
@@ -426,8 +442,12 @@ class SMController:
                 self.update_sensory_map(
                     self.stm_p, proprios[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
                 ),
-                self.update_policy_map(
-                    policies[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
+                (
+                    self.update_policy_map(
+                        policies[policy_sel], cgoals[policy_sel], goals[policy_sel], local_lr[policy_sel]
+                    )
+                    if policy_sel.any()
+                    else 0.0
                 ),
             )
 

@@ -879,6 +879,7 @@ class Main:
                             > controller.model_data["match_value_per_mod"][
                                 :, i - 1, touch_mod
                             ]
+                            + self.params.touch_incr_th
                         )
 
                         # Select only timesteps where match increases *globally*
@@ -1354,6 +1355,7 @@ class Main:
                     policy_ended.reshape(-1),
                     local_lr,
                     local_sigma,
+                    match_per_mod=self.controller.model_data["match_value_per_mod"].reshape(-1, 4),
                 )
             )
 
@@ -1789,6 +1791,7 @@ class Main:
                     policy_ended.reshape(-1),
                     local_lr,
                     local_sigma,
+                    match_per_mod=self.controller.model_data["match_value_per_mod"].reshape(-1, 4),
                 )
             )
 
@@ -1810,6 +1813,7 @@ class Main:
                 policy_ended_par.reshape(-1),
                 local_lr_par,
                 local_sigma_par,
+                match_per_mod=self.controller_par.model_data["match_value_per_mod"].reshape(-1, 4),
             )
 
             # Store trajectory data

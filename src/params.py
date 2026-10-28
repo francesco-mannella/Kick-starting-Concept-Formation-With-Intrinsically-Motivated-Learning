@@ -67,6 +67,11 @@ class Parameters(ParameterManager):
         modalities_weights=(0.0, 1.0, 1.0, 0.0),  # use only touch and proprioception
         match_mode="arithmetic",
         touch_gate=False,
+        touch_incr_th=0.0,
+        policy_update_min_match=0.0,
+        policy_update_min_mod_match=0.0,
+        policy_noise_subspace_k=0,
+        policy_noise_floor=0.1,
         match_incr_th=0.001,
         cum_match_stop_th=1.0,
         predict_lr=0.05,
@@ -152,6 +157,11 @@ class Parameters(ParameterManager):
         self.modalities_weights = modalities_weights
         self.match_mode = match_mode
         self.touch_gate = touch_gate
+        self.touch_incr_th = touch_incr_th
+        self.policy_update_min_match = policy_update_min_match
+        self.policy_update_min_mod_match = policy_update_min_mod_match
+        self.policy_noise_subspace_k = policy_noise_subspace_k
+        self.policy_noise_floor = policy_noise_floor
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th
         self.predict_lr = predict_lr
