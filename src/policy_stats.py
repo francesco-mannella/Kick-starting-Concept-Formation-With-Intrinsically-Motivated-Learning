@@ -57,6 +57,20 @@ def segments(data, episodes):
     return np.array(policies), pd.DataFrame(rows, columns=["ep", "ctx", "stretch", "rot", "k", "node"])
 
 
+def postures(data, episodes, epoch):
+    active = data["a"].any(-1)
+    touch = np.linalg.norm(data["ss"], axis=-1) > 1e-6
+    rows = []
+    for ep in range(active.shape[0]):
+        idx = np.where(active[ep])[0]
+        if len(idx) < 5:
+            continue
+        contact = idx[touch[ep, idx]]
+        rows.append((f"{epoch}_{ep}", episodes.context[ep], data["p"][ep, idx].mean(0),
+                     data["p"][ep, contact].mean(0) if len(contact) else None))
+    return rows
+
+
 def eta2(policies, labels):
     mu = policies.mean(0)
     total = ((policies - mu) ** 2).sum()
@@ -107,12 +121,14 @@ def mi_time_weighted(data, main, policies, rng, n_shuffle):
 def static_stats(args, rng):
     pooled, labels, protos, goal_protos = [], [], None, []
     mi_raw, mi_null, mi_adj = [], [], []
+    posture_rows = []
     for epoch in parse_epochs(args.epochs):
         main, data = load(args.storage, epoch, args.data)
         policies, label = segments(data, main.episode_dataset)
         if len(policies) < 12:
             continue
         label["epoch"] = epoch
+        posture_rows += postures(data, main.episode_dataset, epoch)
         pooled.append(policies)
         labels.append(label)
         protos = getattr(main, args.controller).stm_a.get_weights().T
@@ -186,6 +202,14 @@ def static_stats(args, rng):
     out["eta2_context_goal_prototype"] = float(eta2(goal_protos, contexts))
     out["eta2_context_goal_prototype_null"], out["eta2_context_goal_prototype_p95"] = unit_null(
         goal_protos, units, contexts, rng, args.n_perm)
+
+    for name, rows in (("posture", posture_rows), ("posture_contact", [r for r in posture_rows if r[3] is not None])):
+        ids = np.array([r[0] for r in rows])
+        ctx = np.array([r[1] for r in rows])
+        x = np.array([r[2] if name == "posture" else r[3] for r in rows])
+        out[f"eta2_{name}"] = float(eta2(x, ctx))
+        out[f"eta2_{name}_null"], out[f"eta2_{name}_p95"] = unit_null(x, ids, ctx, rng, args.n_perm)
+        out[f"{name}_episodes"] = len(rows)
 
     epochs_first = label.epoch.values[first]
     if len(np.unique(epochs_first)) >= 5:
