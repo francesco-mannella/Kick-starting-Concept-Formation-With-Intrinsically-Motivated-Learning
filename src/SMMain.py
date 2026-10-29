@@ -1356,6 +1356,7 @@ class Main:
                     local_lr,
                     local_sigma,
                     match_per_mod=self.controller.model_data["match_value_per_mod"].reshape(-1, 4),
+                    actuator=self.agent.grip_agent.grip,
                 )
             )
 
@@ -1792,6 +1793,7 @@ class Main:
                     local_lr,
                     local_sigma,
                     match_per_mod=self.controller.model_data["match_value_per_mod"].reshape(-1, 4),
+                    actuator=self.agent.grip_agent.grip,
                 )
             )
 
@@ -1814,6 +1816,7 @@ class Main:
                 local_lr_par,
                 local_sigma_par,
                 match_per_mod=self.controller_par.model_data["match_value_per_mod"].reshape(-1, 4),
+                actuator=self.agent.grip_agent.grip,
             )
 
             # Store trajectory data

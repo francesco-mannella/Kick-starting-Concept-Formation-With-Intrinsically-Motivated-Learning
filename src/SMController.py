@@ -77,6 +77,9 @@ class SMController:
         # self.comp_sigma = self.params.base_internal_sigma
         self.comp_sigma = self.params.representation_sigma
         self.curr_lr = None
+        self.reach_cov = None
+        self.reach_basis = None
+        self.policy_baseline = None
 
         self.base_policy_noise = self.params.base_policy_noise
         self.max_policy_noise = self.params.max_policy_noise
@@ -198,7 +201,12 @@ class SMController:
 
         noise = self.rng.randn(*policies.shape)
         k = self.params.policy_noise_subspace_k
-        if k > 0:
+        if self.params.policy_noise_reach_k > 0 and self.reach_basis is not None and len(noise) > 0:
+            Q = self.reach_basis
+            n_hid = Q.shape[0]
+            noise = noise.reshape(len(noise), n_hid, -1)
+            noise = np.einsum("hk,kj,njo->nho", Q, Q.T, noise).reshape(len(noise), -1)
+        elif k > 0:
             protos = self.stm_a.get_weights().T
             basis = np.linalg.svd(protos - protos.mean(0), full_matrices=False)[2][:k]
             sub = (noise @ basis.T) @ basis * np.sqrt(noise.shape[-1] / k)
@@ -357,6 +365,56 @@ class SMController:
             ).item()
         return self.stm_a.update(policies, modulate, winners=winners, anchor=anchor).item()
 
+    def update_reach_basis(self, ssensories, proprios, actuator, n_rows=300, decay=0.9):
+        rows = self.rng.choice(len(ssensories), min(n_rows, len(ssensories)), replace=False)
+        eye = actuator.input_mean[ssensories.shape[1] + proprios.shape[1] :]
+        H = np.stack([actuator.hidden(np.hstack([ssensories[i], proprios[i], eye])) for i in rows])
+        C = H.T @ H / len(H)
+        self.reach_cov = C if self.reach_cov is None else decay * self.reach_cov + (1 - decay) * C
+        w, v = np.linalg.eigh(self.reach_cov)
+        self.reach_basis = v[:, -self.params.policy_noise_reach_k :]
+
+    def baseline_select(self, sel, match_value, goals, local_lr):
+        rate = self.params.policy_update_baseline
+        if self.policy_baseline is None:
+            self.policy_baseline = np.full(goals.shape[1], np.nan)
+        idx = np.where(sel)[0]
+        nodes = goals[idx].argmax(1)
+        base = self.policy_baseline[nodes]
+        base = np.where(np.isnan(base), match_value[idx].mean(), base)
+        adv = match_value[idx] - base
+        for i, n in zip(idx, nodes):
+            b = self.policy_baseline[n]
+            self.policy_baseline[n] = match_value[i] if np.isnan(b) else b + rate * (match_value[i] - b)
+        keep = adv > 0
+        sel = np.zeros_like(sel)
+        sel[idx[keep]] = True
+        lr = local_lr.copy()
+        if keep.any():
+            scale = (adv[keep] / adv[keep].max()).reshape((-1,) + (1,) * (local_lr.ndim - 1))
+            lr[idx[keep]] = local_lr[idx[keep]] * scale
+        return sel, lr
+
+    def project_policies(self, policies, ssensories, proprios, goals, sel, actuator):
+        protos = self.stm_a.get_weights().T
+        n_hid, n_out = actuator.params.shape
+        eye = actuator.input_mean[ssensories.shape[1] + proprios.shape[1] :]
+        out = policies.copy()
+        for i in np.where(sel)[0]:
+            j = i
+            while j > 0 and np.array_equal(policies[j - 1], policies[i]):
+                j -= 1
+            states = np.hstack(
+                [ssensories[j : i + 1], proprios[j : i + 1], np.tile(eye, (i + 1 - j, 1))]
+            )
+            H = np.stack([actuator.hidden(s) for s in states])
+            _, sv, vt = np.linalg.svd(H, full_matrices=False)
+            Q = vt[sv > 1e-6 * sv[0]]
+            proto = protos[goals[i].argmax()].reshape(n_hid, n_out)
+            delta = policies[i].reshape(n_hid, n_out) - proto
+            out[i] = (proto + Q.T @ (Q @ delta)).ravel()
+        return out
+
     def update_sensory_map(self, stm, data, modulate, goals, lr):
         anchor = goals if self.params.map_winner == "anchored" else None
         if self.params.map_update == "ema":
@@ -379,6 +437,7 @@ class SMController:
         local_lr,
         local_sigma,
         match_per_mod=None,
+        actuator=None,
     ):
         curr_loss = None
         mean_modulation = None
@@ -424,14 +483,24 @@ class SMController:
             self.stm_ss.update_params(sigma=local_sigma_effect)
             self.stm_p.update_params(sigma=local_sigma_effect)
             self.stm_a.update_params(sigma=local_sigma_effect)
+            if self.params.policy_noise_reach_k > 0 and actuator is not None:
+                self.update_reach_basis(ssensories, proprios, actuator)
             policy_sel = np.asarray(match_ind, bool) & (
                 match_value >= self.params.policy_update_min_match
             )
             th = self.params.policy_update_min_mod_match
             if th > 0 and match_per_mod is not None:
                 policy_sel &= (match_per_mod[:, 1] >= th) & (match_per_mod[:, 2] >= th)
+            lr_pol = local_lr
+            if self.params.policy_update_baseline > 0 and policy_sel.any():
+                policy_sel, lr_pol = self.baseline_select(policy_sel, match_value, goals, local_lr)
             if policy_sel.any():
                 self.stm_a.update_params(sigma=local_sigma[policy_sel])
+            policies_upd = policies
+            if self.params.policy_output_space and actuator is not None and policy_sel.any():
+                policies_upd = self.project_policies(
+                    policies, ssensories, proprios, goals, policy_sel, actuator
+                )
             curr_loss = (
                 self.update_sensory_map(
                     self.stm_v, visuals[cond_ind], modulate_cond, goals_cond[cond_ind], lr_cond[cond_ind]
@@ -444,7 +513,7 @@ class SMController:
                 ),
                 (
                     self.update_policy_map(
-                        policies[policy_sel], cgoals[policy_sel], goals[policy_sel], local_lr[policy_sel]
+                        policies_upd[policy_sel], cgoals[policy_sel], goals[policy_sel], lr_pol[policy_sel]
                     )
                     if policy_sel.any()
                     else 0.0

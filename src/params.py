@@ -72,6 +72,9 @@ class Parameters(ParameterManager):
         policy_update_min_mod_match=0.0,
         policy_noise_subspace_k=0,
         policy_noise_floor=0.1,
+        policy_output_space=False,
+        policy_noise_reach_k=0,
+        policy_update_baseline=0.0,
         match_incr_th=0.001,
         cum_match_stop_th=1.0,
         predict_lr=0.05,
@@ -162,6 +165,9 @@ class Parameters(ParameterManager):
         self.policy_update_min_mod_match = policy_update_min_mod_match
         self.policy_noise_subspace_k = policy_noise_subspace_k
         self.policy_noise_floor = policy_noise_floor
+        self.policy_output_space = policy_output_space
+        self.policy_noise_reach_k = policy_noise_reach_k
+        self.policy_update_baseline = policy_update_baseline
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th
         self.predict_lr = predict_lr

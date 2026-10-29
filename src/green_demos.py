@@ -12,13 +12,14 @@ import pandas as pd
 SRC = Path(__file__).resolve().parent
 sys.path.insert(0, str(SRC))
 
+from best_goal_trajectories import score_segments  # noqa: E402
 from policy_demos import ENV, checkpoint, wait  # noqa: E402
 
 
-def select(work, seeds, top):
+def select(work, seeds, top, criteria):
     frames = []
     for seed in seeds:
-        seg = pd.read_csv(checkpoint(work, seed) / "final_ckpt" / "eval" / "segment_scores.csv")
+        seg = score_segments(pd.read_csv(checkpoint(work, seed) / "final_ckpt" / "eval" / "trajectory_df.csv"), **criteria)
         seg["seed"] = seed
         frames.append(seg)
     seg = pd.concat(frames)
@@ -82,6 +83,10 @@ def parse_arguments():
     parser.add_argument("--seeds", default="0-9")
     parser.add_argument("--top", type=int, default=10)
     parser.add_argument("--eval-seed", type=int, default=300)
+    parser.add_argument("--min-steps", type=int, default=15)
+    parser.add_argument("--max-end", type=float, default=3.5)
+    parser.add_argument("--min-gain", type=float, default=1.5)
+    parser.add_argument("--max-ratio", type=float, default=0.6)
     return parser.parse_args()
 
 
@@ -89,7 +94,8 @@ if __name__ == "__main__":
     args = parse_arguments()
     lo, _, hi = args.seeds.partition("-")
     seeds = list(range(int(lo), int(hi or lo) + 1))
-    chosen, available = select(args.work, seeds, args.top)
+    criteria = dict(min_steps=args.min_steps, max_end=args.max_end, min_gain=args.min_gain, min_directness=0.0, max_ratio=args.max_ratio)
+    chosen, available = select(args.work, seeds, args.top, criteria)
     print(f"{available} good green segments; using the best {len(chosen)} distinct ones", flush=True)
     ensure_rendered(args.work, sorted({(int(r.seed), int(r.rep)) for _, r in chosen.iterrows()}), args.eval_seed)
     render(args.work, chosen)
