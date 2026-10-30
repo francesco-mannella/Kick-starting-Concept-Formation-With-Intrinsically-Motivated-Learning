@@ -68,8 +68,8 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 .card { border: 1px solid var(--line); border-radius: 8px; padding: 8px; position: relative; min-width: 0; }
 .card h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 canvas { width: 100%; height: 220px; display: block; }
-.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line);
-  border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.18); z-index: 5; display: none; white-space: nowrap; }
+.tip { position: absolute; pointer-events: none; background: color-mix(in srgb, var(--panel) 45%, transparent); backdrop-filter: blur(2px); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px; font-size: 12px; z-index: 5; display: none; white-space: nowrap; }
 .empty { color: var(--muted); padding: 24px; text-align: center; }
 .imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 10px; }
 .imgs figure { margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
@@ -523,27 +523,20 @@ function drawChart(canvas, tip, series) {
 
   canvas.onmousemove = (e) => {
     const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const x = xmin + ((px - pad.l) / (w - pad.l - pad.r)) * (xmax - xmin);
-    const lines = [];
-    let nearest = null;
-    for (const s of series) {
-      let best = null;
-      for (const p of s.pts) if (best === null || Math.abs(p[0] - x) < Math.abs(best[0] - x)) best = p;
-      if (best) {
-        lines.push({ s, p: best });
-        if (nearest === null || Math.abs(best[0] - x) < Math.abs(nearest - x)) nearest = best[0];
-      }
+    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    let hit = null, dist = Infinity;
+    for (const s of series) for (const p of s.pts) {
+      const d = Math.hypot(X(p[0]) - px, Y(p[1]) - py);
+      if (d < dist) { dist = d; hit = { s, p }; }
     }
-    if (nearest === null) return;
-    tip.replaceChildren(h("div", { style: "color:var(--muted)" }, "step " + nearest),
-      ...lines.filter((l) => l.p[0] === nearest).map((l) =>
-        h("div", {}, h("span", { style: "color:" + l.s.color }, "● "), l.s.label + ": " + fmt(l.p[1]) +
-          (l.p.length > 2 ? " [" + fmt(l.p[2]) + ", " + fmt(l.p[3]) + "]" : ""))));
+    if (hit === null) return;
+    tip.replaceChildren(
+      h("div", {}, h("span", { style: "color:" + hit.s.color }, "● "), hit.s.label),
+      h("div", { style: "color:var(--muted)" }, "step " + hit.p[0] + ": " + fmt(hit.p[1]) +
+        (hit.p.length > 2 ? " [" + fmt(hit.p[2]) + ", " + fmt(hit.p[3]) + "]" : "")));
     tip.style.display = "block";
-    const left = Math.min(Math.max(X(nearest) + 12, 0), canvas.clientWidth - tip.offsetWidth);
-    tip.style.left = left + "px";
-    tip.style.top = "26px";
+    tip.style.left = Math.min(Math.max(X(hit.p[0]) + 12, 0), canvas.clientWidth - tip.offsetWidth) + "px";
+    tip.style.top = Math.max(Y(hit.p[1]) - tip.offsetHeight - 8, 0) + "px";
   };
   canvas.onmouseleave = () => { tip.style.display = "none"; };
 }
