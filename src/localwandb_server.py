@@ -2,6 +2,7 @@
 import argparse
 import json
 import mimetypes
+import sqlite3
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -11,6 +12,11 @@ from localwandb import connect, db_path, media_dir
 
 UI_FILE = Path(__file__).resolve().parent / "localwandb_ui.html"
 STALE_AFTER = 900
+MAX_POINTS = 300
+
+
+def connect_ro(db=None):
+    return sqlite3.connect(f"file:{db_path(db)}?mode=ro", uri=True, timeout=60)
 
 
 def rows(con, sql, args=()):
@@ -23,9 +29,9 @@ def list_runs(con):
     runs = rows(
         con,
         "SELECT r.id, r.project, r.entity, r.name, r.grp AS \"group\", r.status,"
-        " r.created, r.updated, m.last_step FROM runs r LEFT JOIN"
-        " (SELECT run_id, MAX(step) AS last_step FROM metrics GROUP BY run_id) m"
-        " ON m.run_id = r.id ORDER BY r.id DESC",
+        " r.created, r.updated,"
+        " (SELECT MAX(step) FROM metrics WHERE run_id = r.id) AS last_step"
+        " FROM runs r ORDER BY r.id DESC",
     )
     now = time.time()
     for r in runs:
@@ -34,12 +40,22 @@ def list_runs(con):
     return runs
 
 
+KEYS_CACHE = {}
+
+
 def run_keys(con, run_id):
+    status = rows(con, "SELECT status FROM runs WHERE id = ?", (run_id,))
+    final = bool(status) and status[0]["status"] != "running"
+    if final and run_id in KEYS_CACHE:
+        return KEYS_CACHE[run_id]
     metrics = [r["key"] for r in rows(
         con, "SELECT DISTINCT key FROM metrics WHERE run_id = ? ORDER BY key", (run_id,))]
     images = [r["key"] for r in rows(
         con, "SELECT DISTINCT key FROM media WHERE run_id = ? ORDER BY key", (run_id,))]
-    return {"metrics": metrics, "images": images}
+    found = {"metrics": metrics, "images": images}
+    if final:
+        KEYS_CACHE[run_id] = found
+    return found
 
 
 def run_config(con, run_id):
@@ -47,19 +63,31 @@ def run_config(con, run_id):
     return json.loads(found[0]["config"]) if found else {}
 
 
+def configs(con, run_ids):
+    marks = ",".join("?" * len(run_ids))
+    found = rows(con, f"SELECT id, config FROM runs WHERE id IN ({marks})", run_ids)
+    return {r["id"]: json.loads(r["config"] or "{}") for r in found}
+
+
+def decimate(pts, limit):
+    if len(pts) <= limit:
+        return pts
+    stride = -(-len(pts) // limit)
+    return [p for p in pts if p[0] % stride == 0 or p is pts[-1]]
+
+
 def metrics(con, run_ids, keys):
+    marks = ",".join("?" * len(keys))
     out = {}
     for run_id in run_ids:
         series = {}
-        for key in keys:
-            cur = con.execute(
-                "SELECT step, value FROM metrics WHERE run_id = ? AND key = ? ORDER BY step",
-                (run_id, key),
-            )
-            data = cur.fetchall()
-            if data:
-                series[key] = data
-        out[run_id] = series
+        cur = con.execute(
+            f"SELECT key, step, value FROM metrics WHERE run_id = ? AND key IN ({marks})",
+            (run_id, *keys),
+        )
+        for key, step, value in cur:
+            series.setdefault(key, []).append((step, value))
+        out[run_id] = {k: decimate(v, MAX_POINTS) for k, v in series.items()}
     return out
 
 
@@ -102,12 +130,15 @@ class Handler(BaseHTTPRequestHandler):
         return figures_dir(self.db, self.figures)
 
     def send_bytes(self, body, ctype, status=200):
-        self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     def send_json(self, obj, status=200):
         self.send_bytes(json.dumps(obj).encode(), "application/json", status)
@@ -136,7 +167,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(list_figures(self.figures_root()))
             return
 
-        con = connect(self.db)
+        try:
+            con = connect_ro(self.db)
+        except sqlite3.Error as e:
+            self.send_json({"error": str(e)}, 503)
+            return
         try:
             if path == "/api/runs":
                 self.send_json(list_runs(con))
@@ -146,6 +181,9 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/config":
                 run_id = int(query["run"][0])
                 self.send_json(run_config(con, run_id))
+            elif path == "/api/configs":
+                run_ids = [int(x) for x in query["runs"][0].split(",") if x]
+                self.send_json(configs(con, run_ids) if run_ids else {})
             elif path == "/api/metrics":
                 run_ids = [int(x) for x in query["runs"][0].split(",") if x]
                 keys = [k for k in query["keys"][0].split(",") if k]
@@ -158,6 +196,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_bytes(b"not found", "text/plain", 404)
         except (KeyError, ValueError, IndexError):
             self.send_bytes(b"bad request", "text/plain", 400)
+        except sqlite3.Error as e:
+            self.send_json({"error": str(e)}, 503)
         finally:
             con.close()
 

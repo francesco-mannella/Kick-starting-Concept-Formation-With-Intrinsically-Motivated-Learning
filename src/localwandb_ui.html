@@ -92,6 +92,17 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none; align-items: center; justify-content: center; z-index: 20; cursor: zoom-out; }
 .lightbox img { max-width: 96vw; max-height: 94vh; background: #fcfcfb; }
 td.diff { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.ghead { display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin-top: 4px; border-radius: 6px;
+  background: var(--bg); cursor: pointer; font-weight: 650; }
+.ghead .gname { flex: 1; overflow-wrap: anywhere; }
+.ghead .gcount { color: var(--muted); font-weight: 400; font-size: 12px; }
+.ghead button { padding: 0 6px; border: none; background: none; }
+.varkeys { display: flex; flex-wrap: wrap; gap: 4px; max-height: 72px; overflow: auto; }
+.chip { font-size: 11px; padding: 1px 6px; }
+.field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.field input[type=text], .field select { width: 100%; }
+.hidden { display: none; }
+.ghead .gsub { font-weight: 400; font-size: 11px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -105,13 +116,33 @@ td.diff { background: color-mix(in srgb, var(--warn) 18%, transparent); }
 </header>
 <div class="layout">
   <aside class="panel sidebar">
-    <div class="row">
-      <input type="text" id="runfilter" placeholder="Filter runs (name, group, id)">
+    <div class="field">
+      <label for="runfilter">Search runs</label>
+      <input type="text" id="runfilter" placeholder="name, group or id">
+    </div>
+    <div class="field">
+      <label for="paramfilter">Filter by parameter</label>
+      <input type="text" id="paramfilter" placeholder="e.g. seed=1, policy_noise_reach_k&gt;=5"
+        title="comma-separated: key=value, key!=value, key&lt;n, key&gt;=n, key (exists); value a|b means either">
+    </div>
+    <div class="field">
+      <label for="groupmode">Group runs</label>
+      <select id="groupmode">
+        <option value="">No grouping</option>
+        <option value="group">By run group</option>
+        <option value="*,-seed">Same configuration (merge seeds)</option>
+        <option value="custom">By chosen parameters...</option>
+      </select>
+      <div id="customgroup" class="hidden">
+        <input type="text" id="groupby" placeholder="parameter names, comma-separated"
+          title="* = every varying parameter; -key excludes one">
+        <div class="varkeys" id="varkeys" title="varying parameters: click to add or remove"></div>
+      </div>
     </div>
     <div class="row">
       <select id="project"><option value="">All projects</option></select>
-      <button id="selvisible">Select shown</button>
-      <button id="selnone">None</button>
+      <button id="selvisible" title="select every run currently listed">Select all shown</button>
+      <button id="selnone" title="deselect every run">Clear selection</button>
     </div>
     <div class="runlist" id="runlist"></div>
   </aside>
@@ -135,7 +166,9 @@ const state = {
   runs: [], selected: new Set(), keys: {}, configs: {}, series: {},
   tab: "charts", smooth: 0.6, pair: true, metricFilter: "", limit: 24,
   imgKey: "", imgStep: null, imgData: {}, diffOnly: true,
+  mcache: {}, gkeys: [], aggregate: true, collapsed: new Set(), colors: new Map(), seq: 0,
 };
+const FIELDS = ["name", "group", "project", "status", "entity", "id"];
 
 function store(key, value) { try { localStorage.setItem("lw_" + key, JSON.stringify(value)); } catch (e) {} }
 function load(key, fallback) {
@@ -164,7 +197,7 @@ async function api(url) {
 }
 
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-function runColor(id) { return cssVar("--c" + (id % 10)); }
+function runColor(id) { return cssVar(state.colors.get(id) || "--c9"); }
 function runById(id) { return state.runs.find((r) => r.id === id); }
 function runLabel(r) { return r ? r.name + " #" + r.id : "#?"; }
 
@@ -180,17 +213,108 @@ function fmt(v) {
 function smoothSeries(pts, s) {
   if (s <= 0 || pts.length < 2) return pts;
   const alpha = 1 - s;
-  let prev = pts[0][1];
-  return pts.map(([x, y]) => { prev = alpha * y + (1 - alpha) * prev; return [x, prev]; });
+  const prev = pts[0].slice(1);
+  return pts.map((p) => {
+    for (let i = 0; i < prev.length; i++) prev[i] = alpha * p[i + 1] + (1 - alpha) * prev[i];
+    return [p[0], ...prev];
+  });
+}
+
+function aggregate(lists) {
+  const by = new Map();
+  for (const pts of lists) for (const [x, y] of pts) {
+    if (!by.has(x)) by.set(x, []);
+    by.get(x).push(y);
+  }
+  return [...by].sort((a, b) => a[0] - b[0]).map(([x, ys]) =>
+    [x, ys.reduce((a, v) => a + v, 0) / ys.length, Math.min(...ys), Math.max(...ys)]);
 }
 
 /* ---------- runs sidebar ---------- */
 
+function runValue(r, key) {
+  const v = FIELDS.includes(key) ? r[key] : (state.configs[r.id] || {})[key];
+  if (v === undefined || v === null) return "";
+  return typeof v === "object" ? JSON.stringify(v) : String(v);
+}
+
+function parseConds(text) {
+  return text.split(/[,;]+/).map((t) => t.trim()).filter(Boolean).map((t) => {
+    const m = t.match(/^([^<>=!\s]+)\s*(<=|>=|!=|=|<|>)\s*(.*)$/);
+    return m ? { key: m[1], op: m[2], val: m[3].trim() } : { key: t, op: null };
+  });
+}
+
+function matches(r, c) {
+  const v = runValue(r, c.key);
+  if (c.op === null) return v !== "";
+  const eq = (o) => {
+    const a = Number(v), b = Number(o);
+    return v !== "" && o !== "" && !Number.isNaN(a) && !Number.isNaN(b) ? a === b : v.toLowerCase() === o;
+  };
+  const opts = c.val.split("|").map((x) => x.trim().toLowerCase());
+  if (c.op === "=") return opts.some(eq);
+  if (c.op === "!=") return !opts.some(eq);
+  const a = Number(v), b = Number(c.val);
+  if (v === "" || c.val === "" || Number.isNaN(a) || Number.isNaN(b)) return false;
+  return c.op === "<" ? a < b : c.op === ">" ? a > b : c.op === "<=" ? a <= b : a >= b;
+}
+
+function varyingKeys() {
+  const vals = {}, count = {};
+  for (const r of state.runs) for (const [k, v] of Object.entries(state.configs[r.id] || {})) {
+    (vals[k] = vals[k] || new Set()).add(typeof v === "object" ? JSON.stringify(v) : String(v));
+    count[k] = (count[k] || 0) + 1;
+  }
+  return Object.keys(vals).filter((k) => vals[k].size + (count[k] < state.runs.length ? 1 : 0) > 1).sort();
+}
+
+function updateGroupKeys() {
+  const toks = $("#groupby").value.split(",").map((t) => t.trim()).filter(Boolean);
+  const skip = new Set(toks.filter((t) => t[0] === "-").map((t) => t.slice(1)));
+  const keys = [];
+  for (const t of toks) {
+    if (t === "*") keys.push(...varyingKeys());
+    else if (t[0] !== "-") keys.push(t);
+  }
+  state.gkeys = [...new Set(keys)].filter((k) => !skip.has(k));
+}
+
+function clusterKey(r) { return state.gkeys.map((k) => k + "=" + runValue(r, k)).join(", "); }
+
+function clusterRuns(runs) {
+  const map = new Map();
+  for (const r of runs) {
+    const k = clusterKey(r);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(r);
+  }
+  return [...map].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+    .map(([key, rs]) => ({ key, runs: rs }));
+}
+
+function clusterLabel(c) {
+  const groups = [...new Set(c.runs.map((r) => r.group || ""))];
+  return groups.length === 1 && groups[0] && state.gkeys.join() !== "group" ? groups[0] : c.key || "all";
+}
+
+function colorMap() {
+  const sel = state.runs.filter((r) => state.selected.has(r.id)).sort((a, b) => a.id - b.id);
+  const m = new Map();
+  if (state.gkeys.length) {
+    const keys = clusterRuns(sel).map((c) => c.key);
+    for (const r of sel) m.set(r.id, "--c" + (keys.indexOf(clusterKey(r)) % 10));
+  } else sel.forEach((r, i) => m.set(r.id, "--c" + (i % 10)));
+  return m;
+}
+
 function visibleRuns() {
   const q = $("#runfilter").value.trim().toLowerCase();
   const project = $("#project").value;
+  const conds = parseConds($("#paramfilter").value);
   return state.runs.filter((r) => {
     if (project && r.project !== project) return false;
+    if (!conds.every((c) => matches(r, c))) return false;
     if (!q) return true;
     return [r.name, r.group, String(r.id), r.project].join(" ").toLowerCase().includes(q);
   });
@@ -205,10 +329,34 @@ function renderProjects() {
   sel.value = projects.includes(current) ? current : "";
 }
 
+function toggleGroupKey(k) {
+  const toks = $("#groupby").value.split(",").map((t) => t.trim()).filter(Boolean);
+  const drop = (t) => toks.filter((x) => x !== t);
+  const next = state.gkeys.includes(k)
+    ? (toks.includes(k) ? drop(k) : [...toks, "-" + k])
+    : (toks.includes("-" + k) ? drop("-" + k) : [...toks, k]);
+  $("#groupby").value = next.join(", ");
+  onGroupChange();
+}
+
+function renderVarKeys() {
+  $("#varkeys").replaceChildren(...varyingKeys().slice(0, 40).map((k) =>
+    h("button", { class: "chip" + (state.gkeys.includes(k) ? " on" : ""), onclick: () => toggleGroupKey(k) }, k)));
+}
+
+function onGroupChange() {
+  store("groupby", $("#groupby").value);
+  updateGroupKeys();
+  renderVarKeys();
+  renderRuns();
+  render();
+}
+
 function renderRuns() {
+  state.colors = colorMap();
   const list = $("#runlist");
   const runs = visibleRuns();
-  list.replaceChildren(...runs.map((r) => {
+  const row = (r) => {
     const on = state.selected.has(r.id);
     const cb = h("input", { type: "checkbox" });
     cb.checked = on;
@@ -224,23 +372,59 @@ function renderRuns() {
       toggleRun(r.id, cb.checked);
     });
     return item;
-  }));
-  $("#count").textContent = state.runs.length + " runs";
+  };
+  const items = [];
+  if (!state.gkeys.length) items.push(...runs.map(row));
+  else for (const c of clusterRuns(runs)) {
+    const ids = c.runs.map((r) => r.id);
+    const n = ids.filter((id) => state.selected.has(id)).length;
+    const cb = h("input", { type: "checkbox" });
+    cb.checked = n === ids.length;
+    cb.indeterminate = n > 0 && n < ids.length;
+    const closed = state.collapsed.has(c.key);
+    const head = h("div", { class: "ghead" }, cb, h("div", { class: "gname", title: c.key },
+        clusterLabel(c), clusterLabel(c) !== c.key ? h("div", { class: "gsub" }, c.key) : null),
+      h("span", { class: "gcount" }, n + "/" + ids.length),
+      h("button", { onclick: (e) => {
+        e.stopPropagation();
+        if (closed) state.collapsed.delete(c.key); else state.collapsed.add(c.key);
+        renderRuns();
+      } }, closed ? "▸" : "▾"));
+    head.addEventListener("click", () => setRuns(ids, n !== ids.length));
+    items.push(head);
+    if (!closed) items.push(...c.runs.map(row));
+  }
+  list.replaceChildren(...items);
+  $("#count").textContent = runs.length === state.runs.length ? state.runs.length + " runs"
+    : runs.length + " of " + state.runs.length + " runs";
   $("#selinfo").textContent = state.selected.size + " selected";
 }
 
-function toggleRun(id, on) {
-  if (on) state.selected.add(id); else state.selected.delete(id);
+function setRuns(ids, on) {
+  for (const id of ids) { if (on) state.selected.add(id); else state.selected.delete(id); }
   store("selected", [...state.selected]);
   renderRuns();
   refreshData(true);
 }
 
+function toggleRun(id, on) { setRuns([id], on); }
+
+async function loadConfigs() {
+  const missing = state.runs.map((r) => r.id).filter((id) => !(id in state.configs));
+  for (let i = 0; i < missing.length; i += 400)
+    Object.assign(state.configs, await api("/api/configs?runs=" + missing.slice(i, i + 400).join(",")));
+}
+
 async function loadRuns() {
   state.runs = await api("/api/runs");
+  await loadConfigs();
   const ids = new Set(state.runs.map((r) => r.id));
+  const before = state.selected.size;
   for (const id of [...state.selected]) if (!ids.has(id)) state.selected.delete(id);
+  if (state.selected.size !== before) store("selected", [...state.selected]);
+  updateGroupKeys();
   renderProjects();
+  renderVarKeys();
   renderRuns();
 }
 
@@ -252,10 +436,6 @@ async function refreshData(rebuild) {
   const ids = selectedIds();
   await Promise.all(ids.map(async (id) => {
     state.keys[id] = await api("/api/keys?run=" + id);
-    const run = runById(id);
-    if (!(id in state.configs) || (run && run.status === "running" && rebuild)) {
-      state.configs[id] = await api("/api/config?run=" + id);
-    }
   }));
   render(rebuild);
 }
@@ -297,9 +477,10 @@ function drawChart(canvas, tip, series) {
   const pad = { l: 46, r: 10, t: 8, b: 22 };
 
   let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (const s of series) for (const [x, y] of s.pts) {
+  for (const s of series) for (const [x, y, lo, hi] of s.pts) {
     if (x < xmin) xmin = x; if (x > xmax) xmax = x;
-    if (y < ymin) ymin = y; if (y > ymax) ymax = y;
+    const a = lo === undefined ? y : lo, b = hi === undefined ? y : hi;
+    if (a < ymin) ymin = a; if (b > ymax) ymax = b;
   }
   if (!isFinite(xmin)) return;
   if (xmin === xmax) { xmin -= 1; xmax += 1; }
@@ -321,6 +502,15 @@ function drawChart(canvas, tip, series) {
   for (let i = 0; i <= 4; i++) {
     const v = xmin + ((xmax - xmin) * i) / 4;
     ctx.fillText(fmt(v), X(v), hgt - pad.b + 5);
+  }
+  for (const s of series) {
+    if (!s.pts.length || s.pts[0].length < 3) continue;
+    ctx.fillStyle = s.color; ctx.globalAlpha = 0.15;
+    ctx.beginPath();
+    s.pts.forEach((p, i) => (i ? ctx.lineTo(X(p[0]), Y(p[2])) : ctx.moveTo(X(p[0]), Y(p[2]))));
+    for (let i = s.pts.length - 1; i >= 0; i--) ctx.lineTo(X(s.pts[i][0]), Y(s.pts[i][3]));
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
   }
   for (const s of series) {
     ctx.strokeStyle = s.color; ctx.lineWidth = 1.8;
@@ -348,7 +538,8 @@ function drawChart(canvas, tip, series) {
     if (nearest === null) return;
     tip.replaceChildren(h("div", { style: "color:var(--muted)" }, "step " + nearest),
       lines.filter((l) => l.p[0] === nearest).map((l) =>
-        h("div", {}, h("span", { style: "color:" + l.s.color }, "● "), l.s.label + ": " + fmt(l.p[1]))));
+        h("div", {}, h("span", { style: "color:" + l.s.color }, "● "), l.s.label + ": " + fmt(l.p[1]) +
+          (l.p.length > 2 ? " [" + fmt(l.p[2]) + ", " + fmt(l.p[3]) + "]" : ""))));
     tip.style.display = "block";
     const left = Math.min(Math.max(X(nearest) + 12, 0), canvas.clientWidth - tip.offsetWidth);
     tip.style.left = left + "px";
@@ -357,20 +548,48 @@ function drawChart(canvas, tip, series) {
   canvas.onmouseleave = () => { tip.style.display = "none"; };
 }
 
+function chartUnits(ids) {
+  if (!state.gkeys.length)
+    return ids.map((id) => ({ label: runLabel(runById(id)), color: runColor(id), ids: [id] }));
+  return clusterRuns(ids.map(runById).filter(Boolean)).map((c) =>
+    ({ label: clusterLabel(c) + " (n=" + c.runs.length + ")", color: runColor(c.runs[0].id), ids: c.runs.map((r) => r.id) }));
+}
+
+async function fetchMetrics(ids, keys) {
+  const stamp = {};
+  const need = [];
+  for (const id of ids) {
+    stamp[id] = runById(id).last_step;
+    for (const k of keys) {
+      const c = state.mcache[id + "|" + k];
+      if (!c || c.step !== stamp[id]) need.push([id, k]);
+    }
+  }
+  if (need.length) {
+    const nids = [...new Set(need.map((n) => n[0]))], nkeys = [...new Set(need.map((n) => n[1]))];
+    const data = await api("/api/metrics?runs=" + nids.join(",") + "&keys=" + encodeURIComponent(nkeys.join(",")));
+    for (const id of nids) for (const k of nkeys) state.mcache[id + "|" + k] = { step: stamp[id], pts: (data[id] || {})[k] || [] };
+  }
+  return (id, key) => (state.mcache[id + "|" + key] || { pts: [] }).pts;
+}
+
 async function renderCharts(rebuild) {
   const content = $("#content");
+  const my = ++state.seq;
+  state.colors = colorMap();
   const ids = selectedIds();
   if (!ids.length) { content.replaceChildren(h("div", { class: "empty" }, "Select one or more runs.")); return; }
 
   const groups = chartGroups();
   const shown = groups.slice(0, state.limit);
   const keys = [...new Set(shown.flatMap((g) => g.members))];
-  const data = keys.length
-    ? await api("/api/metrics?runs=" + ids.join(",") + "&keys=" + encodeURIComponent(keys.join(",")))
-    : {};
+  const getPts = keys.length ? await fetchMetrics(ids, keys) : () => [];
+  if (my !== state.seq) return;
 
-  const legend = h("div", { class: "legend" }, ids.map((id) =>
-    h("span", {}, h("span", { class: "swatch", style: "border-color:" + runColor(id) }), runLabel(runById(id)))));
+  const units = chartUnits(ids);
+  const averaging = state.gkeys.length > 0 && state.aggregate;
+  const legend = h("div", { class: "legend" }, units.map((u) =>
+    h("span", {}, h("span", { class: "swatch", style: "border-color:" + u.color }), u.label)));
   if (state.pair) legend.append(h("span", {}, h("span", { class: "swatch dashed", style: "border-color:var(--muted)" }), "dashed: parasite (_par)"));
 
   const controls = h("div", { class: "controls" },
@@ -382,16 +601,25 @@ async function renderCharts(rebuild) {
     h("label", { class: "inline" },
       h("input", { type: "checkbox", checked: state.pair,
         onchange: (e) => { state.pair = e.target.checked; store("pair", state.pair); renderCharts(); } }),
-      "overlay _par metrics"));
+      "overlay _par metrics"),
+    state.gkeys.length ? h("label", { class: "inline" },
+      h("input", { type: "checkbox", checked: state.aggregate,
+        onchange: (e) => { state.aggregate = e.target.checked; store("aggregate", state.aggregate); renderCharts(); } }),
+      "average groups (min-max band)") : null);
 
   const grid = h("div", { class: "grid" });
   const toDraw = [];
   for (const g of shown) {
     const series = [];
-    for (const id of ids) for (const key of g.members) {
-      const pts = ((data[id] || {})[key]) || [];
-      if (pts.length) series.push({ label: runLabel(runById(id)) + (key.endsWith("_par") && g.members.length > 1 ? " (par)" : ""),
-        color: runColor(id), dashed: g.members.length > 1 && key.endsWith("_par"), pts: smoothSeries(pts, state.smooth) });
+    for (const u of units) for (const key of g.members) {
+      const dashed = g.members.length > 1 && key.endsWith("_par");
+      const sfx = dashed ? " (par)" : "";
+      const lists = u.ids.map((id) => [id, getPts(id, key)]).filter(([, pts]) => pts.length);
+      if (!lists.length) continue;
+      if (averaging) series.push({ label: u.label + sfx, color: u.color, dashed,
+        pts: smoothSeries(aggregate(lists.map(([, pts]) => pts)), state.smooth) });
+      else for (const [id, pts] of lists) series.push({ label: runLabel(runById(id)) + sfx, color: u.color, dashed,
+        pts: smoothSeries(pts, state.smooth) });
     }
     if (!series.length) continue;
     const canvas = h("canvas");
@@ -414,6 +642,8 @@ async function renderCharts(rebuild) {
 
 async function renderImages() {
   const content = $("#content");
+  const my = ++state.seq;
+  state.colors = colorMap();
   const ids = selectedIds();
   if (!ids.length) { content.replaceChildren(h("div", { class: "empty" }, "Select one or more runs.")); return; }
   const keys = unionKeys("images");
@@ -425,6 +655,7 @@ async function renderImages() {
     per[id] = (state.keys[id].images || []).includes(state.imgKey)
       ? await api("/api/images?run=" + id + "&key=" + encodeURIComponent(state.imgKey)) : [];
   }));
+  if (my !== state.seq) return;
   const steps = [...new Set(ids.flatMap((id) => per[id].map((i) => i.step)))].sort((a, b) => a - b);
   if (state.imgStep === null || !steps.includes(state.imgStep)) state.imgStep = steps[steps.length - 1];
   const idx = steps.indexOf(state.imgStep);
@@ -449,6 +680,8 @@ async function renderImages() {
 
 function renderConfig() {
   const content = $("#content");
+  state.seq++;
+  state.colors = colorMap();
   const ids = selectedIds();
   if (!ids.length) { content.replaceChildren(h("div", { class: "empty" }, "Select one or more runs.")); return; }
   const keys = [...new Set(ids.flatMap((id) => Object.keys(state.configs[id] || {})))].sort();
@@ -503,7 +736,9 @@ function showLightbox(src) {
 async function renderFigures() {
   const content = $("#content");
   const f = state.figs;
+  const my = ++state.seq;
   f.list = await api("/api/figures");
+  if (my !== state.seq) return;
   const images = f.list.filter((x) => x.type === "image");
   const tables = f.list.filter((x) => x.type === "table");
   const others = f.list.filter((x) => x.type === "other");
@@ -526,6 +761,7 @@ async function renderFigures() {
     const current = tables.find((x) => x.name === f.table);
     const key = current.name + current.mtime;
     if (!f.rows[key]) f.rows[key] = parseCsv(await (await fetch(url(current))).text());
+    if (my !== state.seq) return;
     parts.push(h("div", { class: "section" }, "Tables"), tableView(tables, current, f.rows[key]));
   }
   if (others.length) {
@@ -587,8 +823,16 @@ function render() {
 let timer = null;
 function setAuto() {
   clearInterval(timer);
+  const sig = () => selectedIds().map((id) => {
+    const r = runById(id);
+    return id + ":" + (r && r.status) + ":" + (r && r.last_step);
+  }).join();
   if ($("#auto").checked) timer = setInterval(async () => {
-    try { await loadRuns(); if (state.tab !== "figures") await refreshData(false); } catch (e) {}
+    try {
+      const before = sig();
+      await loadRuns();
+      if (state.tab !== "figures" && sig() !== before) await refreshData(false);
+    } catch (e) {}
   }, 5000);
 }
 
@@ -609,7 +853,21 @@ async function main() {
     for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.tab === tab);
     render();
   });
+  $("#paramfilter").value = load("paramfilter", "");
+  $("#groupby").value = load("groupby", "");
+  state.aggregate = load("aggregate", true);
   $("#runfilter").addEventListener("input", renderRuns);
+  $("#paramfilter").addEventListener("input", () => { store("paramfilter", $("#paramfilter").value); renderRuns(); });
+  const mode = $("#groupmode");
+  const stored = $("#groupby").value;
+  mode.value = [...mode.options].some((o) => o.value === stored) ? stored : "custom";
+  $("#customgroup").classList.toggle("hidden", mode.value !== "custom");
+  mode.addEventListener("change", () => {
+    $("#customgroup").classList.toggle("hidden", mode.value !== "custom");
+    if (mode.value !== "custom") $("#groupby").value = mode.value;
+    onGroupChange();
+  });
+  $("#groupby").addEventListener("input", onGroupChange);
   $("#project").addEventListener("change", renderRuns);
   $("#selvisible").addEventListener("click", () => {
     for (const r of visibleRuns()) state.selected.add(r.id);
