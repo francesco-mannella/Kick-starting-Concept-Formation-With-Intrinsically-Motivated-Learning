@@ -43,7 +43,7 @@ class Parameters(ParameterManager):
         ss_eradial_prop=0.1,
         p_eradial_prop=0.1,
         a_eradial_prop=0.1,
-        policy_params_amplitude=8.0,
+        policy_params_amplitude=0.07,
         decay=5.0,
         local_decay=5.0,
         base_match_sigma=1.5,
