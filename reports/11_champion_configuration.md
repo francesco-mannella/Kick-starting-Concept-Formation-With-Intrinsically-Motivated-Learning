@@ -1,12 +1,14 @@
 # The champion configuration: algorithm, parameters and the evidence for it
 
-Period: 2026-10-27 to 2026-10-31. Branches `speed_cheap_wins` and `noise_plan`. Builds on reports 02 (main algorithm), 09 (actuator and policy learning) and 10 (policy signal). All numbers are late checkpoints (epochs 800 to 999) of 1000-epoch runs, mean over seeds 0 to 2, unless stated.
+Period: 2026-10-27 to 2026-10-31. Branches `speed_cheap_wins`, `noise_plan`, `dof8` and `embed_actuator`. Builds on reports 02 (main algorithm), 09 (actuator and policy learning), 10 (policy signal) and 12 (the actuator). All numbers are late checkpoints (epochs 800 to 999) of 1000-epoch runs, mean over seeds 0 to 2, unless stated. Sections 4 and 5 were measured with the former 5-output actuator (tag `champion-5dof`, commit `f72182f`); the champion has since moved to the 8-output actuator, which has only been checked for 150 epochs (section 4.3).
 
 ## 1. Summary
 
 1. The best configuration found is the all-maps anchored set of report 09 section 9 plus the contact gate (`touch_gate=True`), run with an unsaturated actuator output (`policy_params_amplitude=0.07` instead of 8.0, section 4.1). It is the champion from now on. Against the previous champion (same set without the gate, amplitude 8) the gate gives steadier success (0.89 against 0.77, seed SD 0.04 against 0.11) and the clearest specificity gain (eta2 in the top-3 prototype components 0.51 against 0.33; posture eta2 0.31 against 0.25; constant-mean-policy success 0.77 against 0.56). Those gate numbers were measured at amplitude 8; the amplitude change leaves the general measures and the noise space of the policies unchanged within the seed spread, with one weak seed in five (success 0.81 against 0.90).
 2. Twelve variants were tested on top of it (selection thresholds, stricter success rules, a tighter match width, noise confined to prototype or reachable directions, an output-space update, a per-node baseline, lower policy amplitude). None improves on the gate in success and specificity together. The nearest alternative, `policy_update_baseline` with `policy_noise_reach_k` (called `both`), is the only one in which the policy content matters for success, at a cost of 0.15 in success. It is kept as an experimental option, not as the champion.
 3. No configuration produces policies that depend on the shape or the rotation of the object (stretch and rotation eta2 at null; swapping policies between episodes costs 0 to 0.1). Whether this is a limit of the learning rule or a property of the environment is open (section 7).
+
+4. The actuator of the champion is now the 8-output one (three arm joints, a wrist, four independent finger commands; map v4, 50 inputs, 600 policy weights; section 2 point 4, report 12). In a 5-seed, 150-epoch check (success 0.68 and touch frequency 0.21 over epochs 101 to 150) its learning curves matched those of the 5-output champion over the same epochs, but the 1000-epoch evidence of sections 4 and 5 has not been repeated with it. A 15-number embedding input layer was tested in its place and rejected (section 4.3).
 
 "Optimal" here means best of the tested set under the metrics of section 4, with three seeds per group. It is not a proven optimum.
 
@@ -27,8 +29,8 @@ Event rule (unchanged): the touch match must rise against the previous step and 
 Options on top of the defaults (`src/params.py`), as `KEY=VALUE` strings for `launch_run.py`, `launch_fig567.py` or a `launch_conditions.py` JSON:
 
 ```
-grip_map_name='data/StoredGripActuatorMap_v3'
-grip_norm_name='data/StoredGripActuatorNorm_v3'
+grip_map_name='data/StoredGripActuatorMap_v4'
+grip_norm_name='data/StoredGripActuatorNorm_v4'
 grip_input_norm='block_rms'
 grip_encoding='rbf_block'
 grip_out_fn='tanh'
@@ -39,7 +41,7 @@ map_winner='anchored'
 touch_gate=True
 ```
 
-The amplitude (`policy_params_amplitude=0.07`) is now the default in `params.py` and needs no option. Runs of the amplitude-8 champion need `-o policy_params_amplitude=8.0`. Runs and pickled checkpoints made earlier keep the value they were started with (8.0).
+The map and norm names above (v4, for the 8-output actuator) and the amplitude (`policy_params_amplitude=0.07`) are now the defaults in `params.py` and need no option; the 5-output champion needs the v3 pair, `grip_input=47`, `grip_output=5`, `proprioception_size=5` and the code of tag `champion-5dof`. Runs of the amplitude-8 champion need `-o policy_params_amplitude=8.0`. Runs and pickled checkpoints made earlier keep the value they were started with (8.0).
 
 Defaults that matter and were not changed: `internal_size=100`, `batch_size=18`, `stime=200` (steps per episode), `action_steps=5`, `epochs=1000`, `match_sigma=1.5`, `internal_sigma=10`, `base_internal_sigma=0.1`, `base_lr=0.005`, `max_lr=1.0`, `base_policy_noise=0.01`, `max_policy_noise=20`, `match_incr_th=0.001`, `cum_match_stop_th=1.0`, `map_update='adam'`, `policy_ema_eta=0.05`.
 
@@ -114,9 +116,19 @@ The champion (all-maps anchored + gate, amplitude 8) against the previous champi
 
 The agent is unchanged; the gate helps the recovery of former parasites (paired difference +0.15, higher in 7 of 10 seeds). Policy statistics at epoch 1499 are alike in both sweeps (eta2 of context 0.099 for the champion agent against 0.111, below or near the permutation p95; stretch and rotation eta2 below p95; noise share 0.92). Scripts: `~/tmp/kss/score_fig567.py`, data `~/tmp/kss/fig567_champion_gate`. This sweep was run at amplitude 8; a repeat at 0.07 has not been done.
 
+### 4.3 The 8-output actuator and the embedding alternative
+
+8-output actuator (branch `dof8`, `~/tmp/kss/dof8_probe`, 5 seeds, 150 epochs, champion options with map v4):
+- Learning curves and success: no NaNs; success 0.68, touch frequency 0.21, mean competence 0.58 over the evaluation points of epochs 101 to 150. The epoch-150 counterfactual (`~/tmp/kss/embed_probe/cf`, 36 episodes x 3 evaluation seeds): intact success 0.70 (seed SD 0.11), swap cost 0.02, constant-policy cost 0.19 (0.59 and 0.29 in seeds 1 and 3, about 0 in the others), within-context shuffle cost 0.07.
+- Saturation census at epoch 150: median pre-tanh 3.8 and 55% of outputs above 3, higher than the median of about 1.9 of the 5-output champion at epoch 999; this is an early-training value and was not followed to 1000 epochs.
+- Fingers: the two fingers are used independently. In seed 0 finger 1 is bent at the distal joint and finger 2 straight in 27% of the steps, in a fixed way for all objects; in the other four seeds both fingers close and that pattern appears in at most 1% of the steps. The simulator is symmetric between the fingers (equal commands give mirrored angles; random babbling shows no touch advantage for either arrangement), so the pattern comes from learning (report 12 section 7).
+- Phase 0 input-layer diagnostics at epoch 150 are in report 12 section 6: the agent visits 18 of the 25 posture cells and 20 to 22 of the 25 touch and eye cells.
+
+Embedding input layer (branch `embed_actuator`, report 12 section 8): the three SOM blocks replaced by a 15-number code (5 whitened touch components, standardised joints and eye), 120 policy weights, 5 seeds, 150 epochs. At amplitude 0.07 it fails (success 0.06 to 0.07); at 0.3 success is 0.48 to 0.50, touch frequency 0.08 to 0.10 and mean competence 0.48 to 0.51, against 0.68, 0.21 and 0.58 for the SOM-RBF input. The swap cost is 0.135 in one variant (three seeds, interval of the difference to the SOM-RBF actuator [0.004, 0.216]) and 0.004 in the other; the constant-policy cost does not differ from the SOM-RBF actuator. The champion keeps the SOM-RBF encoding.
+
 ## 5. What does and does not carry the result
 
-- Noise: executed policies are 88% to 99% noise around their node prototype (`noise_share`), also in the 5-d effective output (0.65 to 0.94). The relevant part of the 375 dims is about 15 x 5 = 75 (95% of the centred variance of the visited hidden vectors in 15 dims).
+- Noise: executed policies are 88% to 99% noise around their node prototype (`noise_share`), also in the 5-d effective output (0.65 to 0.94). The relevant part of the 375 dims (5-output actuator; the 8-output actuator has 600 and was not measured) is about 15 x 5 = 75 (95% of the centred variance of the visited hidden vectors in 15 dims).
 - The match depends on the effective output weakly and nonlinearly (random forest R2 0.02 to 0.19, linear about 0, sign pattern not the form). Report 10 has the details.
 - Success depends on the sign pattern and posture of the arm far more than on the policy's content; the champion's policies are close to a 5-d offset plus a small state-dependent part.
 - The saturation at amplitude 8 was real (always +-1) but it did not add noise to the policy statistics: removing it leaves the noise space unchanged (section 4.1).
@@ -124,7 +136,7 @@ The agent is unchanged; the gate helps the recovery of former parasites (paired 
 ## 6. Recommendation
 
 1. Use the champion of section 3 (with the new default amplitude 0.07) as the baseline of every new sweep. The amplitude-8 champion is the historical reference: `~/tmp/kss/gate_long` (gate and control) and the 5-seed set in `~/tmp/kss/noiseplan2_probe/confirm`; the unsaturated runs are in `~/tmp/kss/satplan_probe`.
-2. `policy_params_amplitude` now defaults to 0.07 in `params.py`; `touch_gate=True` is still a launch option and its default is not changed.
+2. The baseline of new sweeps is the 8-output actuator with map v4 (the defaults of `params.py`); the 5-output reference is tag `champion-5dof`. `policy_params_amplitude` now defaults to 0.07 in `params.py`; `touch_gate=True` is still a launch option and its default is not changed.
 3. Keep `policy_noise_reach_k=15` with `policy_update_baseline=0.05` (`both`) as an experimental variant for studies of content dependence; do not use it where success matters.
 4. Report a change as a gain only if the swap or constant-policy cost exceeds the seed spread, stretch or rotation eta2 exceed their permutation p95, and success is not below 0.89 minus its seed spread.
 
@@ -134,6 +146,7 @@ The agent is unchanged; the gate helps the recovery of former parasites (paired 
 - The probes were run on the gate base only, one setting each; combinations and other values (noise cap, `k`, baseline rate) are untested.
 - Shape and rotation dependence is absent everywhere. By the design of the study the environment is not changed to create it (no coupling between affordance and position). Open: whether the aligned representations (touch, proprioception, visual prototypes) separate by shape and rotation at the goal nodes (not measured), whether a morphological change (freeing the two gripper fingers, with a matching rule that rewards the contact pattern) would produce it, and whether the actuator should be redesigned (touch magnitude lost by the sum-to-one normalisation; compact parametrisation of offset plus joint feedback).
 - The mean of three seeds hides run-level failures (reach15 seed 2: success 0.47; mod0.5 seed 1: 0.16).
+- The 8-output actuator was checked for 150 epochs on five seeds only: no 1000-epoch run, no noise-space measures (effective output dimension, `noise_share`, eta2), no Figs 5-7 sweep and no former-parasite recovery. Matching the 5-output champion on those measures is assumed, not shown. The amplitude was not retuned for the 8 outputs (median pre-tanh 3.8 at epoch 150).
 - Amplitude 0.07 was confirmed on five seeds, with one weak seed (0.519); the full Figs 5-7 sweep and the former-parasite recovery have not been repeated at 0.07.
 - The noise-reduction variants screened after `both` (`policy_baseline_soft`, `policy_baseline_norm`, `policy_noise_rel`, `reach_var_profile`, subspace size, competence decay; 27 runs of `~/tmp/kss/noiseplan_probe` and 13 of `noiseplan2_probe`) gave no improvement over the gate: none reached success 0.85 together with a lower policy-space noise share. `both_norm` and `both_soft0.1` raised the prototype output spread (22 against 14) and lowered the executed-prototype distance in weights, with the effective noise share unchanged (0.68 and 0.72 against 0.75). Details are in `noise.md`.
 
@@ -146,4 +159,4 @@ python src/launch_conditions.py --conditions <conditions.json> --root <dir> --se
 python src/policy_stats.py --storage <run>/simulations/<run>/storage --epochs 800,850,900,950,999 --counterfactual --out <stats>
 ```
 
-Probe data and tables: `~/tmp/kss/{gate_long, strict_probe, select_probe, align_probe, outspace_probe, sat_probe, reach_probe, noiseplan_probe, noiseplan2_probe, satplan_probe}` (`stats/`, `table.py`; the unsaturation runs and tables are in `satplan_probe`: `table3.out`, `noise_space_table.py`). Analysis scripts: `~/tmp/kss/signal_analysis/` (`sat_census.py`, `effnoise_all.py`). Demo GIFs: `gate_long/demos/gifs`, `reach_probe/demos/{gifs, gifs_both, green_reach15, green_both}`. Runs and probe data are not in the repository. Code state: the probe parameters of section 3 are committed on `speed_cheap_wins` (`1459676`); the viewer update (`1813fc7`), the noise options (`3782806`) and the new amplitude default are on branch `noise_plan`.
+Probe data and tables: `~/tmp/kss/dof8_probe` (8-output pilot, `sanity.py`, `figures/`), `~/tmp/kss/embed_probe` (embedding ladder, `score_curves.py`, `cf/`, `demos_B15/`), `~/tmp/kss/{gate_long, strict_probe, select_probe, align_probe, outspace_probe, sat_probe, reach_probe, noiseplan_probe, noiseplan2_probe, satplan_probe}` (`stats/`, `table.py`; the unsaturation runs and tables are in `satplan_probe`: `table3.out`, `noise_space_table.py`). Analysis scripts: `~/tmp/kss/signal_analysis/` (`sat_census.py`, `effnoise_all.py`). Demo GIFs: `gate_long/demos/gifs`, `reach_probe/demos/{gifs, gifs_both, green_reach15, green_both}`. Runs and probe data are not in the repository. Code state: the probe parameters of section 3 are committed on `speed_cheap_wins` (`1459676`); the viewer update (`1813fc7`), the noise options (`3782806`) and the new amplitude default are on branch `noise_plan`.
