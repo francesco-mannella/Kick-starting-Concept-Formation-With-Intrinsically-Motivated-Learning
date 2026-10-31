@@ -20,7 +20,7 @@ class GripAgent:
         **kargs
     ):
         actuator_map, actuator_weights = None, None
-        if actuator_map_name is not None:
+        if actuator_map_name is not None and kargs.get("encoding") != "embedding":
             try:
                 actuator_map = np.load(
                     (root_dir / actuator_map_name)

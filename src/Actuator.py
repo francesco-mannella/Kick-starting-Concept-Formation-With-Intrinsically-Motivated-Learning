@@ -44,6 +44,10 @@ class Actuator:
             self.gain = np.repeat(stats[f"gain_{self.encoding}"], self.block_units)
             self.rbf_sigma = stats["rbf_sigma"]
             self.gain[: self.block_units] *= kargs.get("touch_gain", 1.0)
+        self.embedding = None
+        self.touch_gain = kargs.get("touch_gain", 1.0)
+        if self.encoding == "embedding":
+            self.embedding = dict(np.load((Path(__file__).parent / kargs["norm_name"]).with_suffix(".npz")))
         self.basis = None
         self.num_policy = self.num_hidden
         if kargs.get("basis_name"):
@@ -78,7 +82,17 @@ class Actuator:
             hidden[units] = act / (act.sum() + 1e-12)
         return hidden
 
+    def embedded(self, state):
+        e = self.embedding
+        z = (state - e["mean"]) / e["scale"]
+        touch = np.zeros(len(e["touch_scale"]))
+        if state[:40].any():
+            touch = (z[:40] - e["touch_mean"]) @ e["touch_basis"] / e["touch_scale"]
+        return np.hstack([touch * self.touch_gain, z[40:]]) * e["gain"]
+
     def hidden(self, state):
+        if self.embedding is not None:
+            return self.embedded(state)
         if self.input_norm == "block_rms":
             state = (state - self.input_mean) / self.input_scale
         if self.encoding == "wta_block":

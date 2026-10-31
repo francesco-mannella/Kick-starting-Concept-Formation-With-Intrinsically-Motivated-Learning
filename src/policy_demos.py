@@ -149,6 +149,9 @@ def parse_arguments():
     parser.add_argument("--epoch", type=int, default=1499)
     parser.add_argument("--seed", type=int, default=None, help="Skip the ranking and use this seed")
     parser.add_argument("--parallel", type=int, default=12)
+    parser.add_argument("--max-end", type=float, default=3.5)
+    parser.add_argument("--min-gain", type=float, default=1.5)
+    parser.add_argument("--max-ratio", type=float, default=0.6)
     return parser.parse_args()
 
 
@@ -156,7 +159,7 @@ if __name__ == "__main__":
     args = parse_arguments()
     lo, _, hi = args.seeds.partition("-")
     seeds = list(range(int(lo), int(hi or lo) + 1))
-    criteria = dict(min_steps=15, max_end=3.5, min_gain=1.5, min_directness=0.0, max_ratio=0.6)
+    criteria = dict(min_steps=15, max_end=args.max_end, min_gain=args.min_gain, min_directness=0.0, max_ratio=args.max_ratio)
     evaluate_all(args.sweep, args.work, seeds, args.reps, args.eval_seed, args.epoch)
     table = rank(args.work, seeds, criteria)
     print(table.to_string(index=False), flush=True)
