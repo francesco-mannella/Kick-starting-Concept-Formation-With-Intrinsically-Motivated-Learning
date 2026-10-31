@@ -4,7 +4,7 @@ Intrinsically motivated learning of a sensorimotor map by a 3-DoF arm + 2-DoF gr
 
 ## Components
 
-- Four SMSTMs on a 10x10 grid (`internal_size=100`): visual (300 inputs), somatosensory (40), proprioceptive (5), policy (`grip_hidden*grip_output = 75*5 = 375`). Each prototype of the policy map is a full parameter vector of the linear grip controller.
+- Four SMSTMs on a 10x10 grid (`internal_size=100`): visual (300 inputs), somatosensory (40), proprioceptive (8 joints since the 8-DoF actuator, 5 before), policy (`grip_hidden*grip_output = 75*8 = 600`, 75*5 = 375 before). Each prototype of the policy map is a full parameter vector of the linear grip controller.
 - Predictor `SMPredictKDE`: a vector of 100 expected competences (running mean of achieved max match per goal prototype).
 - Agent: `action = tanh-clipped( [touch, joints[:5], eye_pos] @ fixed_map @ policy_params )`, with fixed offsets (`policy_base_arm`, `policy_base`); the policy chosen for an episode segment is written into the actuator every `action_steps` (5) steps.
 - Env: Box2D, 200 steps/episode (`stime`), batch of 18 episodes per epoch (`batch_size`), 3 colour contexts x 6 object configurations.

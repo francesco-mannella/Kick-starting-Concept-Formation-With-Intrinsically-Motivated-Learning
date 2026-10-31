@@ -235,7 +235,7 @@ def load_and_process_data(trajectory_file="trajectories.csv", weight_file="weigh
 
     dim = weights["proprio"].shape[0]
     weights["proprio"] = weights["proprio"].reshape(dim, 10, 10)
-    weights["proprio"] = weights["proprio"].transpose(1, 2, 0)[:, :, -2:]
+    weights["proprio"] = weights["proprio"].transpose(1, 2, 0)
 
     dim = weights["ssensory"].shape[0]
     weights["ssensory"] = weights["ssensory"].reshape(dim, 10, 10)
@@ -637,7 +637,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
     def animate(self, trajectory):
         """Create and return animation for trajectory."""
         n, polylines, alphas = self._prepare_animation_data(trajectory)
-        sensor_data = trajectory.iloc[:, 6:46].to_numpy() if self.has_sensors else None
+        sensor_data = trajectory.iloc[:, 9:49].to_numpy() if self.has_sensors else None
 
         ss_data = trajectory.loc[:, ["touch_x", "touch_y"]].to_numpy()[:, ::-1]
         p_data = trajectory.loc[:, ["proprio_x", "proprio_y"]].to_numpy()[:, ::-1]

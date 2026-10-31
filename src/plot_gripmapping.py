@@ -155,7 +155,7 @@ subdomain_shape = inner_domain_shape // 3
 mapping, subdomain_side = extract_weight_mapping(
     weights,
     touch_size=params.somatosensory_size,
-    posture_size=5,
+    posture_size=params.proprioception_size,
     subdomain_shape=subdomain_shape,
 )
 

@@ -18,7 +18,7 @@ Sources (in `knowledgebase/`):
 | Draft | Code |
 |---|---|
 | 4 maps on a 10x10 grid | `internal_size=100`, `stm_v/ss/p/a` |
-| Vision 10x10x3, touch 40, proprio 5, policy 75x5 | `visual_size=300`, 40, 5, `policy_size=375` |
+| Vision 10x10x3, touch 40, proprio 8 (5 before the 8-DoF actuator), policy 75x8 (75x5) | `visual_size=300`, 40, 8, `policy_size=600` (375) |
 | Match uses touch and proprio only, vision excluded | `modalities_weights=(0,1,1,0)` |
 | Success step: touch match rises and global match exceeds running max | `computeMatchSimple` + `mmask` in `run_episodes` |
 | Max match re-initialised at policy selection | `max_match[policy_changed, i:] = match` |

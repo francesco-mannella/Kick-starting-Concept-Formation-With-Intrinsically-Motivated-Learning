@@ -11,7 +11,7 @@ SRC = Path(__file__).resolve().parent
 
 
 def build_hidden(args, rng):
-    data = load_data([args.data])
+    data = load_data(args.data)
     touch = data["touch"]
     states = np.hstack([touch, data["posture"], data["eye"]])
     uniform = states[rng.choice(len(states), args.n_samples, replace=False)]
@@ -27,7 +27,7 @@ def build_hidden(args, rng):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Whitened PCA basis of the actuator hidden activity")
-    parser.add_argument("--data", default=str(SRC / "data/StoredGripGenerateData.npy"))
+    parser.add_argument("--data", required=True, nargs="+", help=".npz babbling files from grip_map_v2.py collect")
     parser.add_argument("--map", default="data/StoredGripActuatorMap_v4")
     parser.add_argument("--norm", default="data/StoredGripActuatorNorm_v4")
     parser.add_argument("--encoding", default="rbf_block")

@@ -192,7 +192,7 @@ class GraphManager:
                 dir_ = (
                     Path(".")
                     if local
-                    else self.site_dir if self.site_dir.exists() else Path(".")
+                    else self.sm.site_dir if self.sm.site_dir.exists() else Path(".")
                 )
                 fig.tight_layout(pad=0.0)
                 fig.savefig(dir_ / "policy_map.png")

@@ -44,7 +44,7 @@ def worker(args):
     agent.step = step
     evaluate(main, "intact", seed, ESEEDS[0])
     agent.step = original
-    gs = np.array(records)[:, :47]
+    gs = np.array(records)[:, :50]
     hidden = np.array([grip.hidden(x) for x in gs])
     q, participation, k95 = subspace(hidden)
     proj = q @ q.T
