@@ -112,6 +112,15 @@ Counterfactual evaluation (`policy_stats.py --counterfactual`, 36 episodes x 3 e
 - The embedding variants do not match the champion: success 0.48 to 0.50 against 0.68 and touch frequency 0.08 to 0.10 against 0.21 (below the 0.15 floor set in the plan).
 - Policy content: swap cost is 0.135 in B 0.3 (three seeds with 0.19 to 0.25, one with 0.06, one with -0.05), against 0.02 in A; the bootstrap 95% interval of the difference is [0.004, 0.216] (5 seeds each). C 0.3 shows none (0.004). The two variants differ only in the touch fit (babbling or babbling plus visited contacts), so with five seeds this contrast is not explained and the swap result of B is not a stable finding. The constant-policy cost is not different from A in either variant (intervals include 0).
 - Asymmetric fingers: the share of steps with one distal bent and the other straight is at most 0.04 in every embedding condition (0.058 in A, driven by seed 0), so there is no sign that the embedding changes the fixation or makes it worse; it also does not show a gain, since A's pattern appears in one seed only.
-- Not done: the saturation census at the new amplitudes (median pre-tanh), eta2 and noise-space measures for the embedding runs.
+- Saturation census (`~/tmp/kss/signal_analysis/sat_census.py`, steps with a policy, mean over 5 seeds; B and C at amplitude 0.3 at epoch 149, A at amplitude 0.07 at epoch 150):
+
+| Condition | Median pre-tanh | Share of outputs above 3 | Median pre-tanh from the prototype alone | Noise SD / prototype RMS |
+|---|---|---|---|---|
+| B 0.3 | 2.56 | 0.45 | 0.73 | 4.9 |
+| C 0.3 | 2.69 | 0.45 | 0.74 | 4.6 |
+| A (0.07) | 3.81 | 0.55 | 1.59 | 3.7 |
+
+  At amplitude 0.3 the embedding is not more saturated than the champion, so saturation does not explain its lower success. The prototype contributes less to the executed output than in A (0.73 against 1.59) and the noise is 4.6 to 4.9 times the prototype RMS (3.7 in A). A at epoch 150 is higher than the median of about 1.9 recorded at epoch 999 for the 5-output champion, so the A row is an early-training value.
+- Not done: eta2 and noise-space measures for the embedding runs.
 
 Decision: the 15-number embedding does not improve on the SOM-RBF actuator in this budget (success lower, touch lower, policy dependence not reproducible). It stays an option (`encoding='embedding'`, default off); the champion is unchanged.
