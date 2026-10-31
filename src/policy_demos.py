@@ -15,7 +15,8 @@ sys.path.insert(0, str(SRC))
 
 from best_goal_trajectories import score_segments  # noqa: E402
 
-ENV = {**os.environ, "OMP_NUM_THREADS": "1", "MPLBACKEND": "agg", "PYTHONPATH": str(SRC)}
+SIM = SRC.parent / "tools" / "box2dsim"   # the simulator of this checkout, not an installed copy of another one
+ENV = {**os.environ, "OMP_NUM_THREADS": "1", "MPLBACKEND": "agg", "PYTHONPATH": os.pathsep.join([str(SRC), str(SIM)])}
 OBJECTS = {1: "blue-cube", 2: "red-triangle", 3: "green-stick"}
 
 

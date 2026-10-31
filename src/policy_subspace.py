@@ -29,7 +29,7 @@ def subspace(hidden, share=0.95):
 
 
 def nodes(w):
-    return w.T.reshape(w.shape[1], -1, 5)
+    return w.T.reshape(w.shape[1], -1, 8)
 
 
 def worker(args):

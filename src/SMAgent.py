@@ -34,14 +34,16 @@ class SMAgent:
     def step(self, state):
         pos = state["EYE_POS"][::-1]
         touch = state["TOUCH_SENSORS"]
-        joints = state["JOINT_POSITIONS"][:5]
+        joints = state["JOINT_POSITIONS"]
         grip_state = np.hstack([touch, joints, pos])
         grip_action = self.grip_agent.step(grip_state)
 
-        grip_action *= [-1, -1, -1, 1, 1]
+        # outputs: three arm joints, the wrist, then proximal and distal joint of each finger
+        grip_action *= [-1, -1, -1, 1, 1, 1, 1, 1]
 
         grip_action[:3] += self.params.policy_base_arm
-        grip_action[3:] += self.params.policy_base
+        grip_action[3] += self.params.policy_base_wrist
+        grip_action[4:] += self.params.policy_base
         action = grip_action
 
         return action

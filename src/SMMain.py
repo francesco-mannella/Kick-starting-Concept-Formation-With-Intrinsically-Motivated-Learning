@@ -202,9 +202,7 @@ class EpisodeRunner:
             "VISUAL_SENSORS"
         ].ravel()
         controller.model_data["batch_ss"][episode_index, 0, :] = state["TOUCH_SENSORS"]
-        controller.model_data["batch_p"][episode_index, 0, :] = state["JOINT_POSITIONS"][
-            :5
-        ]
+        controller.model_data["batch_p"][episode_index, 0, :] = state["JOINT_POSITIONS"]
 
     def render_episode_results(
         self,
@@ -670,9 +668,7 @@ class Main:
                 "VISUAL_SENSORS"
             ].ravel()
             controller.model_data["batch_ss"][episode, t - 1, :] = state["TOUCH_SENSORS"]
-            controller.model_data["batch_p"][episode, t - 1, :] = state[
-                "JOINT_POSITIONS"
-            ][:5]
+            controller.model_data["batch_p"][episode, t - 1, :] = state["JOINT_POSITIONS"]
 
     def _prepare_episodes_for_batch(
         self,
@@ -1062,7 +1058,7 @@ class Main:
         for i in range(n_episodes):
             # only trajectory of the i-th episode from batch is collected
             postures = pd.DataFrame(controller_out.model_data["batch_p"][i, :, :])
-            postures.columns = ["d1", "d2", "d3", "d4", "d5"]
+            postures.columns = [f"d{x + 1}" for x in range(postures.shape[1])]
             postures.loc[:, "index_"] = np.arange(postures.shape[0])
             ss_sensors = pd.DataFrame(controller_out.model_data["batch_ss"][i, :, :])
             ss_sensors.columns = [f"s{x}" for x in range(self.params.somatosensory_size)]
@@ -1235,9 +1231,7 @@ class Main:
                 self.controller.model_data["batch_ss"][episode, 0, :] = state[
                     "TOUCH_SENSORS"
                 ]
-                self.controller.model_data["batch_p"][episode, 0, :] = state[
-                    "JOINT_POSITIONS"
-                ][:5]
+                self.controller.model_data["batch_p"][episode, 0, :] = state["JOINT_POSITIONS"]
 
             (
                 matches,
@@ -1577,9 +1571,7 @@ class Main:
                 self.controller.model_data["batch_ss"][episode, 0, :] = state[
                     "TOUCH_SENSORS"
                 ]
-                self.controller.model_data["batch_p"][episode, 0, :] = state[
-                    "JOINT_POSITIONS"
-                ][:5]
+                self.controller.model_data["batch_p"][episode, 0, :] = state["JOINT_POSITIONS"]
 
             (
                 matches,
@@ -1614,9 +1606,7 @@ class Main:
                 self.controller_par.model_data["batch_ss"][episode, 0, :] = state_par[
                     "TOUCH_SENSORS"
                 ]
-                self.controller_par.model_data["batch_p"][episode, 0, :] = state_par[
-                    "JOINT_POSITIONS"
-                ][:5]
+                self.controller_par.model_data["batch_p"][episode, 0, :] = state_par["JOINT_POSITIONS"]
 
             (
                 matches_par,
@@ -2480,7 +2470,7 @@ class Main:
 
             controller.model_data["batch_v"][0, 0, :] = state["VISUAL_SENSORS"].ravel()
             controller.model_data["batch_ss"][0, 0, :] = state["TOUCH_SENSORS"]
-            controller.model_data["batch_p"][0, 0, :] = state["JOINT_POSITIONS"][:5]
+            controller.model_data["batch_p"][0, 0, :] = state["JOINT_POSITIONS"]
 
             # Use minimal sigma for building internal representations
             controller.updateParams(self.params.base_internal_sigma, controller.curr_lr)

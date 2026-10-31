@@ -19,8 +19,8 @@ def build_hidden(args, rng):
     states = np.vstack([uniform, contact])
     actuator = Actuator(
         None, np.load((SRC / args.map).with_suffix(".npy")), None,
-        num_inputs=47, num_hidden=75, num_outputs=5, encoding=args.encoding, input_norm="block_rms",
-        output="tanh", norm_name=args.norm, touch_gain=args.touch_gain, input_blocks=(40, 5, 2),
+        num_inputs=50, num_hidden=75, num_outputs=8, encoding=args.encoding, input_norm="block_rms",
+        output="tanh", norm_name=args.norm, touch_gain=args.touch_gain, input_blocks=(40, 8, 2),
     )
     return np.array([actuator.hidden(x) for x in states])
 
@@ -28,8 +28,8 @@ def build_hidden(args, rng):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Whitened PCA basis of the actuator hidden activity")
     parser.add_argument("--data", default=str(SRC / "data/StoredGripGenerateData.npy"))
-    parser.add_argument("--map", default="data/StoredGripActuatorMap_v3")
-    parser.add_argument("--norm", default="data/StoredGripActuatorNorm_v3")
+    parser.add_argument("--map", default="data/StoredGripActuatorMap_v4")
+    parser.add_argument("--norm", default="data/StoredGripActuatorNorm_v4")
     parser.add_argument("--encoding", default="rbf_block")
     parser.add_argument("--touch-gain", type=float, default=3.0)
     parser.add_argument("--n-samples", type=int, default=20000)

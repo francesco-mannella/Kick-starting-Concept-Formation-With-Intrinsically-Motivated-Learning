@@ -16,6 +16,7 @@ from PIL import Image
 from scipy.interpolate import splev, splprep
 
 from params import Parameters
+from posture_geometry import arm_and_gripper
 from SMGraphs import GraphManager
 from SMMain import build_episode_dataset
 
@@ -54,25 +55,9 @@ def interp(points, n=10):
     return np.vstack(splev(np.linspace(0, 1, n), tck)).T
 
 
-def plot_polyline(angles, lengths):
-    """Compute arm and gripper coordinates from joint angles."""
-    angles = np.array(angles)
-    angles[0] += 90
-    angles[-2:] *= [-1, 1]
-
-    def compute_coords(ang):
-        angle_sum = np.cumsum(np.radians(ang))
-        x, y = np.zeros(len(ang) + 1), np.zeros(len(ang) + 1)
-        x[1:] = lengths * np.cos(angle_sum)
-        y[1:] = lengths * np.sin(angle_sum)
-        return np.vstack((np.cumsum(x), np.cumsum(y))).T
-
-    arm_coords = compute_coords(angles)
-    angles[-2:] *= -1
-    x2y2 = compute_coords(angles)[-3:]
-    grip_coords = np.vstack([arm_coords[-2:][::-1], x2y2])
-
-    return arm_coords[:-2], grip_coords
+def plot_polyline(angles, lengths=(1, 1, 1, 0.5, 0.5)):
+    """Arm and gripper coordinates from the 8 joint angles in degrees (see posture_geometry)."""
+    return arm_and_gripper(angles, lengths[:3], lengths[3:5])
 
 
 def get_sensors_coords(grip_coords, n=20):
@@ -97,8 +82,9 @@ class ProprioceptionPlot:
 
     def _init_plot(self):
         self.ax.clear()
-        self.ax.set_xlim(-0.2, 0.8)
-        self.ax.set_ylim(-0.8, 0.8)
+        self.ax.set_xlim(-1.1, 1.1)
+        self.ax.set_ylim(-1.1, 1.1)
+        self.ax.set_aspect("equal", adjustable="box")
         self.ax.set_axis_off()
         self.scatter = self.ax.scatter([], [], c="black")
         (self.line,) = self.ax.plot([], [], c="black")
@@ -262,7 +248,7 @@ def load_and_process_data(trajectory_file="trajectories.csv", weight_file="weigh
 
 
 def arm_points(df):
-    angles = np.degrees(df[["d1", "d2", "d3", "d4", "d5"]].to_numpy())
+    angles = np.degrees(df[[f"d{x}" for x in range(1, 9)]].to_numpy())
     return np.vstack(
         [np.vstack(plot_polyline(a.copy(), [1, 1, 1, 0.5, 0.5])) for a in angles]
     )
@@ -376,7 +362,7 @@ class BaseTrajectoryAnimator:
         """Prepare common animation data from trajectory."""
         n = trajectory.shape[0]
         ts_vals = trajectory.ts.to_numpy()
-        data = trajectory.iloc[:, 1:6].to_numpy()
+        data = trajectory.iloc[:, 1:9].to_numpy()
         indices = ts_vals.astype(int)
         all_angles = np.degrees(data[indices])
         polylines = [plot_polyline(ang, [1, 1, 1, 0.5, 0.5]) for ang in all_angles]

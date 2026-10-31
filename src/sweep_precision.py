@@ -33,7 +33,7 @@ def dump_path(sweep_root, baseline_root, side, enc, seed):
 
 def metrics(tr, ctrl, sigma):
     S = tr[[f"s{i}" for i in range(40)]].values
-    P = tr[["d1", "d2", "d3", "d4", "d5"]].values
+    P = tr[[f"d{x}" for x in range(1, 9)]].values
     T = S.sum(1) > 0
     out = dict(frames=len(tr), nT=int(T.sum()), touch_frames=int(T.sum()), match=float(tr["match"].mean()))
     if T.sum() == 0:

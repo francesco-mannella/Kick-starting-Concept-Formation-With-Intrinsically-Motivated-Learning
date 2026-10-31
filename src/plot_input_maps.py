@@ -18,7 +18,7 @@ ARM_LENGTHS = [1, 1, 1, 0.5, 0.5]
 
 
 def map_path(side, data_dir):
-    name = "StoredGripActuatorMap" if side == 5 else f"StoredGripActuatorMap_k{side}"
+    name = "StoredGripActuatorMap_v4" if side == 5 else f"StoredGripActuatorMap_k{side}"
     return Path(data_dir) / f"{name}.npy"
 
 
@@ -26,7 +26,7 @@ def split_blocks(weights, side, norm=None):
     n = side * side
     if norm is not None:
         weights = weights * norm["scale"][:, None] + norm["mean"][:, None]
-    return weights[:40, :n].T, np.degrees(weights[40:45, n : 2 * n].T), weights[45:47, 2 * n : 3 * n].T
+    return weights[:40, :n].T, np.degrees(weights[40:48, n : 2 * n].T), weights[48:50, 2 * n : 3 * n].T
 
 
 def touch_tile(ax, values, sensors, vmax):

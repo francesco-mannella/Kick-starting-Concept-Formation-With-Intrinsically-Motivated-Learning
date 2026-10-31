@@ -17,14 +17,14 @@ class Parameters(ParameterManager):
         arm_input=2,
         arm_hidden=100,
         arm_output=3,
-        grip_input=47,
+        grip_input=50,
         grip_hidden=75,
-        grip_output=5,
-        grip_map_name="data/StoredGripActuatorMap",
+        grip_output=8,
+        grip_map_name="data/StoredGripActuatorMap_v4",
         grip_encoding="linear",
         grip_input_norm="none",
         grip_out_fn="clip",
-        grip_norm_name="data/StoredGripActuatorNorm",
+        grip_norm_name="data/StoredGripActuatorNorm_v4",
         grip_touch_gain=1.0,
         grip_basis_name=None,
         grip_policy_dim=None,
@@ -37,7 +37,7 @@ class Parameters(ParameterManager):
         internal_size=100,
         visual_size=300,
         somatosensory_size=40,
-        proprioception_size=5,
+        proprioception_size=8,
         num_objects=4,
         v_eradial_prop=0.1,
         ss_eradial_prop=0.1,
@@ -58,6 +58,7 @@ class Parameters(ParameterManager):
         p_lr=1.0,
         a_lr=1.0,
         policy_base=0.8,
+        policy_base_wrist=0.0,
         policy_base_arm=[x * np.pi for x in [0.2, -0.3, -0.4]],
         base_policy_noise=0.01,
         max_policy_noise=20.0,
@@ -156,6 +157,7 @@ class Parameters(ParameterManager):
         self.a_lr = a_lr
         self.policy_base_arm = policy_base_arm
         self.policy_base = policy_base
+        self.policy_base_wrist = policy_base_wrist
         self.base_policy_noise = base_policy_noise
         self.max_policy_noise = max_policy_noise
         self.policy_weights_sigma = policy_weights_sigma

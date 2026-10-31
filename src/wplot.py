@@ -121,7 +121,7 @@ def plot_weights(
 ):
     policies = weights["policy"]
     _, out_size = policies.shape
-    policies = policies.reshape(grid_size * 3, 5, -1).transpose(2, 1, 0)
+    policies = policies.reshape(grid_size * 3, 8, -1).transpose(2, 1, 0)
     policy = (
         policies[prototype, joint, :]
         .reshape(grid_side, grid_side, 3)

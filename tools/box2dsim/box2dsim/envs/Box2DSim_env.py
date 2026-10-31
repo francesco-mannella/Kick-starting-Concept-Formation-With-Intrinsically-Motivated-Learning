@@ -33,20 +33,31 @@ class Box2DSimOneArmEnv(gym.Env):
         "Arm1",
         "Arm2",
         "Arm3",
+        "Wrist",
         "Claw11",
         "Claw21",
         "Claw12",
         "Claw22",
     ]
+    # Action layout and order of JOINT_POSITIONS: three arm joints, the wrist, then two joints for
+    # each finger (proximal, distal).
     joint_names = [
         "Base_to_Arm1",
         "Arm1_to_Arm2",
         "Arm2_to_Arm3",
-        "Arm3_to_Claw11",
-        "Claw21_to_Claw22",
-        "Arm3_to_Claw21",
+        "Arm3_to_Wrist",
+        "Wrist_to_Claw11",
         "Claw11_to_Claw12",
+        "Wrist_to_Claw21",
+        "Claw21_to_Claw22",
     ]
+    # Sign of the setpoint of each finger joint for a closing command (open rest pose at zero).
+    finger_signs = {
+        "Wrist_to_Claw11": -1,
+        "Claw11_to_Claw12": 1,
+        "Wrist_to_Claw21": 1,
+        "Claw21_to_Claw22": -1,
+    }
     sensors_names = [f"s{x}" for x in range(1, 41)]
 
     def __init__(self, rand_obj_params=None, render_params=None):
@@ -58,10 +69,11 @@ class Box2DSimOneArmEnv(gym.Env):
         self.init_worlds()
         self.init_map()
 
-        self.num_joints = 5
+        self.num_joints = 8
         self.num_arm_joints = 3
-        self.num_hand_joints = 2
-        self.num_joint_positions = 7
+        self.num_wrist_joints = 1
+        self.num_hand_joints = 4
+        self.num_joint_positions = 8
         self.num_touch_sensors = 40
 
         # Define action and observation space
@@ -145,14 +157,15 @@ class Box2DSimOneArmEnv(gym.Env):
     def set_action(self, action):
 
         assert len(action) == self.num_joints
-        action = np.hstack(action)
-        # do action
-        action[:-2] = np.maximum(-np.pi * 0.5, np.minimum(np.pi * 0.5, action[:-2]))
-        action[-1] = np.maximum(0, np.minimum(2 * action[-2], action[-1]))
-        action[-2:] = -np.maximum(0, np.minimum(np.pi * 0.5, action[-2:]))
-        action = np.hstack((action, -action[-2:]))
-        for j, joint in enumerate(self.joint_names):
-            self.sim.move(joint, action[j])
+        action = np.array(np.hstack(action), dtype=float)
+        n_free = self.num_arm_joints + self.num_wrist_joints
+        # arm and wrist: targets in [-pi/2, pi/2]
+        setpoints = dict(zip(self.joint_names[:n_free], np.clip(action[:n_free], -np.pi * 0.5, np.pi * 0.5)))
+        # every finger joint is closed independently: command in [0, pi/2], then the joint sign
+        for joint, command in zip(self.joint_names[n_free:], action[n_free:]):
+            setpoints[joint] = self.finger_signs[joint] * np.clip(command, 0, np.pi * 0.5)
+        for joint, setpoint in setpoints.items():
+            self.sim.move(joint, setpoint)
         self.sim.step()
 
     def get_observation(self):

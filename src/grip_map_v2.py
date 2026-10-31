@@ -8,20 +8,22 @@ from GripMapping import PrototypeGenerator, params
 from SMEnv import SMEnv
 
 SENSOR_GROUPS = [slice(10 * g, 10 * g + 10) for g in range(4)]
-BLOCKS = [(0, 40), (40, 45), (45, 47)]
+N_POSTURE = 8                       # three arm joints, the wrist, two joints per finger
+BLOCKS = [(0, 40), (40, 40 + N_POSTURE), (40 + N_POSTURE, 42 + N_POSTURE)]
+N_INPUTS = BLOCKS[-1][1]
 
 
 def collect_babbling(env, trials, stime, rng, near_steps=10):
     """Babbles in the agent's own action space against randomised objects.
 
-    Actuator outputs u in [-1, 1]^5 are mapped exactly as in SMAgent.step, so
+    Actuator outputs u in [-1, 1]^8 are mapped exactly as in SMAgent.step, so
     the arm only visits postures the controller can command. Returns touch
-    (n, 40), posture (n, 5), eye position (n, 2; reversed order as at run
+    (n, 40), posture (n, 8), eye position (n, 2; reversed order as at run
     time) and near (n,): frames within `near_steps` of a touch in the same trial.
     """
     touch, posture, eye, near = [], [], [], []
-    sign = np.array([-1, -1, -1, 1, 1])
-    base = np.hstack([params.policy_base_arm, np.ones(2) * params.policy_base])
+    sign = np.array([-1, -1, -1, 1, 1, 1, 1, 1])
+    base = np.hstack([params.policy_base_arm, params.policy_base_wrist, np.ones(4) * params.policy_base])
     for _ in range(trials):
         env.b2d_env.rand_obj_params = {
             "stretch_conditions": [rng.choice([1, 1.5, 2])],
@@ -29,14 +31,14 @@ def collect_babbling(env, trials, stime, rng, near_steps=10):
             "pos": [params.obj_y + rng.uniform(-2, 2), params.obj_x + rng.uniform(-2, 3)],
         }
         env.reset(world=rng.choice([1, 2, 3]))
-        u = np.zeros(5) if rng.rand() < 0.5 else rng.uniform(-0.7, 0.7, 5)
+        u = np.zeros(8) if rng.rand() < 0.5 else rng.uniform(-0.7, 0.7, 8)
         first = len(touch)
         for t in range(stime):
             if t % 5 == 0:
-                u = np.clip(u + rng.randn(5) * 0.35, -1, 1)
+                u = np.clip(u + rng.randn(8) * 0.35, -1, 1)
             state = env.step(u * sign + base)
             touch.append(state["TOUCH_SENSORS"].copy())
-            posture.append(state["JOINT_POSITIONS"][:5].copy())
+            posture.append(state["JOINT_POSITIONS"].copy())
             eye.append(state["EYE_POS"][::-1] + rng.randn(2))
         touched = np.array([x.sum() > 0 for x in touch[first:]])
         near.extend(np.convolve(touched, np.ones(2 * near_steps + 1), "same") > 0)
@@ -65,17 +67,18 @@ def synthetic_touch(n_samples, rng, n_sensors=40):
 
 def block_stats(data):
     touch, posture, eye = data["touch"], data["posture"], data["eye"]
-    mean = np.zeros(47, np.float32)
-    mean[40:45], mean[45:] = posture.mean(0), eye.mean(0)
-    scale = np.ones(47, np.float32)
-    scale[:40] = np.sqrt((touch ** 2).mean())
-    scale[40:45] = np.sqrt(((posture - mean[40:45]) ** 2).mean())
-    scale[45:] = np.sqrt(((eye - mean[45:]) ** 2).mean())
+    (_, t_hi), (p_lo, p_hi), (e_lo, e_hi) = BLOCKS
+    mean = np.zeros(N_INPUTS, np.float32)
+    mean[p_lo:p_hi], mean[e_lo:e_hi] = posture.mean(0), eye.mean(0)
+    scale = np.ones(N_INPUTS, np.float32)
+    scale[:t_hi] = np.sqrt((touch ** 2).mean())
+    scale[p_lo:p_hi] = np.sqrt(((posture - mean[p_lo:p_hi]) ** 2).mean())
+    scale[e_lo:e_hi] = np.sqrt(((eye - mean[e_lo:e_hi]) ** 2).mean())
     return mean, scale
 
 
 def build_maps(data, side, rng, balance=True, synthetic_frac=0.0, max_frames=50000):
-    """Trains normalised block maps; returns the 47 x (3 * side^2) map and stats."""
+    """Trains normalised block maps; returns the N_INPUTS x (3 * side^2) map and stats."""
     units = side * side
     mean, scale = block_stats(data)
     frames = data["touch"][data["touch"].sum(1) > 0]
@@ -89,7 +92,7 @@ def build_maps(data, side, rng, balance=True, synthetic_frac=0.0, max_frames=500
         near = data["posture"][data["near"]]
         posture = np.vstack([subset(near)[: max_frames // 2], posture[: max_frames // 2]])
     sources = [frames, posture, subset(data["eye"])]
-    weights = np.zeros((47, 3 * units))
+    weights = np.zeros((N_INPUTS, 3 * units))
     for b, ((lo, hi), x) in enumerate(zip(BLOCKS, sources)):
         z = ((x - mean[lo:hi]) / scale[lo:hi]).astype(np.float32)
         weights[lo:hi, b * units : (b + 1) * units] = PrototypeGenerator(hi - lo, units, z)()
@@ -119,8 +122,7 @@ def load_data(paths):
     parts = []
     for path in paths:
         if str(path).endswith(".npy"):
-            raw = np.load(path)
-            parts.append({"touch": raw[:, 300:340], "posture": raw[:, 340:345], "eye": raw[:, 345:347]})
+            raise ValueError("the old .npy babbling files have 5 posture columns; collect new .npz data with the 8-joint environment")
         else:
             parts.append(dict(np.load(path)))
     keys = ("touch", "posture", "eye") + (("near",) if all("near" in p for p in parts) else ())
@@ -136,7 +138,7 @@ def parse_arguments():
     c.add_argument("--seed", type=int, default=0)
     c.add_argument("--out", required=True)
     b = sub.add_parser("build", help="train the normalised block maps")
-    b.add_argument("--data", nargs="+", required=True, help=".npz babbling files or the old .npy")
+    b.add_argument("--data", nargs="+", required=True, help=".npz babbling files")
     b.add_argument("--side", type=int, default=5)
     b.add_argument("--seed", type=int, default=0)
     b.add_argument("--no-balance", action="store_true")

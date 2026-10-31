@@ -34,7 +34,7 @@ def make_recorder(agent):
         return np.tanh(raw) if grip.output == "tanh" else np.clip(raw, -1, 1)
 
     def step(state):
-        gs = np.hstack([state["TOUCH_SENSORS"], state["JOINT_POSITIONS"][:5], state["EYE_POS"][::-1]]).astype(float)
+        gs = np.hstack([state["TOUCH_SENSORS"], state["JOINT_POSITIONS"], state["EYE_POS"][::-1]]).astype(float)
         hidden = grip.hidden(gs)
         raw = hidden @ grip.params
         touch_part = hidden[HIDDEN["touch"]] @ grip.params[HIDDEN["touch"]]
@@ -48,7 +48,7 @@ def make_recorder(agent):
 
 
 def touch_stats(R, limit):
-    gs, raw, tpart, a_on, a_off = R[:, :47], R[:, 47:52], R[:, 52:57], R[:, 57:62], R[:, 62:67]
+    gs, raw, tpart, a_on, a_off = R[:, :50], R[:, 50:58], R[:, 58:66], R[:, 66:74], R[:, 74:82]
     active = np.abs(raw).sum(1) > 0
     touch = (gs[:, :40].sum(1) > 0) & active
     stats = {"frames": int(active.sum()), "touch_frames": int(touch.sum()),
@@ -80,7 +80,7 @@ def worker(args):
         agent.step = original
         R = np.array(records)
         row = dict(cond=cond, seed=seed, scale=scale, success=np.mean([r["success"] for r in intact]), **touch_stats(R, limit))
-        gs = R[:, :47]
+        gs = R[:, :50]
         fills = {"no_touch": ("touch", 0.0), "posture_frozen": ("posture", gs[:, BLOCKS["posture"]].mean(0)),
                  "eye_frozen": ("eye", gs[:, BLOCKS["eye"]].mean(0))}
         for label, (block, fill) in fills.items():

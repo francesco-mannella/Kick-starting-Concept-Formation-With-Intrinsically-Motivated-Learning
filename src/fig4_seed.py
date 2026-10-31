@@ -17,7 +17,7 @@ def storage(root, seed):
 
 
 def render_reps(store, reps, eval_seed):
-    env = {**os.environ, "OMP_NUM_THREADS": "1", "PYTHONPATH": str(SRC), "MPLBACKEND": "agg"}
+    env = {**os.environ, "OMP_NUM_THREADS": "1", "PYTHONPATH": str(SRC) + os.pathsep + str(SRC.parent / "tools" / "box2dsim"), "MPLBACKEND": "agg"}
     procs = []
     for r in range(reps):
         folder = store / f"rep_{r:02d}"
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     final = merge_reps(store, args.reps)
     for folder in ("demos", "logs", "goal_frames"):
         (final / folder).mkdir(exist_ok=True)
-    env = {**os.environ, "PATH": f"{SRC}:{os.environ['PATH']}", "PYTHONPATH": str(SRC), "MPLBACKEND": "agg", "OMP_NUM_THREADS": "1"}
+    env = {**os.environ, "PATH": f"{SRC}:{os.environ['PATH']}", "PYTHONPATH": str(SRC) + os.pathsep + str(SRC.parent / "tools" / "box2dsim"), "MPLBACKEND": "agg", "OMP_NUM_THREADS": "1"}
     with open(final / "fig4.log", "w") as log:
         subprocess.run([sys.executable, str(SRC / "run_postures.py"), "-g", "-r", *map(str, range(args.reps))],
                        cwd=final, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)

@@ -18,7 +18,7 @@ from SMMain import Main  # noqa: E402  (pickled dumps look up Main in __main__)
 
 _ = Main
 
-BLOCKS = {"touch": slice(0, 40), "posture": slice(40, 45), "eye": slice(45, 47)}
+BLOCKS = {"touch": slice(0, 40), "posture": slice(40, 48), "eye": slice(48, 50)}
 HIDDEN = {"touch": slice(0, 25), "posture": slice(25, 50), "eye": slice(50, 75)}
 ESEEDS = (101, 102, 103)
 RUN_PATTERN = "parasite_{seed:03d}"
@@ -46,7 +46,7 @@ def make_recorder(agent):
     records = []
 
     def step(state):
-        gs = np.hstack([state["TOUCH_SENSORS"], state["JOINT_POSITIONS"][:5], state["EYE_POS"][::-1]]).astype(float)
+        gs = np.hstack([state["TOUCH_SENSORS"], state["JOINT_POSITIONS"], state["EYE_POS"][::-1]]).astype(float)
         hidden = grip.hidden(gs)
         parts = [hidden[HIDDEN[b]] @ grip.params[HIDDEN[b]] for b in BLOCKS]
         records.append(np.hstack([gs, hidden @ grip.params] + parts))
@@ -60,12 +60,13 @@ def make_ablation(agent, block, fill):
     grip = agent.grip_agent
 
     def step(state):
-        gs = np.hstack([state["TOUCH_SENSORS"], state["JOINT_POSITIONS"][:5], state["EYE_POS"][::-1]]).astype(float)
+        gs = np.hstack([state["TOUCH_SENSORS"], state["JOINT_POSITIONS"], state["EYE_POS"][::-1]]).astype(float)
         gs[BLOCKS[block]] = fill
         action = grip.step(gs)
-        action *= [-1, -1, -1, 1, 1]
+        action *= [-1, -1, -1, 1, 1, 1, 1, 1]
         action[:3] += params.policy_base_arm
-        action[3:] += params.policy_base
+        action[3] += params.policy_base_wrist
+        action[4:] += params.policy_base
         return action
 
     return step
@@ -75,13 +76,13 @@ def static_rank(M, policy_final, policy_init):
     out = {"map_rank_total": int(np.linalg.matrix_rank(M))}
     for b in BLOCKS:
         out[f"map_rank_{b}"] = int(np.linalg.matrix_rank(M[BLOCKS[b], HIDDEN[b]]))
-    out["effective_policy_dim"] = out["map_rank_total"] * 5
+    out["effective_policy_dim"] = out["map_rank_total"] * 8
     _, _, vt = np.linalg.svd(M)
     null = vt[out["map_rank_total"]:].T
     for name, w in (("final", policy_final), ("init", policy_init)):
         shares = []
         for j in range(w.shape[1]):
-            p = w[:, j].reshape(75, 5)
+            p = w[:, j].reshape(75, 8)
             shares.append(np.sum((null.T @ p) ** 2) / np.sum(p ** 2))
         out[f"policy_null_share_{name}"] = float(np.mean(shares))
     out["null_share_random"] = float(null.shape[1] / 75)
@@ -106,7 +107,7 @@ def worker(args):
     intact = [evaluate(main, "intact", seed, es) for es in ESEEDS]
     agent.step = original
     R = np.array(records)
-    gs, raw, parts = R[:, :47], R[:, 47:52], R[:, 52:].reshape(len(R), 3, 5)
+    gs, raw, parts = R[:, :50], R[:, 50:58], R[:, 58:].reshape(len(R), 3, 8)
 
     active = np.abs(raw).sum(1) > 0
     limit = 1 if grip.output == "clip" else np.arctanh(0.95)
@@ -114,7 +115,7 @@ def worker(args):
            "frac_clipped_with_policy": float((np.abs(raw[active]) >= limit).mean()),
            "frac_all_outputs_clipped_with_policy": float((np.abs(raw[active]) >= limit).all(1).mean()),
            "unique_clipped_sign_patterns": int(len(np.unique(np.sign(raw[active]), axis=0)))}
-    for k in range(5):
+    for k in range(8):
         sat[f"frac_clipped_out{k}"] = float((np.abs(raw[:, k]) >= limit).mean())
     sat["median_abs_raw_output_with_policy"] = float(np.median(np.abs(raw[active])))
     var = parts.var(0)

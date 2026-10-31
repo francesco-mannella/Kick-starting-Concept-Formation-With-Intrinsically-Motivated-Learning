@@ -42,7 +42,9 @@
                                 5.900000000000006
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 2,
+                    "filter-maskBits": 65523
                 }
             ]
         },
@@ -194,7 +196,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -232,7 +236,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -270,7 +276,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -308,7 +316,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -346,7 +356,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -384,7 +396,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -422,7 +436,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -460,7 +476,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -498,7 +516,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -536,7 +556,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -575,7 +597,9 @@
                             ]
                         }
                     },
-                    "friction": 0.5
+                    "friction": 0.5,
+                    "filter-categoryBits": 4,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -613,7 +637,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -651,7 +677,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -689,7 +717,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -727,7 +757,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -765,7 +797,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -803,7 +837,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -841,7 +877,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -879,7 +917,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -917,7 +957,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -955,7 +997,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -994,7 +1038,9 @@
                             ]
                         }
                     },
-                    "friction": 0.5
+                    "friction": 0.5,
+                    "filter-categoryBits": 4,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1032,7 +1078,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1070,7 +1118,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1108,7 +1158,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1146,7 +1198,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1184,7 +1238,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1222,7 +1278,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1260,7 +1318,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1298,7 +1358,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1336,7 +1398,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1374,7 +1438,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1413,7 +1479,9 @@
                             ]
                         }
                     },
-                    "friction": 0.5
+                    "friction": 0.5,
+                    "filter-categoryBits": 4,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1492,7 +1560,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1530,7 +1600,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1568,7 +1640,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1606,7 +1680,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1644,7 +1720,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1682,7 +1760,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1720,7 +1800,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1758,7 +1840,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1796,7 +1880,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1834,7 +1920,9 @@
                                 0.0
                             ]
                         }
-                    }
+                    },
+                    "filter-categoryBits": 8,
+                    "filter-maskBits": 65533
                 }
             ]
         },
@@ -1873,7 +1961,50 @@
                             ]
                         }
                     },
-                    "friction": 0.5
+                    "friction": 0.5,
+                    "filter-categoryBits": 4,
+                    "filter-maskBits": 65533
+                }
+            ]
+        },
+        {
+            "angle": 0.0,
+            "name": "Wrist",
+            "color": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "position": {
+                "x": 0.1690799999999968,
+                "y": 18.442350000000005
+            },
+            "type": 2,
+            "fixture": [
+                {
+                    "density": 5.0,
+                    "group_index": 0,
+                    "polygon": {
+                        "vertices": {
+                            "x": [
+                                0.0,
+                                1.4,
+                                1.4,
+                                0.0,
+                                0.0
+                            ],
+                            "y": [
+                                0.4,
+                                0.4,
+                                0.0,
+                                0.0,
+                                0.4
+                            ]
+                        }
+                    },
+                    "friction": 0.5,
+                    "filter-categoryBits": 2,
+                    "filter-maskBits": 65523
                 }
             ]
         }
@@ -2892,9 +3023,9 @@
             "enableMotor": true
         },
         {
-            "name": "Arm3_to_Claw21",
+            "name": "Wrist_to_Claw21",
             "type": "revolute",
-            "bodyA": 0,
+            "bodyA": 49,
             "bodyB": 14,
             "jointSpeed": 0,
             "refAngle": 0,
@@ -2903,8 +3034,8 @@
             "enableLimit": true,
             "motorSpeed": 0,
             "anchorA": {
-                "x": -0.08702999999999861,
-                "y": 5.946940000000012
+                "x": 0.1629699999999985,
+                "y": 0.04694000000000642
             },
             "anchorB": {
                 "x": 0.24998999999999683,
@@ -2915,9 +3046,9 @@
             "enableMotor": true
         },
         {
-            "name": "Arm3_to_Claw11",
+            "name": "Wrist_to_Claw11",
             "type": "revolute",
-            "bodyA": 0,
+            "bodyA": 49,
             "bodyB": 48,
             "jointSpeed": 0,
             "refAngle": 0,
@@ -2926,8 +3057,8 @@
             "enableLimit": true,
             "motorSpeed": 0,
             "anchorA": {
-                "x": 0.987000000000009,
-                "y": 5.946940000000012
+                "x": 1.237000000000006,
+                "y": 0.04694000000000642
             },
             "anchorB": {
                 "x": 0.24998000000000786,
@@ -2955,6 +3086,29 @@
             "anchorB": {
                 "x": 0.4515700000000038,
                 "y": 0.05964000000000169
+            },
+            "upperLimit": 3.14,
+            "lowerLimit": -3.14,
+            "enableMotor": true
+        },
+        {
+            "name": "Arm3_to_Wrist",
+            "type": "revolute",
+            "bodyA": 0,
+            "bodyB": 49,
+            "jointSpeed": 0,
+            "refAngle": 0,
+            "collideConnected": false,
+            "maxMotorTorque": 10000,
+            "enableLimit": true,
+            "motorSpeed": 0,
+            "anchorA": {
+                "x": 0.45000000000000284,
+                "y": 5.900000000000006
+            },
+            "anchorB": {
+                "x": 0.7,
+                "y": 0.0
             },
             "upperLimit": 3.14,
             "lowerLimit": -3.14,

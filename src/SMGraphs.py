@@ -11,6 +11,7 @@ from shapely import LineString, MultiLineString
 from sklearn.decomposition import PCA
 
 from params import Parameters
+from posture_geometry import arm_and_gripper
 from storage import StorageManager
 
 
@@ -111,30 +112,14 @@ class GraphManager:
         return grid
 
     def generate_gripper(self, angles):
+        """Gripper (palm and both fingers) from the last five joint angles, with the arm straight.
 
-        init_angles = [0, 0, 0]
-        init_angles.extend(angles)
-        angles = init_angles
-        lengths = [1, 1, 0.5, 0.5]
-
-        angles = np.array(angles)
-
-        angles[-2:] *= [-1, 1]
-
-        angle_sum = np.cumsum(angles)[1:]
-        x1, y1 = np.zeros(len(angles)), np.zeros(len(angles))
-        x1[1:], y1[1:] = lengths * np.cos(angle_sum), lengths * np.sin(angle_sum)
-        arm_coords = np.vstack((np.cumsum(x1), np.cumsum(y1))).T
-
-        angles[-2:] *= -1
-        angle_sum = np.cumsum(angles)[1:]
-        x2, y2 = np.zeros(len(angles)), np.zeros(len(angles))
-        x2[1:], y2[1:] = lengths * np.cos(angle_sum), lengths * np.sin(angle_sum)
-        x2y2 = np.vstack((np.cumsum(x2), np.cumsum(y2))).T[-3:]
-
-        segments = np.vstack([arm_coords[-2:][::-1], x2y2])
-        segments += [-2, 0]
-        segments *= 0.7
+        The hinge of the wrist is the origin and a finger has length 1 (two links of 0.5), so the drawing is
+        undeformed and the callers only apply one uniform scale."""
+        # the arm is laid along +x (shoulder at -90 degrees) and the wrist hinge is the origin
+        angles = np.degrees(np.concatenate([[-np.pi / 2, 0, 0], np.asarray(angles, dtype=float)[-5:]]))
+        arm, segments = arm_and_gripper(angles)
+        segments = segments - arm[-1]
 
         return segments
 
@@ -239,6 +224,8 @@ class GraphManager:
             fig.savefig(self.sm.site_dir / f"visual_map{png_suffix}.png")
             plt.close("all")
 
+    GRIPPER_CELL_SCALE = 0.47   # half a cell minus a margin; a finger has length 1 in generate_gripper
+
     def proprio_map(self, wfile=None, ax=None, png_suffix=""):
         internal_side = int(np.sqrt(self.params.internal_size))
         if wfile is None:
@@ -250,17 +237,18 @@ class GraphManager:
         grips = []
         for j in range(internal_side):
             for i in range(internal_side):
-                grip = self.generate_gripper(data[i, j][-2:])
-                grip = (grip - [0, -1]) / [1, 2]
-                grips.append(grip + [[j, i]])
+                # one uniform scale, hinge at the centre of the cell: a finger stretched in any direction stays in its cell
+                grips.append(self.generate_gripper(data[i, j]) * self.GRIPPER_CELL_SCALE + [[j, i]])
         grips = np.stack(grips)
         fig = None
         if ax is None:
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(8, 8))
         for grip in grips:
-            ax.plot(*(grip).T, c="black", marker="o", markersize=1.5)
-        ax.set_xlim(-0.5, internal_side + 0.5)
-        ax.set_ylim(-0.5, internal_side + 0.5)
+            ax.plot(*grip.T, c="black", lw=0.9, solid_capstyle="round", solid_joinstyle="round")
+            ax.plot(*grip[[0, -1]].T, "o", c="black", markersize=1.2)
+        ax.set_xlim(-0.5, internal_side - 0.5)
+        ax.set_ylim(-0.5, internal_side - 0.5)
+        ax.set_aspect("equal", adjustable="box")
         ax.set_axis_off()
         if fig:
             fig.tight_layout(pad=0.0)
