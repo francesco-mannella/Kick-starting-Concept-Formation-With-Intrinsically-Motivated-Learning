@@ -75,6 +75,10 @@ class Parameters(ParameterManager):
         policy_output_space=False,
         policy_noise_reach_k=0,
         policy_update_baseline=0.0,
+        policy_baseline_soft=0.0,
+        policy_baseline_norm=False,
+        policy_noise_rel=0.0,
+        reach_var_profile="flat",
         match_incr_th=0.001,
         cum_match_stop_th=1.0,
         predict_lr=0.05,
@@ -168,6 +172,10 @@ class Parameters(ParameterManager):
         self.policy_output_space = policy_output_space
         self.policy_noise_reach_k = policy_noise_reach_k
         self.policy_update_baseline = policy_update_baseline
+        self.policy_baseline_soft = policy_baseline_soft
+        self.policy_baseline_norm = policy_baseline_norm
+        self.policy_noise_rel = policy_noise_rel
+        self.reach_var_profile = reach_var_profile
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th
         self.predict_lr = predict_lr

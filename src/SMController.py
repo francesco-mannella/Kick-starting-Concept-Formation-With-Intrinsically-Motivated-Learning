@@ -198,6 +198,10 @@ class SMController:
             + (self.max_policy_noise - self.base_policy_noise)
             * comp_dict["local_incompetence"]
         )
+        rel = self.params.policy_noise_rel
+        if rel > 0:
+            rms = np.sqrt(np.mean(self.stm_a.get_weights() ** 2))
+            noise_sigma = np.minimum(noise_sigma, max(self.base_policy_noise, rel * rms))
 
         noise = self.rng.randn(*policies.shape)
         k = self.params.policy_noise_subspace_k
@@ -205,7 +209,10 @@ class SMController:
             Q = self.reach_basis
             n_hid = Q.shape[0]
             noise = noise.reshape(len(noise), n_hid, -1)
-            noise = np.einsum("hk,kj,njo->nho", Q, Q.T, noise).reshape(len(noise), -1)
+            coef = np.einsum("hk,nho->nko", Q, noise)
+            if self.params.reach_var_profile == "eig":
+                coef *= self.reach_scale[None, :, None]
+            noise = np.einsum("hk,nko->nho", Q, coef).reshape(len(noise), -1)
         elif k > 0:
             protos = self.stm_a.get_weights().T
             basis = np.linalg.svd(protos - protos.mean(0), full_matrices=False)[2][:k]
@@ -372,7 +379,9 @@ class SMController:
         C = H.T @ H / len(H)
         self.reach_cov = C if self.reach_cov is None else decay * self.reach_cov + (1 - decay) * C
         w, v = np.linalg.eigh(self.reach_cov)
-        self.reach_basis = v[:, -self.params.policy_noise_reach_k :]
+        k = self.params.policy_noise_reach_k
+        self.reach_basis = v[:, -k:]
+        self.reach_scale = np.sqrt(np.maximum(w[-k:], 1e-12) / np.maximum(w[-k:], 1e-12).mean())
 
     def baseline_select(self, sel, match_value, goals, local_lr):
         rate = self.params.policy_update_baseline
@@ -386,13 +395,23 @@ class SMController:
         for i, n in zip(idx, nodes):
             b = self.policy_baseline[n]
             self.policy_baseline[n] = match_value[i] if np.isnan(b) else b + rate * (match_value[i] - b)
-        keep = adv > 0
+        soft = self.params.policy_baseline_soft
+        if soft > 0:
+            keep = np.ones(len(idx), bool)
+            w = np.exp((adv - adv.max()) / soft)
+            w /= w.mean()
+        else:
+            keep = adv > 0
+            w = np.zeros(len(idx))
+            if keep.any():
+                w[keep] = adv[keep] / adv[keep].max()
+                if self.params.policy_baseline_norm:
+                    w *= len(idx) / w.sum()
         sel = np.zeros_like(sel)
         sel[idx[keep]] = True
         lr = local_lr.copy()
         if keep.any():
-            scale = (adv[keep] / adv[keep].max()).reshape((-1,) + (1,) * (local_lr.ndim - 1))
-            lr[idx[keep]] = local_lr[idx[keep]] * scale
+            lr[idx[keep]] = local_lr[idx[keep]] * w[keep].reshape((-1,) + (1,) * (local_lr.ndim - 1))
         return sel, lr
 
     def project_policies(self, policies, ssensories, proprios, goals, sel, actuator):
