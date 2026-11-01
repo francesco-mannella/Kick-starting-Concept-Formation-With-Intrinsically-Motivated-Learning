@@ -85,6 +85,22 @@ th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background
 .fig img { width: 100%; height: auto; display: block; background: #fcfcfb; cursor: zoom-in; border-radius: 4px; }
 .fig .cap { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 6px; flex-wrap: wrap; }
 .fig .cap a { color: var(--accent); }
+.figbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.figbar input[type=text] { min-width: 220px; }
+.figbar .count { color: var(--muted); font-size: 12px; }
+.figbrowse { display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: 12px; align-items: start; }
+@media (max-width: 800px) { .figbrowse { grid-template-columns: 1fr; } }
+.figlist { border: 1px solid var(--line); border-radius: 8px; max-height: calc(100vh - 200px); overflow: auto; position: sticky; top: 8px; }
+.figitem { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.figitem:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.figitem.on { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.figitem img { width: 44px; height: 44px; object-fit: cover; border-radius: 3px; background: #fcfcfb; flex: none; }
+.figitem span { font-size: 12px; overflow-wrap: anywhere; }
+.figview { border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+.figview img { max-width: 100%; max-height: 72vh; display: block; margin: 0 auto; background: #fcfcfb; cursor: zoom-in; }
+.figtools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+.figtools .name { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.figtools a { color: var(--accent); }
 .section { margin: 18px 0 8px; font-size: 13px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .tablewrap { overflow: auto; max-height: 60vh; border: 1px solid var(--line); border-radius: 8px; }
 .pager { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); }
@@ -162,7 +178,8 @@ td.diff { background: color-mix(in srgb, var(--warn) 18%, transparent); }
 "use strict";
 const $ = (s) => document.querySelector(s);
 const state = {
-  figs: { list: [], table: "", rows: {}, filters: {}, search: "", page: 0, sortCol: null, sortDir: 1 },
+  figs: { list: [], table: "", rows: {}, filters: {}, search: "", page: 0, sortCol: null, sortDir: 1,
+          view: "browse", sel: "", fq: "", group: "", fsort: "name", step: null },
   runs: [], selected: new Set(), keys: {}, configs: {}, series: {},
   tab: "charts", smooth: 0.6, pair: true, metricFilter: "", limit: 24,
   imgKey: "", imgStep: null, imgData: {}, diffOnly: true,
@@ -726,6 +743,88 @@ function showLightbox(src) {
   document.body.append(box);
 }
 
+function figGroup(name) {
+  const t = name.replace(/\.[^.]+$/, "").split("_");
+  return t.length >= 3 ? t.slice(0, 2).join("_") : t[0];
+}
+
+function figureBrowser(images, url) {
+  const f = state.figs;
+  const groups = [...new Set(images.map((x) => figGroup(x.name)))].sort();
+  if (f.group && !groups.includes(f.group)) f.group = "";
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
+  const body = h("div", {});
+  const count = h("span", { class: "count" });
+  let shown = [];
+
+  const setView = (v) => { f.view = v; draw(); };
+  const select = (name) => { f.sel = name; draw(); };
+  f.step = (d) => {
+    if (!shown.length) return;
+    const i = Math.max(0, shown.findIndex((x) => x.name === f.sel));
+    select(shown[(i + d + shown.length) % shown.length].name);
+  };
+
+  const browseBtn = h("button", { onclick: () => setView("browse") }, "Browse");
+  const gridBtn = h("button", { onclick: () => setView("grid") }, "Grid");
+  const bar = h("div", { class: "figbar" },
+    browseBtn, gridBtn,
+    h("input", { type: "text", placeholder: "Filter figures", value: f.fq, oninput: (e) => { f.fq = e.target.value; draw(); } }),
+    h("select", { onchange: (e) => { f.group = e.target.value; draw(); } },
+      h("option", { value: "" }, "all groups (" + groups.length + ")"),
+      groups.map((g) => h("option", { value: g, selected: g === f.group }, g + " (" + images.filter((x) => figGroup(x.name) === g).length + ")"))),
+    h("select", { onchange: (e) => { f.fsort = e.target.value; draw(); } },
+      h("option", { value: "name", selected: f.fsort === "name" }, "sort by name"),
+      h("option", { value: "new", selected: f.fsort === "new" }, "newest first")),
+    count);
+
+  function draw() {
+    const q = f.fq.toLowerCase();
+    shown = images.filter((x) => (!f.group || figGroup(x.name) === f.group) && (!q || x.name.toLowerCase().includes(q)))
+      .sort(f.fsort === "new" ? (a, b) => b.mtime - a.mtime : byName);
+    if (!shown.some((x) => x.name === f.sel)) f.sel = shown.length ? shown[0].name : "";
+    browseBtn.classList.toggle("on", f.view === "browse");
+    gridBtn.classList.toggle("on", f.view === "grid");
+    count.textContent = shown.length + " of " + images.length;
+    if (!shown.length) { body.replaceChildren(h("div", { class: "empty" }, "No figure matches.")); return; }
+    if (f.view === "grid") {
+      body.replaceChildren(h("div", { class: "figgrid" }, shown.map((x) =>
+        h("div", { class: "fig" },
+          h("img", { src: url(x), loading: "lazy", alt: x.name, onclick: () => { f.sel = x.name; setView("browse"); } }),
+          h("div", { class: "cap" }, h("span", {}, x.name), h("a", { href: url(x), download: x.name }, "download"))))));
+      return;
+    }
+    const cur = shown.find((x) => x.name === f.sel);
+    const pos = shown.indexOf(cur) + 1;
+    const items = shown.map((x) => h("div", { class: "figitem" + (x.name === f.sel ? " on" : ""), onclick: () => select(x.name) },
+      h("img", { src: url(x), loading: "lazy", alt: "" }), h("span", {}, x.name)));
+    const list = h("div", { class: "figlist" }, items);
+    const view = h("div", { class: "figview" },
+      h("div", { class: "figtools" },
+        h("button", { onclick: () => f.step(-1) }, "Prev"),
+        h("button", { onclick: () => f.step(1) }, "Next"),
+        h("span", {}, pos + " / " + shown.length),
+        h("span", { class: "name" }, cur.name),
+        h("span", {}, Math.round(cur.size / 1024) + " kB, " + new Date(cur.mtime * 1000).toLocaleString()),
+        h("button", { onclick: () => showLightbox(url(cur)) }, "Full screen"),
+        h("a", { href: url(cur), download: cur.name }, "download")),
+      h("img", { src: url(cur), alt: cur.name, onclick: () => showLightbox(url(cur)) }));
+    body.replaceChildren(h("div", { class: "figbrowse" }, list, view));
+    items[pos - 1].scrollIntoView({ block: "nearest" });
+  }
+
+  draw();
+  return h("div", {}, bar, body);
+}
+
+document.addEventListener("keydown", (e) => {
+  const f = state.figs;
+  if (state.tab !== "figures" || f.view !== "browse" || !f.step) return;
+  if (e.target.matches && e.target.matches("input, select, textarea")) return;
+  if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); f.step(-1); }
+  else if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); f.step(1); }
+});
+
 async function renderFigures() {
   const content = $("#content");
   const f = state.figs;
@@ -741,14 +840,7 @@ async function renderFigures() {
   }
   const url = (x) => "/figures/" + encodeURIComponent(x.name) + "?v=" + Math.floor(x.mtime);
   const parts = [];
-  if (images.length) {
-    parts.push(h("div", { class: "section" }, "Figures"),
-      h("div", { class: "figgrid" }, images.map((x) =>
-        h("div", { class: "fig" },
-          h("img", { src: url(x), loading: "lazy", alt: x.name, onclick: () => showLightbox(url(x)) }),
-          h("div", { class: "cap" }, h("span", {}, x.name),
-            h("a", { href: url(x), download: x.name }, "download"))))));
-  }
+  if (images.length) parts.push(h("div", { class: "section" }, "Figures"), figureBrowser(images, url));
   if (tables.length) {
     if (!tables.some((x) => x.name === f.table)) f.table = tables[0].name;
     const current = tables.find((x) => x.name === f.table);
