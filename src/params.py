@@ -36,6 +36,7 @@ class Parameters(ParameterManager):
         policy_ema_eta=0.05,
         internal_size=100,
         visual_size=300,
+        fovea_range=4,
         somatosensory_size=40,
         proprioception_size=8,
         num_objects=4,
@@ -133,6 +134,7 @@ class Parameters(ParameterManager):
         self.policy_ema_eta = policy_ema_eta
         self.internal_size = internal_size
         self.visual_size = visual_size
+        self.fovea_range = fovea_range
         self.somatosensory_size = somatosensory_size
         self.proprioception_size = proprioception_size
         self.policy_size = (grip_policy_dim or grip_hidden) * grip_output

@@ -93,6 +93,7 @@ class SMEnv:
         if world is not None:
             self.world = world
 
+        self.b2d_env.fovea_width = self.b2d_env.fovea_height = getattr(self.params, "fovea_range", 4)
         observation = self.b2d_env.reset(self.world, world_dict=world_dict)
         if self.render is not None:
             self.b2d_env.render_init(self.render)

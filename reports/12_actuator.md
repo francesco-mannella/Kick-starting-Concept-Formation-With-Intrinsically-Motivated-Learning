@@ -124,3 +124,31 @@ Counterfactual evaluation (`policy_stats.py --counterfactual`, 36 episodes x 3 e
 - Not done: eta2 and noise-space measures for the embedding runs.
 
 Decision: the 15-number embedding does not improve on the SOM-RBF actuator in this budget (success lower, touch lower, policy dependence not reproducible). It stays an option (`encoding='embedding'`, default off); the champion is unchanged.
+
+## 9. Wider fovea (branch `fovea`)
+
+The fovea is a 4 x 4 task-unit window (the table is 60 x 60) sampled at 10 x 10 pixels (0.4 units per pixel), centred on a saliency-sampled eye position that changes every 5 simulator steps. New parameter `fovea_range` (default 4, bit-identical to the former behaviour, `test_fovea.py`) sets the window width and height; it is applied in `SMEnv.reset` so that reloaded checkpoints use it too. The pixel count stays 10 x 10 (visual input 300). Vision enters the algorithm only through the visual map that selects goals (the match uses touch and proprioception only and the actuator sees the eye position, not the retina).
+
+Retina content (`src/fovea_diagnostics.py`, 1728 samples per range, cross-validated by episode; `~/tmp/kss/fovea_probe/phase0/`):
+
+| Range | Object pixels | Samples with object and arm | Decoding at full dimension: kind / stretch / rotation | Rotation from 10 PCA components |
+|---|---|---|---|---|
+| 4 | 21 | 0.13 | 1.00 / 0.95 / 0.78 | 0.46 |
+| 8 | 16 | 0.27 | 1.00 / 0.96 / 0.79 | 0.52 |
+| 12 | 11 | 0.46 | 1.00 / 0.96 / 0.78 | 0.58 |
+| 16 | 9 | 0.67 | 1.00 / 0.96 / 0.78 | 0.60 |
+
+The object is in the window in every sample (the eye is saliency-guided) and object kind, stretch and rotation are already read from the 300 numbers at the current width; a wider window adds the arm and claws to the view and takes resolution from the object.
+
+Screening ladder (`fovea_range` 8, 12, 16; 5 seeds; 150 epochs, runs end at epoch 149; champion options; control = the `dof8` pilot, range 4; `~/tmp/kss/fovea_probe`):
+
+| Condition | Success (epochs 101-150) | Touch frequency | Intact success (counterfactual run) | Swap cost | Constant-policy cost | eta2 context / p95 | eta2 rotation / p95 | Nodes used | Prototype spread / noise SD |
+|---|---|---|---|---|---|---|---|---|---|
+| A (4) | 0.68 | 0.21 | 0.70 | 0.020 | 0.19 | 0.040 / 0.038 | 0.031 / 0.038 | 55 | 0.19 |
+| F08 | 0.71 | 0.19 | 0.74 | 0.054 | 0.14 | 0.055 / 0.057 | 0.050 / 0.058 | 56 | 0.16 |
+| F12 | 0.60 | 0.13 | 0.57 | -0.042 | 0.16 | 0.047 / 0.049 | 0.042 / 0.051 | 59 | 0.16 |
+| F16 | 0.83 | 0.20 | 0.82 | 0.061 | 0.27 | 0.042 / 0.039 | 0.032 / 0.040 | 59 | 0.17 |
+
+Bootstrap 95% intervals of the difference to A (5 seeds each): intact success F08 +0.04 [-0.15, 0.23], F12 -0.13 [-0.24, -0.01], F16 +0.12 [-0.07, 0.29]; swap cost F08 +0.03 [-0.03, 0.10], F12 -0.06 [-0.16, 0.02], F16 +0.04 [-0.03, 0.11]; constant-policy cost F08 -0.05, F12 -0.03, F16 +0.08 (all intervals include 0).
+
+Result: no width passes the acceptance rule of the plan. The eta2 of context, stretch and rotation stay at their permutation 95th percentile at every width, the swap cost stays below 0.07, and the policy-similarity measures (nodes used, participation ratio of the prototypes, prototype spread against noise) are the same as with the 4-unit window. F12 lowers success (-0.13 [-0.24, -0.01]) and touch frequency (0.13, below the 0.15 floor); F16 has the highest success (0.82) but inside the seed spread (SD 0.20) and its constant-policy cost is not different from A. A wider fovea does not make the policies more distinct. The fovea stays at 4. Open, not part of this test: more pixels at the same width, and giving the actuator a foveal summary (a separate decision).
