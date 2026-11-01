@@ -144,6 +144,35 @@ Per seed, epochs 1000 to 1500, success of the agent: 0.77 0.77 0.83 0.70 0.78 0.
 
 Embedding input layer (branch `embed_actuator`, report 12 section 8): the three SOM blocks replaced by a 15-number code (5 whitened touch components, standardised joints and eye), 120 policy weights, 5 seeds, 150 epochs. At amplitude 0.07 it fails (success 0.06 to 0.07); at 0.3 success is 0.48 to 0.50, touch frequency 0.08 to 0.10 and mean competence 0.48 to 0.51, against 0.68, 0.21 and 0.58 for the SOM-RBF input. The swap cost is 0.135 in one variant (three seeds, interval of the difference to the SOM-RBF actuator [0.004, 0.216]) and 0.004 in the other; the constant-policy cost does not differ from the SOM-RBF actuator. The champion keeps the SOM-RBF encoding.
 
+### 4.4 Settings that could let one policy serve all three objects (position, size, success rule)
+
+Motivation: in the 8-output champion a single policy gets most of the success. Code facts: the three kinds are a static 1.9-unit blue cube, a dynamic **7.8 x 7.7** red triangle and a dynamic 1.9-unit green cube (red and green differ only in shape and size); the object position is fixed about 14 to 16 units from the arm base; success is one touch-match rise after the first policy. The match modalities were not varied (vision is the condition and always matches). New default-off parameters are listed in report 02; tests `test_settings.py`; scripts `src/macro_policy_gap.py` and `~/tmp/kss/settings_probe/score_settings.py`; data `~/tmp/kss/settings_probe`.
+
+Levels (one factor at a time, 5 seeds, 150 epochs, runs end at epoch 149, control = the `dof8` pilot): A1, A2, A3 position drawn per episode independently of kind (uniform +-2, +-4, +-5 units); B1 triangle scaled by 0.25 (cube-sized); B3 stretch conditions {1, 2, 3}; B4 (**flagged, ties physics to kind, outside the no-engineered-pressure rule**) red density x10 and damping 4, green density x0.2; C1 `cum_match_stop_th=2`; C2 evaluation only (success as at least 3 and at least 4 policy changes).
+
+Phase 0, environment only (300 random constant policies, 8 draws, 7200 episodes per level; policies chosen on 4 draws and scored on the other 4): per-policy contact rates stay correlated between kinds (Spearman, mean of the three pairs: control 0.73, A1 0.80, A2 0.84, A3 0.84, B1 0.81, B3 0.76, B4 0.71) and the sets of policies that touch each kind overlap (Jaccard control 0.68, A1-A3 0.72 to 0.83, B1 0.77, B3 0.74, B4 0.69). No level makes a single policy serve the kinds worse; position jitter makes it serve them better. B4 cuts the mean displacement of the triangle from 12.5 to 2.9 units without changing who gets touched; the static cube never moves. The first Phase 0 run with one selection draw gave a "macro-policy gap" that was too noisy to read and was replaced by these selection-free measures. The gate of the plan would have dropped all levels; the user asked to train all of them.
+
+Phase 1, mean over 5 seeds (control: `dof8` pilot, epoch 150; counterfactual: 36 episodes x 3 evaluation seeds x 5 draws):
+
+| Condition | Success (epochs 101-150) | Touch frequency | Intact success | Swap cost | Constant-policy cost | eta2 context / stretch / rotation over p95 | Nodes used |
+|---|---|---|---|---|---|---|---|
+| control | 0.68 | 0.21 | 0.70 | 0.020 | 0.19 | 1.02 / 0.82 / 0.81 | 32 |
+| A1 | 0.77 | 0.13 | 0.79 | 0.041 | 0.13 | 0.97 / 0.84 / 0.85 | 27 |
+| A2 | 0.43 | 0.08 | 0.54 | 0.043 | 0.14 | 0.99 / 0.84 / 0.86 | 24 |
+| A3 | 0.52 | 0.07 | 0.68 | 0.032 | 0.12 | 0.93 / 0.86 / 0.82 | 21 |
+| B1 | 0.68 | 0.19 | 0.71 | 0.016 | -0.004 | 1.11 / 0.82 / 0.84 | 28 |
+| B3 | 0.64 | 0.17 | 0.64 | -0.009 | 0.17 | 1.06 / 0.82 / 0.85 | 30 |
+| B4 | 0.71 | 0.19 | 0.74 | 0.014 | 0.14 | 0.88 / 0.83 / 0.87 | 29 |
+| C1 | 0.36 | 0.17 | 0.34 | -0.013 | 0.05 | 0.98 / 0.81 / 0.85 | 12 |
+
+Bootstrap 95% intervals of the difference to the control (5 seeds each): intact success A1 +0.09 [-0.01, 0.20], A2 -0.16 [-0.31, -0.02], A3 -0.02 [-0.24, 0.18], B1 +0.02 [-0.10, 0.13], B3 -0.06 [-0.21, 0.09], B4 +0.04 [-0.09, 0.16], C1 -0.36 [-0.51, -0.20]; swap cost: all intervals include 0 (differences from -0.03 to +0.02); constant-policy cost: B1 -0.19 [-0.42, -0.01], all others include 0; touch frequency: A2 -0.12 [-0.20, -0.05], A3 -0.14 [-0.21, -0.07], the others include 0.
+
+Success counted with stricter rules (share of episodes with at least 2, 3 and 4 policy changes): control 0.68 / 0.53 / 0.38; A1 0.67 / 0.51 / 0.29; A2 0.49 / 0.34 / 0.16; A3 0.52 / 0.36 / 0.20; B1 0.66 / 0.43 / 0.34; B3 0.76 / 0.57 / 0.38; B4 0.74 / 0.60 / 0.38; C1 0.46 / 0.11 / 0.03.
+
+Per kind (intact success; control: still 0.87, movable 0.59, controllable 0.63; touch frequency 0.52 / 0.07 / 0.19): the still cube is touched much more than the two movable objects in every condition (0.31 to 0.61 against 0.04 to 0.19); A1 raises the movable triangle to 0.86 and B4 to 0.73.
+
+Result: no level separates affordances by the criterion of the plan (swap or constant-policy cost above the control beyond its interval, or eta2 of context, stretch or rotation above its permutation 95th percentile, without collapse). Swap costs stay below 0.05, eta2 of stretch and rotation stay below their p95 in every condition, and context eta2 stays within 12% of its p95 (B1 1.11 with a seed SD of 0.19, B3 1.06, control 1.02, B4 0.88). Larger position draws (A2, A3) lower touch frequency below the 0.15 floor and A2 lowers success; C1 collapses success (0.36) while raising mean competence (0.80) and cutting the nodes used to 12, i.e. two events per policy is too strict; B1 removes the constant-policy cost (-0.19) because the small triangle is touched less (touch 0.06). Phase 2 (combination and 1000 epochs) was not started. Open: the unequal success per kind (the large triangle and the green cube are touched far less than the static cube) and the question of whether a stricter, contact-pattern-based rule would be intrinsic; the remaining dimension of the plan, the match modalities, was excluded by design.
+
 ## 5. What does and does not carry the result
 
 - Noise: executed policies are 88% to 99% noise around their node prototype (`noise_share`), also in the 5-d effective output (0.65 to 0.94). The relevant part of the 375 dims (5-output actuator; the 8-output actuator has 600 and was not measured) is about 15 x 5 = 75 (95% of the centred variance of the visited hidden vectors in 15 dims).

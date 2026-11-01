@@ -37,6 +37,11 @@ class Parameters(ParameterManager):
         internal_size=100,
         visual_size=300,
         fovea_range=4,
+        obj_pos_jitter=(0.0, 0.0),
+        obj_reach_limit=18.0,
+        obj_scale=(1.0, 1.0, 1.0),
+        obj_density=(1.0, 1.0, 1.0),
+        obj_damping=(None, None, None),
         somatosensory_size=40,
         proprioception_size=8,
         num_objects=4,
@@ -135,6 +140,11 @@ class Parameters(ParameterManager):
         self.internal_size = internal_size
         self.visual_size = visual_size
         self.fovea_range = fovea_range
+        self.obj_pos_jitter = obj_pos_jitter
+        self.obj_reach_limit = obj_reach_limit
+        self.obj_scale = obj_scale
+        self.obj_density = obj_density
+        self.obj_damping = obj_damping
         self.somatosensory_size = somatosensory_size
         self.proprioception_size = proprioception_size
         self.policy_size = (grip_policy_dim or grip_hidden) * grip_output

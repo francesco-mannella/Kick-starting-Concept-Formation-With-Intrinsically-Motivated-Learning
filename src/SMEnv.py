@@ -94,6 +94,14 @@ class SMEnv:
             self.world = world
 
         self.b2d_env.fovea_width = self.b2d_env.fovea_height = getattr(self.params, "fovea_range", 4)
+        settings = {
+            "pos_jitter": getattr(self.params, "obj_pos_jitter", (0.0, 0.0)),
+            "reach_limit": getattr(self.params, "obj_reach_limit", None),
+            "scale": getattr(self.params, "obj_scale", (1.0, 1.0, 1.0)),
+            "density": getattr(self.params, "obj_density", (1.0, 1.0, 1.0)),
+            "damping": getattr(self.params, "obj_damping", (None, None, None)),
+        }
+        self.b2d_env.rand_obj_params = {**self.rand_obj_params, **settings}
         observation = self.b2d_env.reset(self.world, world_dict=world_dict)
         if self.render is not None:
             self.b2d_env.render_init(self.render)

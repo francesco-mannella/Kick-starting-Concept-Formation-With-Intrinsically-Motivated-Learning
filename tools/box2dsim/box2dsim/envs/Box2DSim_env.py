@@ -227,8 +227,17 @@ class Box2DSimOneArmEnv(gym.Env):
 
         self.world_file = self.world_files[self.world_id]
 
+    OBJECT_KINDS = ("still", "movable", "controllable")
+
+    def kind_param(self, key, body_name):
+        values = self.rand_obj_params.get(key)
+        if values is None or body_name not in self.OBJECT_KINDS:
+            return None
+        return values[self.OBJECT_KINDS.index(body_name)]
+
     def randomize_objects(self, world_dict):
 
+        base = [b for b in world_dict["body"] if b["name"] == "Base"][0]["position"]
         for bodyName in self.object_names:
             for i in range(len(world_dict["body"])):
                 if world_dict["body"][i]["name"] == bodyName:
@@ -253,6 +262,10 @@ class Box2DSimOneArmEnv(gym.Env):
                     verts[0, :] *= stretch
                     verts[1, :] /= stretch
 
+                    scale = self.kind_param("scale", bodyName)
+                    if scale is not None:
+                        verts *= scale
+
                     rotation_conditions = self.rand_obj_params["rotation_conditions"]
                     rot = self.rng.choice(rotation_conditions)
 
@@ -276,6 +289,27 @@ class Box2DSimOneArmEnv(gym.Env):
 
                     world_dict["body"][i]["position"]["x"] += pos[1]
                     world_dict["body"][i]["position"]["y"] += pos[0]
+
+                    jitter = self.rand_obj_params.get("pos_jitter")
+                    if jitter is not None and any(jitter):
+                        reach = self.rand_obj_params.get("reach_limit")
+                        x0 = world_dict["body"][i]["position"]["x"]
+                        y0 = world_dict["body"][i]["position"]["y"]
+                        for _ in range(50):
+                            dx = self.rng.uniform(-jitter[0], jitter[0])
+                            dy = self.rng.uniform(-jitter[1], jitter[1])
+                            if reach is None or np.hypot(x0 + dx - base["x"], y0 + dy - base["y"]) <= reach:
+                                break
+                        world_dict["body"][i]["position"]["x"] = x0 + dx
+                        world_dict["body"][i]["position"]["y"] = y0 + dy
+
+                    density = self.kind_param("density", bodyName)
+                    if density is not None:
+                        world_dict["body"][i]["fixture"][0]["density"] *= density
+                    damping = self.kind_param("damping", bodyName)
+                    if damping is not None:
+                        world_dict["body"][i]["linearDamping"] = damping
+                        world_dict["body"][i]["angularDamping"] = damping
 
                     # color = 0.1 * self.rng.randn(3)
                     # color = color + world_dict["body"][i]["color"]

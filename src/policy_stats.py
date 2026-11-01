@@ -109,7 +109,8 @@ def mi_time_weighted(data, main, policies, rng, n_shuffle):
     mask = np.any(actions != 0, axis=2)
     mask[:, : params.drop_first_n_steps + params.policy_selection_steps] = False
     index = KMeans(10, n_init=5, random_state=0).fit(policies).predict(actions[mask])
-    contexts = main.episode_dataset.context.values
+    dataset = main.episode_dataset.context.values
+    contexts = dataset[np.arange(actions.shape[0]) % len(dataset)]
 
     def mi(ctx, score=mutual_info_score):
         return score(np.repeat(ctx[:, None], actions.shape[1], 1)[mask], index)
