@@ -94,6 +94,8 @@ class Box2DSim(object):
         self.joint_pids = {
             ("%s" % k): PID(dt=self.dt) for k in list(self.joints.keys())
         }
+        self.prismatic = {k for k, j in self.joints.items() if hasattr(j, "translation")}
+        self.ratchets = {k: ("cw" if k.startswith("ratchet_cw") else "ccw") for k in self.joints if k.startswith("ratchet_")}
 
         def is_body_visible(body):
             return not (
@@ -141,8 +143,17 @@ class Box2DSim(object):
     def step(self):
         """A simulation step"""
         for key in list(self.joints.keys()):
-            self.joint_pids[key].step(self.joints[key].angle)
-            self.joints[key].motorSpeed = self.joint_pids[key].output
+            joint = self.joints[key]
+            measured = joint.translation if key in self.prismatic else joint.angle
+            self.joint_pids[key].step(measured)
+            joint.motorSpeed = self.joint_pids[key].output
+        for key, direction in self.ratchets.items():
+            joint = self.joints[key]
+            lower, upper = joint.limits
+            if direction == "cw":
+                joint.limits = (lower, min(upper, joint.angle))
+            else:
+                joint.limits = (max(lower, joint.angle), upper)
         self.world.Step(self.dt, self.vel_iters, self.pos_iters)
 
 

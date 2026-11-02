@@ -7,6 +7,9 @@ from params import Parameters
 
 
 class SMEnv:
+    object_response = 0.0
+    response_joint = None
+
     def __init__(
         self,
         seed,
@@ -68,11 +71,26 @@ class SMEnv:
 
     def step(self, action):
         observation, *_ = self.b2d_env.step(action)
+        self.track_object_response()
         if self.render is not None:
             self.b2d_env.render(self.render)
         if self.stored_observations is not None:
             self.stored_observations.append(copy.deepcopy(observation))
         return observation
+
+    def track_object_response(self):
+        # diagnostic only (affordance worlds): button travel or rotor angle of the object, never used by the agent
+        if self.response_joint is None:
+            joints = self.b2d_env.sim.joints
+            self.response_joint = next((j for k, j in joints.items() if k.startswith(("spring_", "ratchet_"))), False)
+        joint = self.response_joint
+        if joint is False:
+            return
+        if hasattr(joint, "translation"):
+            if abs(joint.translation) > abs(self.object_response):
+                self.object_response = joint.translation
+        else:
+            self.object_response = joint.angle
 
     def get_b2d_state(self):
         return self.b2d_env.get_objects_params()
@@ -102,7 +120,10 @@ class SMEnv:
             "damping": getattr(self.params, "obj_damping", (None, None, None)),
         }
         self.b2d_env.rand_obj_params = {**self.rand_obj_params, **settings}
+        self.b2d_env.use_scenario(getattr(self.params, "scenario", "original"))
         observation = self.b2d_env.reset(self.world, world_dict=world_dict)
+        self.object_response = 0.0
+        self.response_joint = None
         if self.render is not None:
             self.b2d_env.render_init(self.render)
         if self.stored_observations is not None:

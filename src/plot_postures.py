@@ -597,6 +597,9 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
         query = self.episode_df.query(f"index=={episode_id}")
         objs = ["blue cube", "red triangle", "green cube"]
         obj = objs[query.context.iloc[0] - 1]
+        if "shape" in query.columns:
+            names = ["blue rotor (anticlockwise)", "red button", "green rotor (clockwise)"]
+            obj = f"{names[query.context.iloc[0] - 1]}, {query['shape'].iloc[0]}"
         stretch = query.stretch.iloc[0]
         rot = np.degrees(query.rotation.iloc[0]).round(0)
 
@@ -840,9 +843,10 @@ if __name__ == "__main__":
         action="store_true",
         help="Simplified animation, trajectories only",
     )
+    parser.add_argument("--shapes", default=None, help="Comma separated object shapes of the affordance scenario")
     args = parser.parse_args()
 
-    params = Parameters()
+    params = Parameters(obj_shapes=args.shapes.split(",") if args.shapes else None)
     g = GraphManager(None, params)
     font_size = 11
 

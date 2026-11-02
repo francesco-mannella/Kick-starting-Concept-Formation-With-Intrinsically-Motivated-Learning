@@ -37,6 +37,8 @@ class Parameters(ParameterManager):
         internal_size=100,
         visual_size=300,
         fovea_range=4,
+        scenario="original",
+        obj_shapes=None,
         obj_pos_jitter=(0.0, 0.0),
         obj_reach_limit=18.0,
         obj_scale=(1.0, 1.0, 1.0),
@@ -140,6 +142,8 @@ class Parameters(ParameterManager):
         self.internal_size = internal_size
         self.visual_size = visual_size
         self.fovea_range = fovea_range
+        self.scenario = scenario
+        self.obj_shapes = obj_shapes
         self.obj_pos_jitter = obj_pos_jitter
         self.obj_reach_limit = obj_reach_limit
         self.obj_scale = obj_scale

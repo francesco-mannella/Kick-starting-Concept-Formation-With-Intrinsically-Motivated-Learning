@@ -18,6 +18,7 @@ from best_goal_trajectories import score_segments  # noqa: E402
 SIM = SRC.parent / "tools" / "box2dsim"   # the simulator of this checkout, not an installed copy of another one
 ENV = {**os.environ, "OMP_NUM_THREADS": "1", "MPLBACKEND": "agg", "PYTHONPATH": os.pathsep.join([str(SRC), str(SIM)])}
 OBJECTS = {1: "blue-cube", 2: "red-triangle", 3: "green-stick"}
+AFFORDANCE_OBJECTS = {1: "blue-rotor", 2: "red-button", 3: "green-rotor"}
 
 
 def checkpoint(work, seed):
@@ -96,7 +97,7 @@ def merge_reps(store, reps):
     return final
 
 
-def render_gifs(final, jobs, parallel):
+def render_gifs(final, jobs, parallel, shapes=None):
     running, failed = [], []
     for episode, rep, goal in jobs:
         while len(running) >= parallel:
@@ -104,7 +105,8 @@ def render_gifs(final, jobs, parallel):
             if len(running) >= parallel:
                 running[0][0].wait()
         running.append((subprocess.Popen(
-            [sys.executable, str(SRC / "plot_postures.py"), "-e", str(episode), "-r", str(rep), "-g", str(goal)],
+            [sys.executable, str(SRC / "plot_postures.py"), "-e", str(episode), "-r", str(rep), "-g", str(goal)]
+            + (["--shapes", shapes] if shapes else []),
             cwd=final, env=ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL), (episode, rep, goal)))
     for p, job in running:
         if p.wait() != 0:
@@ -112,11 +114,12 @@ def render_gifs(final, jobs, parallel):
     return failed
 
 
-def collect(final, good, out, seed):
+def collect(final, good, out, seed, shapes=None):
     from params import Parameters
     from SMMain import build_episode_dataset
 
-    dataset, _ = build_episode_dataset(Parameters())
+    dataset, _ = build_episode_dataset(Parameters(obj_shapes=shapes.split(",") if shapes else None))
+    names = AFFORDANCE_OBJECTS if shapes else OBJECTS
     best = good.sort_values("score", ascending=False).groupby(["episode", "node_x", "node_y"]).head(1)
     best = best.sort_values(["episode", "score"], ascending=[True, False])
     rows = []
@@ -125,10 +128,10 @@ def collect(final, good, out, seed):
         if len(found) != 1:
             continue
         t = dataset[dataset["index"] == int(r.episode)].iloc[0]
-        name = (f"ep{int(r.episode):02d}_{OBJECTS[int(t.context)]}_stretch{t.stretch}_rot{int(round(np.degrees(t.rotation)))}"
+        name = (f"ep{int(r.episode):02d}_{names[int(t.context)]}{'_' + t['shape'] if shapes else ''}_stretch{t.stretch}_rot{int(round(np.degrees(t.rotation)))}"
                 f"_goal{int(r.node_x)}-{int(r.node_y)}_seed{seed}rep{int(r.rep)}.gif")
         shutil.copy(found[0], out / name)
-        rows.append(dict(file=name, seed=seed, episode=int(r.episode), object=OBJECTS[int(t.context)], stretch=t.stretch,
+        rows.append(dict(file=name, seed=seed, episode=int(r.episode), object=names[int(t.context)], stretch=t.stretch,
                          rotation_deg=int(round(np.degrees(t.rotation))), eval_rep=int(r.rep), goal_node_x=int(r.node_x),
                          goal_node_y=int(r.node_y), steps=int(r.steps), touch_dist_start=round(r.touch_start, 1),
                          touch_dist_end=round(r.touch_end, 1), proprio_dist_start=round(r.proprio_start, 1),
@@ -149,6 +152,7 @@ def parse_arguments():
     parser.add_argument("--epoch", type=int, default=1499)
     parser.add_argument("--seed", type=int, default=None, help="Skip the ranking and use this seed")
     parser.add_argument("--parallel", type=int, default=12)
+    parser.add_argument("--shapes", default=None, help="Comma separated shapes of the affordance scenario, e.g. square,triangle")
     parser.add_argument("--max-end", type=float, default=3.5)
     parser.add_argument("--min-gain", type=float, default=1.5)
     parser.add_argument("--max-ratio", type=float, default=0.6)
@@ -173,9 +177,9 @@ if __name__ == "__main__":
     good = segments[segments.good]
     unique = good.sort_values("score", ascending=False).drop_duplicates(["episode", "node_x", "node_y"])
     jobs = [(int(r.episode), int(r.rep), int(r.goal)) for _, r in unique.iterrows()]
-    failed = render_gifs(final, jobs, args.parallel)
+    failed = render_gifs(final, jobs, args.parallel, args.shapes)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    index = collect(final, good, out, seed)
+    index = collect(final, good, out, seed, args.shapes)
     print(f"{len(index)} GIFs for seed {seed}: {index.episode.nunique()} episode types, "
           f"{index[['goal_node_x', 'goal_node_y']].drop_duplicates().shape[0]} goal nodes; failed renders: {failed}", flush=True)

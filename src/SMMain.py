@@ -90,12 +90,15 @@ def build_episode_dataset(params):
             - DataFrame with columns ['index', 'obj_param_index', 'context', 'stretch', 'rotation']
             - List of obj_params_space dictionaries
     """
+    shapes = getattr(params, "obj_shapes", None)
     obj_params_space = [
         {
             "stretch_conditions": [stretch],
             "rotation_conditions": [rotation],
             "pos": [params.obj_y, params.obj_x],
+            **({} if shape is None else {"shape": shape}),
         }
+        for shape in (shapes or [None])
         for stretch in params.obj_stretch_conditions
         for rotation in params.obj_rotation_conditions
     ]
@@ -113,6 +116,7 @@ def build_episode_dataset(params):
                     "context": context,
                     "stretch": obj_params["stretch_conditions"][0],
                     "rotation": obj_params["rotation_conditions"][0],
+                    **({"shape": obj_params["shape"]} if "shape" in obj_params else {}),
                 }
             )
             idx += 1
@@ -1010,7 +1014,7 @@ class Main:
         self.initialize_model_data(controller_, n_episodes=n_episodes)
 
         for i in range(0, n_episodes, bsize):
-            self.initialize_model_data(controller, n_episodes=bsize)
+            self.initialize_model_data(controller, n_episodes=min(bsize, n_episodes - i))
             res = self.run_episodes(
                 agent,
                 controller,
@@ -1079,6 +1083,7 @@ class Main:
             trajectories["tr_id"] = trajectories.goal_id + i * 100
             trajectories["episode_id"] = i
             trajectories["e_seed"] = envs[i].seed
+            trajectories["obj_response"] = getattr(envs[i], "object_response", 0.0)
             if env_states is not None:
                 trajectories["state"] = [
                     tuple(

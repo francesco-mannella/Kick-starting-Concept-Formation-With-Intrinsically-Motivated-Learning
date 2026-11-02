@@ -228,6 +228,28 @@ class Box2DSimOneArmEnv(gym.Env):
         self.world_file = self.world_files[self.world_id]
 
     OBJECT_KINDS = ("still", "movable", "controllable")
+    SHAPES = {
+        "square": ([0.0, 1.9, 1.9, 0.0, 0.0], [1.9, 1.9, 0.0, 0.0, 1.9]),
+        "triangle": ([0.0, 0.0, 7.73682, 0.0], [7.83532, 0.0, 3.91766, 7.83532]),
+    }
+    AFFORDANCE_FILES = {1: "affordance_blue.json", 2: "affordance_red.json", 3: "affordance_green.json"}
+    AFFORDANCE_OBJECTS = {1: ["blue_rotor_ccw"], 2: ["red_button"], 3: ["green_rotor_cw"]}
+
+    def use_scenario(self, name):
+        if getattr(self, "scenario", "original") == name and hasattr(self, "original_worlds"):
+            return
+        if not hasattr(self, "original_worlds"):
+            self.original_worlds = (list(self.world_files), dict(self.world_object_names))
+        files, names = self.original_worlds
+        self.world_files = list(files)
+        self.world_object_names = dict(names)
+        if name == "affordance":
+            for world_id, file_name in self.AFFORDANCE_FILES.items():
+                self.world_files[world_id] = get_resource("box2dsim", "models", file_name)
+                self.world_object_names[world_id] = list(self.AFFORDANCE_OBJECTS[world_id])
+        elif name != "original":
+            raise ValueError(f"unknown scenario {name!r}")
+        self.scenario = name
 
     def kind_param(self, key, body_name):
         values = self.rand_obj_params.get(key)
@@ -251,6 +273,10 @@ class Box2DSimOneArmEnv(gym.Env):
                             ],
                         ]
                     )
+
+                    shape = self.rand_obj_params.get("shape")
+                    if shape is not None:
+                        verts = np.array(self.SHAPES[shape], dtype=float)
 
                     vcentroid = np.ptp(verts, -1)
                     vcentroid = verts.min(-1) + vcentroid / 2
@@ -310,6 +336,13 @@ class Box2DSimOneArmEnv(gym.Env):
                     if damping is not None:
                         world_dict["body"][i]["linearDamping"] = damping
                         world_dict["body"][i]["angularDamping"] = damping
+
+                    anchor = [b for b in world_dict["body"] if b["name"] == bodyName + "_anchor"]
+                    if anchor:
+                        anchor[0]["position"] = dict(world_dict["body"][i]["position"])
+                        for joint in world_dict["joint"]:
+                            if joint["type"] == "prismatic" and world_dict["body"][joint["bodyB"]]["name"] == bodyName:
+                                joint["localAxisA"] = {"x": float(np.cos(rot)), "y": float(np.sin(rot))}
 
                     # color = 0.1 * self.rng.randn(3)
                     # color = color + world_dict["body"][i]["color"]
