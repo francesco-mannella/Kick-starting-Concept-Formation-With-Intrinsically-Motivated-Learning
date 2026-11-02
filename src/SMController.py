@@ -57,6 +57,7 @@ class SMController:
             external_radial_prop=self.params.a_eradial_prop,
             weights_init_sigma=self.params.policy_weights_sigma,
         )
+        self.policy_shared = np.zeros(self.params.policy_size)
         if load is True:
             self.load(tag=tag, shuffle=shuffle)
 
@@ -115,7 +116,7 @@ class SMController:
         self.stm_v.set_radials(radials)
 
     def getPoliciesFromRepresentations(self, representations):
-        return self.stm_a.backward(representations)
+        return self.stm_a.backward(representations) + self.policy_shared
 
     def getVisualsFromRepresentations(self, representations):
         return self.stm_v.backward(representations)
@@ -343,7 +344,7 @@ class SMController:
         v_out = self.stm_v.spread(v)
         ss_out = self.stm_ss.spread(ss)
         p_out = self.stm_p.spread(p)
-        a_out = self.stm_a.spread(a)
+        a_out = self.stm_a.spread(a - self.policy_shared)
 
         sigma = self.params.base_internal_sigma
         v_p, v_r = self.stm_v.get_point_and_representation(v_out, sigma)
@@ -362,6 +363,7 @@ class SMController:
         self.sigma = sigma
 
     def update_policy_map(self, policies, modulate, goals, lr):
+        policies = policies - self.policy_shared
         mode = self.params.policy_winner
         winners = goals.argmax(1) if mode == "forced" else None
         anchor = goals if mode == "anchored" else None
@@ -510,6 +512,9 @@ class SMController:
             th = self.params.policy_update_min_mod_match
             if th > 0 and match_per_mod is not None:
                 policy_sel &= (match_per_mod[:, 1] >= th) & (match_per_mod[:, 2] >= th)
+            if getattr(self.params, "policy_shared_base", False) and policy_sel.any():
+                eta = self.params.policy_base_eta
+                self.policy_shared = self.policy_shared + eta * (policies[policy_sel].mean(0) - self.policy_shared)
             lr_pol = local_lr
             if self.params.policy_update_baseline > 0 and policy_sel.any():
                 policy_sel, lr_pol = self.baseline_select(policy_sel, match_value, goals, local_lr)
@@ -568,6 +573,7 @@ class SMController:
             "ssensory": self.stm_ss.get_weights(),
             "proprio": self.stm_p.get_weights(),
             "policy": self.stm_a.get_weights(),
+            "policy_base": self.policy_shared,
             "predict": self.predict.get_weights(),
             "rng": self.rng,
             "maxmatch": self.maxmatch,
@@ -580,6 +586,7 @@ class SMController:
         self.stm_ss.set_weights(state["ssensory"])
         self.stm_p.set_weights(state["proprio"])
         self.stm_a.set_weights(state["policy"])
+        self.policy_shared = state.get("policy_base", np.zeros(self.params.policy_size))
         self.predict.set_weights(state["predict"])
         self.rng = state["rng"]
         self.maxmatch = state["maxmatch"]
@@ -593,6 +600,7 @@ class SMController:
             "ssensory": self.stm_ss.get_weights(),
             "proprio": self.stm_p.get_weights(),
             "policy": self.stm_a.get_weights(),
+            "policy_base": self.policy_shared,
             "predict": self.predict.get_weights(),
         }
 
@@ -635,12 +643,14 @@ class SMController:
 
         if shuffle == True:
             for k in weights.keys():
-                self.rng.shuffle(weights[k])
+                if k != "policy_base":
+                    self.rng.shuffle(weights[k])
 
         self.stm_v.set_weights(weights["visual"])
         self.stm_ss.set_weights(weights["ssensory"])
         self.stm_p.set_weights(weights["proprio"])
         self.stm_a.set_weights(weights["policy"])
+        self.policy_shared = weights.get("policy_base", np.zeros(self.params.policy_size))
         self.predict.set_weights(weights["predict"])
 
 

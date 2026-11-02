@@ -44,6 +44,10 @@ class Actuator:
             self.gain = np.repeat(stats[f"gain_{self.encoding}"], self.block_units)
             self.rbf_sigma = stats["rbf_sigma"]
             self.gain[: self.block_units] *= kargs.get("touch_gain", 1.0)
+        self.hidden_mean = None
+        if kargs.get("center_code"):
+            stats = np.load((Path(__file__).parent / kargs["norm_name"]).with_suffix(".npz"))
+            self.hidden_mean = stats["hidden_mean_" + kargs["center_code"]]
         self.embedding = None
         self.touch_gain = kargs.get("touch_gain", 1.0)
         if self.encoding == "embedding":
@@ -103,6 +107,8 @@ class Actuator:
             hidden = np.dot(state, self.map)
         if self.gain is not None:
             hidden = hidden * self.gain
+        if self.hidden_mean is not None:
+            hidden = hidden - self.hidden_mean
         if self.basis is not None:
             hidden = hidden @ self.basis / self.basis_scale
         return hidden

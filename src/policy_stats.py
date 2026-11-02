@@ -132,7 +132,8 @@ def static_stats(args, rng):
         posture_rows += postures(data, main.episode_dataset, epoch)
         pooled.append(policies)
         labels.append(label)
-        protos = getattr(main, args.controller).stm_a.get_weights().T
+        controller = getattr(main, args.controller)
+        protos = controller.stm_a.get_weights().T + getattr(controller, "policy_shared", 0)
         goal_protos.append(protos[label.node.values])
         raw, null, adjusted = mi_time_weighted(data, main, policies, rng, args.n_perm_mi)
         mi_raw.append(raw)
@@ -258,7 +259,7 @@ def counterfactual(args, rng):
     main, _ = load(args.storage, parse_epochs(args.epochs)[-1], args.data)
     controller = getattr(main, args.controller)
     weights = controller.stm_a.get_weights().copy()
-    protos = weights.T
+    protos = weights.T + getattr(controller, "policy_shared", 0)
     episodes = main.episode_dataset
 
     def evaluate(w, eseed):

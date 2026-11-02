@@ -38,6 +38,9 @@ class Parameters(ParameterManager):
         visual_size=300,
         fovea_range=4,
         scenario="original",
+        policy_shared_base=False,
+        policy_base_eta=0.02,
+        grip_center_code=None,
         obj_shapes=None,
         obj_pos_jitter=(0.0, 0.0),
         obj_reach_limit=18.0,
@@ -143,6 +146,9 @@ class Parameters(ParameterManager):
         self.visual_size = visual_size
         self.fovea_range = fovea_range
         self.scenario = scenario
+        self.policy_shared_base = policy_shared_base
+        self.policy_base_eta = policy_base_eta
+        self.grip_center_code = grip_center_code
         self.obj_shapes = obj_shapes
         self.obj_pos_jitter = obj_pos_jitter
         self.obj_reach_limit = obj_reach_limit

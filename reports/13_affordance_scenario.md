@@ -96,4 +96,24 @@ Reading: after 1000 epochs the colour-specific structure of the policies is much
 
 ### 6.3 Figs 5-7 sweep
 
-Launched because Phase 1 meets the eta2 criterion; 5 seeds (10 runs) instead of 10 to fit the time, 1500 epochs, former parasites from the parasite weights at epoch 1000, batch size 36: `~/tmp/kss/affordance_probe/fig567`, started 2026-11-02 00:01 (about 10 hours). A chained script scores it against the original-scenario sweep (`fig567_score.out`) and renders demos of the active agent at epoch 1499 into `fig567/figures`. Results: not yet in this report.
+Launched because Phase 1 meets the eta2 criterion: 5 seeds (10 runs) instead of 10 to fit the time, 1500 epochs, former parasites from the parasite weights at epoch 1000, batch size 36, 2026-11-02 00:01 to 09:33 (`~/tmp/kss/affordance_probe/fig567`; figures in `fig567/figures`; scoring `fig567_score.out`, `~/tmp/kss/score_fig567.py`). The reference is the original-scenario sweep with the same actuator (`fig567_dof8`, 10 seeds, section 4.4 of report 11); the paired difference uses the 5 seeds present in both. Mean over seeds (SD), epochs 1000 to 1500:
+
+| Series, measure | affordance | original | paired difference (affordance higher in) |
+|---|---|---|---|
+| Agent: alignment | 0.640 (0.023) | 0.652 (0.093) | -0.068 (2/5) |
+| Agent: success | 0.784 (0.129) | 0.734 (0.129) | +0.014 (3/5) |
+| Agent: MI context / policy | 0.845 (0.087) | 0.902 (0.091) | -0.078 (1/5) |
+| Agent: MI context / touch | 0.048 (0.013) | 0.178 (0.065) | -0.169 (0/5) |
+| Agent: touch frequency | 0.273 (0.048) | 0.175 (0.066) | +0.061 (4/5) |
+| Parasite: alignment | 0.650 (0.018) | 0.656 (0.071) | -0.056 (0/5) |
+| Parasite: success | 0.317 (0.259) | 0.368 (0.247) | -0.063 (2/5) |
+| Former parasite: alignment | 0.662 (0.019) | 0.628 (0.067) | +0.014 (3/5) |
+| Former parasite: success | **0.820 (0.051)** | 0.623 (0.322) | **+0.157 (3/5)** |
+| Former parasite: touch frequency | **0.283 (0.065)** | 0.136 (0.075) | **+0.153 (5/5)** |
+| Former parasite: MI context / policy | 0.871 (0.069) | 0.891 (0.063) | -0.022 (1/5) |
+| Former parasite: MI context / touch | 0.040 (0.018) | 0.156 (0.095) | -0.107 (1/5) |
+| Former parasites with success below 0.3 | 0 of 5 | 2 of 10 | |
+
+Per seed, success of the former parasite, epochs 1000 to 1500: 0.81, 0.76, 0.82, 0.81 and 0.90 (original: 0.31, 0.25, 0.93, 0.97, 0.85, 0.10, 0.55, 0.89, 0.86, 0.51); of the agent: 0.56, 0.81, 0.83, 0.89 and 0.84 (none below 0.3).
+
+Reading: the recovery of former parasites is better and steadier in the affordance scenario (success 0.82 with a seed SD of 0.05 against 0.62 with 0.32, no stuck seed against two, touch frequency doubled, higher in all five paired seeds), while the agent and the alignment are as in the original world and the agent's success is the same (0.78 against 0.73). The context information in touch is lower (MI context / touch about 0.04 against 0.16 to 0.18) and the information in the policy slightly lower (0.85 to 0.87 against 0.89 to 0.90): in this world the touch map separates the colours less, although the policies are more colour specific (section 6.1). With five seeds against ten, and the success of the former parasite higher in only 3 of 5 paired seeds (the original has large seed spread), the improvement of recovery is suggestive and not yet established; the touch frequency of the former parasite is the clearest difference (5 of 5). Demo GIFs of the active agent in the parasite run of seed 4 at epoch 1499 (15 GIFs, 13 episode types) are in the viewer figures folder as `demo_agent_epoch1499_*.gif`.
