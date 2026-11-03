@@ -889,6 +889,16 @@ class Main:
                             < self.params.match_incr_th
                         ] = 0
 
+                        radius = getattr(controller, "event_radius", None)
+                        if radius is not None:
+                            mmask &= controller.reach_mask(
+                                controller.model_data["ss_p"][:, i],
+                                controller.model_data["p_p"][:, i],
+                                controller.model_data["g_p"][:, i],
+                                np.linalg.norm(controller.model_data["batch_ss"][:, i], axis=-1) > 1e-6,
+                                radius,
+                            )
+
                         max_match[mmask, i:] = controller.model_data["match_value"][
                             mmask, i, None
                         ]
@@ -1307,6 +1317,7 @@ class Main:
                 self.params.match_sigma,
                 global_incompetence,
             )
+            self.controller.event_radius = self.controller.scheduled_event_radius(global_competence, self.epoch)
 
             # No global modulation of LR and sigma
             # self.controller.curr_lr = modulate_param(
@@ -1723,6 +1734,8 @@ class Main:
                 self.params.match_sigma,
                 global_incompetence_par,
             )
+            self.controller.event_radius = self.controller.scheduled_event_radius(1 - global_incompetence, self.epoch)
+            self.controller_par.event_radius = self.controller_par.scheduled_event_radius(1 - global_incompetence_par, self.epoch)
 
             # No global modulation of LR and sigma
             # controller.curr_lr = modulate_param(

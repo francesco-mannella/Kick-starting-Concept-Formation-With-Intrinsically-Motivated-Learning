@@ -58,6 +58,7 @@ class SMController:
             weights_init_sigma=self.params.policy_weights_sigma,
         )
         self.policy_shared = np.zeros(self.params.policy_size)
+        self.event_radius = None if getattr(self.params, "event_radius_warmup", 0) > 0 else getattr(self.params, "event_radius", None)
         if load is True:
             self.load(tag=tag, shuffle=shuffle)
 
@@ -114,6 +115,22 @@ class SMController:
         self.stm_p.set_radials(radials)
         self.stm_a.set_radials(radials)
         self.stm_v.set_radials(radials)
+
+    @staticmethod
+    def reach_mask(ss_p, p_p, g_p, contact, radius):
+        # event allowed only in contact and when the touch and proprioception winners are within `radius` grid cells of the goal node
+        d_touch = np.linalg.norm(ss_p - g_p, axis=-1)
+        d_prop = np.linalg.norm(p_p - g_p, axis=-1)
+        return contact & (d_touch <= radius) & (d_prop <= radius)
+
+    def scheduled_event_radius(self, global_competence, epoch=None):
+        start = getattr(self.params, "event_radius", None)
+        if start is None:
+            return None
+        if epoch is not None and epoch < getattr(self.params, "event_radius_warmup", 0):
+            return None
+        final = getattr(self.params, "event_radius_final", None)
+        return start if final is None else start + (final - start) * float(global_competence)
 
     def getPoliciesFromRepresentations(self, representations):
         return self.stm_a.backward(representations) + self.policy_shared
@@ -574,6 +591,7 @@ class SMController:
             "proprio": self.stm_p.get_weights(),
             "policy": self.stm_a.get_weights(),
             "policy_base": self.policy_shared,
+            "event_radius": self.event_radius,
             "predict": self.predict.get_weights(),
             "rng": self.rng,
             "maxmatch": self.maxmatch,
@@ -587,6 +605,7 @@ class SMController:
         self.stm_p.set_weights(state["proprio"])
         self.stm_a.set_weights(state["policy"])
         self.policy_shared = state.get("policy_base", np.zeros(self.params.policy_size))
+        self.event_radius = state.get("event_radius", getattr(self.params, "event_radius", None))
         self.predict.set_weights(state["predict"])
         self.rng = state["rng"]
         self.maxmatch = state["maxmatch"]

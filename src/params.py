@@ -39,6 +39,9 @@ class Parameters(ParameterManager):
         fovea_range=4,
         scenario="original",
         policy_shared_base=False,
+        event_radius=None,
+        event_radius_final=None,
+        event_radius_warmup=0,
         policy_base_eta=0.02,
         grip_center_code=None,
         obj_shapes=None,
@@ -147,6 +150,9 @@ class Parameters(ParameterManager):
         self.fovea_range = fovea_range
         self.scenario = scenario
         self.policy_shared_base = policy_shared_base
+        self.event_radius = event_radius
+        self.event_radius_final = event_radius_final
+        self.event_radius_warmup = event_radius_warmup
         self.policy_base_eta = policy_base_eta
         self.grip_center_code = grip_center_code
         self.obj_shapes = obj_shapes

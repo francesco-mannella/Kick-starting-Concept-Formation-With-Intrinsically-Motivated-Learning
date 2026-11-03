@@ -237,10 +237,18 @@ def episode_table(tr, episodes):
         touch = g[touch_cols].values.sum(1) > 0
         goal_x, goal_y = g.prototype_x.values, g.prototype_y.values
         dist = np.hypot(g.touch_x.values - goal_x, g.touch_y.values - goal_y)
-        rows.append({"ep": int(ep), "ctx": int(episodes.context[int(ep) % len(episodes)]),
-                     "success": float(g.tr_id.nunique() >= 2), "match": g.match.mean(),
-                     "max_match": g.match.max(), "touch": touch.mean(),
-                     "hit2": (dist[touch] <= 2).mean() if touch.any() else 0.0})
+        dist_p = np.hypot(g.proprio_x.values - goal_x, g.proprio_y.values - goal_y)
+        row = {"ep": int(ep), "ctx": int(episodes.context[int(ep) % len(episodes)]),
+               "success": float(g.tr_id.nunique() >= 2), "match": g.match.mean(),
+               "max_match": g.match.max(), "touch": touch.mean(),
+               "hit2": (dist[touch] <= 2).mean() if touch.any() else 0.0, "n_segments": int(g.tr_id.nunique())}
+        for r in (0, 1, 2, 3):
+            both = touch & (dist <= r) & (dist_p <= r)
+            row[f"reach_any{r}"] = float(both.any())
+            row[f"reach_share{r}"] = float(both.mean())
+        ends = g.assign(dt=dist, dp=dist_p).groupby("tr_id").tail(5).groupby("tr_id")[["dt", "dp"]].mean()
+        row["end_touch_d"], row["end_proprio_d"] = float(ends.dt.median()), float(ends.dp.median())
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -258,6 +266,8 @@ def node_groups(tr, episodes, n_nodes, min_segments):
 def counterfactual(args, rng):
     main, _ = load(args.storage, parse_epochs(args.epochs)[-1], args.data)
     controller = getattr(main, args.controller)
+    if args.old_rule:
+        controller.event_radius = None
     weights = controller.stm_a.get_weights().copy()
     protos = weights.T + getattr(controller, "policy_shared", 0)
     episodes = main.episode_dataset
@@ -296,7 +306,7 @@ def counterfactual(args, rng):
         return p.T
 
     rows = []
-    for kind in ("intact", "swap", "shuffle_within_context", "shuffle_all_used", "constant_mean"):
+    for kind in args.kinds.split(","):
         for draw in range(1 if kind in ("intact", "constant_mean") else args.draws):
             w = build(kind) if kind != "intact" else weights
             for eseed in eseeds:
@@ -317,6 +327,8 @@ def parse_arguments():
     parser.add_argument("--out", default=None, help="Prefix of the output files")
     parser.add_argument("--dims", default="3,10", help="Prototype principal components kept for the low-dimensional eta2")
     parser.add_argument("--counterfactual", action="store_true")
+    parser.add_argument("--old-rule", action="store_true", help="Evaluate with the original event rule (event_radius None)")
+    parser.add_argument("--kinds", default="intact,swap,shuffle_within_context,shuffle_all_used,constant_mean")
     parser.add_argument("--eseeds", default="101,102,103")
     parser.add_argument("--n-episodes", type=int, default=36)
     parser.add_argument("--draws", type=int, default=5)
