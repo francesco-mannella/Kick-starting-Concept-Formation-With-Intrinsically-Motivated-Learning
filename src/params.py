@@ -42,6 +42,8 @@ class Parameters(ParameterManager):
         event_radius=None,
         event_radius_final=None,
         event_radius_warmup=0,
+        log_update_decomposition=False,
+        policy_internal_sigma=None,
         policy_base_eta=0.02,
         grip_center_code=None,
         obj_shapes=None,
@@ -153,6 +155,8 @@ class Parameters(ParameterManager):
         self.event_radius = event_radius
         self.event_radius_final = event_radius_final
         self.event_radius_warmup = event_radius_warmup
+        self.log_update_decomposition = log_update_decomposition
+        self.policy_internal_sigma = policy_internal_sigma
         self.policy_base_eta = policy_base_eta
         self.grip_center_code = grip_center_code
         self.obj_shapes = obj_shapes

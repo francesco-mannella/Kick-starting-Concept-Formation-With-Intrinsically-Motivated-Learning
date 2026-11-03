@@ -1451,6 +1451,7 @@ class Main:
                             "stm_p_loss": curr_loss[2],
                             "stm_a_loss": curr_loss[3],
                             "mean_sigma": local_sigma.mean(),
+                            **getattr(self.controller, "update_stats", {}),
                             "mean_lr": local_lr.mean(),
                             "mean_cum_match": cum_match[policy_ended].mean()
                             / self.params.cum_match_stop_th,
@@ -1948,6 +1949,7 @@ class Main:
                             "stm_p_loss": curr_loss[2],
                             "stm_a_loss": curr_loss[3],
                             "mean_sigma": local_sigma.mean(),
+                            **getattr(controller, "update_stats", {}),
                             "mean_lr": local_lr.mean(),
                             "mean_cum_match": cum_match[policy_ended].mean()
                             / self.params.cum_match_stop_th,

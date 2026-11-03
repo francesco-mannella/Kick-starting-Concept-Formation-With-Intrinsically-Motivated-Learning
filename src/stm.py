@@ -290,6 +290,7 @@ class SMSTM(STM):
             wta = norms2.argmin(dim=-1).float() if self.forced_winners is None else self.forced_winners
             wta = torch.stack((wta // self.side, wta % self.side)).T
             phi = (self.radial_fun(wta, self.sigma, self.output_size) * dists).float()
+            self.last_phi = phi
             mass = phi.sum(0)
             mean = (phi.T @ data) / mass.clamp_min(1e-12).unsqueeze(1)
             gain = eta * mass / (1 + mass)

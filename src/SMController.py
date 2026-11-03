@@ -6,6 +6,7 @@ import numpy as np
 from params import Parameters
 from SMPredict import SMPredictKDE
 from stm import SMSTM
+from update_decomposition import decompose_update
 
 
 def softmax(x, lmb=1):
@@ -379,6 +380,13 @@ class SMController:
         self.stm_a.update_params(sigma=sigma, lr=lr)
         self.sigma = sigma
 
+    def policy_sigma(self, local_sigma):
+        top = getattr(self.params, "policy_internal_sigma", None)
+        if top is None:
+            return local_sigma
+        base, full = self.params.base_internal_sigma, self.params.internal_sigma
+        return base + (top - base) * (local_sigma - base) / (full - base)
+
     def update_policy_map(self, policies, modulate, goals, lr):
         policies = policies - self.policy_shared
         mode = self.params.policy_winner
@@ -386,9 +394,12 @@ class SMController:
         anchor = goals if mode == "anchored" else None
         if self.params.policy_update == "ema":
             weights = goals / goals.max(1, keepdims=True) * lr
-            return self.stm_a.update(
+            loss = self.stm_a.update(
                 policies, weights, winners=winners, ema_eta=self.params.policy_ema_eta, anchor=anchor
             ).item()
+            if getattr(self.params, "log_update_decomposition", False):
+                self.update_stats = decompose_update(self.stm_a.last_phi.numpy(), goals, policies)
+            return loss
         return self.stm_a.update(policies, modulate, winners=winners, anchor=anchor).item()
 
     def update_reach_basis(self, ssensories, proprios, actuator, n_rows=300, decay=0.9):
@@ -536,7 +547,7 @@ class SMController:
             if self.params.policy_update_baseline > 0 and policy_sel.any():
                 policy_sel, lr_pol = self.baseline_select(policy_sel, match_value, goals, local_lr)
             if policy_sel.any():
-                self.stm_a.update_params(sigma=local_sigma[policy_sel])
+                self.stm_a.update_params(sigma=self.policy_sigma(local_sigma[policy_sel]))
             policies_upd = policies
             if self.params.policy_output_space and actuator is not None and policy_sel.any():
                 policies_upd = self.project_policies(
