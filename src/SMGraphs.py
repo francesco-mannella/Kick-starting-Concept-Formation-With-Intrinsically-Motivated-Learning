@@ -215,7 +215,7 @@ class GraphManager:
         fig = None
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        ax.imshow((data_v - data_v.min()) / (data_v.max() - data_v.min()))
+        ax.imshow(np.clip(data_v, 0.0, 1.0))
         ax.set_ylim(-0.5 * visual_side, (internal_side + 0.5) * visual_side)
         ax.set_ylim((internal_side + 0.5) * visual_side, -0.5 * visual_side)
         ax.set_axis_off()

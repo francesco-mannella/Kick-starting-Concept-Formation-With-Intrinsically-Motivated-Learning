@@ -71,3 +71,27 @@ Hypothesis (user): with `internal_sigma=10` on a 10 x 10 map the early neighbour
 - Affordance: constant-policy cost rises (+0.11 [0.00, +0.22] and +0.12 [0.00, +0.24], borderline) but swap cost does not, and colour eta2 falls with the narrow start (`psig1a` 1.18 against 1.88, -0.71 [-1.05, -0.29]): the colour specificity of the control is lost, not gained.
 - Success: only `isig1o` is clearly higher (+0.19 [+0.10, +0.29]), a change of all maps, not of the policy map.
 - Reading: the common parent explains the common baseline, but removing it does not make policies depend on the goal. Together with report 15 (success rule) and report 14 (shared base), the single-policy problem is not caused by the starting neighbourhood, the update or the rule; the open question is why diverse prototypes bring no functional gain (what the executed policy does at each goal).
+
+## 7. Parametrized-skill analysis: prototype parameters, context and graded outcomes
+
+Reading: the common vector is the skill template and the next few prototype principal components are its parameters, set by the goal node. `src/skill_analysis.py` (default arguments; output `~/tmp/kss/context4_probe/skill`, pooled by `skill/pool.py`): the prototypes of the used nodes (at least 2 segments in 6 evaluation seeds x 36 episodes) are centred and the first 5 principal components are the parameters; per segment the parameters of its goal node are regressed (5-fold cross-validated by episode, ridge) on (a) context features (colour, shape, stretch, rotation), (b) the goal position on the map (linear and quadratic), (c) both, (d) the per-node mean (ceiling); permutation null p95 about 0. Graded outcomes: with 3 other evaluation seeds the parameter k is set to the mean of the used nodes (`flat`) or shuffled across nodes (`shuffle`), all five flattened (`flat_top5`), only the five kept (`keep_top5`), or the whole prototype replaced by the mean (`flat_all`). Sets (3 runs each): affordance 1000 epochs (8-DoF), original 8-DoF sweep (parasite, epoch 1499), 5-output sweeps with sigma 3 and sigma 1 (tag `champion-5dof`, parasite, epoch 1499).
+
+Mean over the 3 runs of each set (top-5 parameters hold 91% / 94% / 87% / 54% of the variance between used nodes):
+
+| cross-validated R2, mean of PC1-PC5 | affordance | original 8-DoF | 5-out sigma 3 | 5-out sigma 1 |
+|---|---|---|---|---|
+| context features alone | 0.34 | 0.51 | 0.37 | 0.36 |
+| goal position, linear | 0.47 | 0.45 | 0.39 | 0.32 |
+| goal position, quadratic | 0.87 | 0.95 | 0.85 | 0.72 |
+| context and position | 0.88 | 0.96 | 0.89 | 0.80 |
+| per-node mean (ceiling) | 0.99 | 0.99 | 0.99 | 1.00 |
+
+- The parameters are a smooth function of where the goal node lies on the map: linear in the position for PC1 and PC2 (R2 0.8 to 0.97), quadratic for PC3 to PC5. Context features explain 0.1 to 0.7 per component (null 0), but add only +0.01 to +0.15 beyond the position, so context acts on the parameters mainly through which part of the map its goals occupy. This is partly built in: the maps are topographic.
+- With sigma 1 the position explains less (0.72) and the variance is spread over many more components (top five 54%).
+
+Graded outcomes (cost = intact minus condition; mean over 3 runs; standard deviation over runs in brackets where cited):
+- No single parameter has a cost clearly beyond the run-to-run spread in success, match, `max_match`, `hit2` or the end distance of the touch winner. The only consistent signal is the end distance of the proprioception winner to the goal node, which grows when PC1 is flattened or shuffled (+0.24 to +0.52 cells, in all four sets; run spread 0.1 to 0.5) and to a lesser degree PC2.
+- The five parameters together carry what is learned: `flat_top5` costs about as much as `flat_all` in the 8-DoF sets (`max_match` 0.106 and 0.121 affordance, 0.073 and 0.077 original; `flat_all` in match 0.037 and 0.033, success 0.08 and 0.07, run spread 0.02 to 0.08) and `keep_top5` costs about nothing. The gain is a gain in match and not in the end distance of the touch winner (cost -0.03 to +0.22 cells).
+- With sigma 1, `flat_all` costs most (success 0.28 [0.25], `max_match` 0.21, `hit2` 0.20), but `flat_top5` does not (0.05, 0.00, 0.06): the function sits in many components of low variance, not in the top five.
+
+Reading: the learned policy is a template plus a few parameters that vary smoothly with the goal position and so with the object properties that place the goal. The parameters have a small joint benefit in match (and for the proprio end point), no benefit that shows individually, and none in how near the touch ends to the goal. Caveats: 3 runs per set and 108 evaluation episodes per condition, so differences below about 0.05 in success are not resolved; high R2 on position is expected from topography and does not by itself show that the parameters matter for the task; context and position are confounded in the affordance task because the visual map places objects by colour and shape.
