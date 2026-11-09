@@ -75,6 +75,11 @@ class Parameters(ParameterManager):
         policy_output_space=False,
         policy_noise_reach_k=0,
         policy_update_baseline=0.0,
+        saliency=False,
+        sal_lambda=0.4,
+        sal_gamma=0.2,
+        sal_kappa=0.5,
+        sal_temp=0.05,
         match_incr_th=0.001,
         cum_match_stop_th=1.0,
         predict_lr=0.05,
@@ -168,6 +173,11 @@ class Parameters(ParameterManager):
         self.policy_output_space = policy_output_space
         self.policy_noise_reach_k = policy_noise_reach_k
         self.policy_update_baseline = policy_update_baseline
+        self.saliency = saliency
+        self.sal_lambda = sal_lambda
+        self.sal_gamma = sal_gamma
+        self.sal_kappa = sal_kappa
+        self.sal_temp = sal_temp
         self.match_incr_th = match_incr_th
         self.cum_match_stop_th = cum_match_stop_th
         self.predict_lr = predict_lr

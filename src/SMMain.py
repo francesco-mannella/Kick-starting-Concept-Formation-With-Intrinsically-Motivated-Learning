@@ -534,6 +534,24 @@ class Main:
             "match_value": np.zeros([n_episodes, self.params.stime]),
             "match_value_per_mod": np.zeros([n_episodes, self.params.stime, 4]),
         }
+        if self.params.saliency:
+            K = self.params.internal_size
+            controller.model_data["sal_bu"] = np.zeros([n_episodes, self.params.stime, 4], dtype=int)
+            controller.model_data["sal_cw"] = np.zeros([n_episodes, self.params.stime, 4], dtype=int)
+            controller.model_data["sal_store"] = np.zeros(
+                [n_episodes, self.params.stime, 4, K], dtype=np.float32
+            )
+
+    def saliency_update_kwargs(self, controller):
+        if not self.params.saliency:
+            return {}
+        md = controller.model_data
+        n = md["sal_cw"].shape[0] * md["sal_cw"].shape[1]
+        return {
+            "sal_store": md["sal_store"].reshape(n, 4, -1),
+            "sal_cw": md["sal_cw"].reshape(n, 4),
+            "sal_bu": md["sal_bu"].reshape(n, 4),
+        }
 
     def is_object_out_of_taskspace(self, state):
         obj_xy = state["OBJ_POSITION"][0, 0]
@@ -766,6 +784,9 @@ class Main:
         visual_activation = np.zeros((batch_size, self.params.stime))
         goal_activation = np.zeros((batch_size, self.params.stime))
 
+        if self.params.saliency:
+            controller.init_saliency(batch_size)
+
         # Main loop through time steps and episodes
         smcycles = [
             SensoryMotorCircle(self, self.params.action_steps, rng=controller.rng)
@@ -825,7 +846,10 @@ class Main:
                     controller.model_data[key][sa].reshape((bsize, -1))
                     for key in data_keys
                 ]
-                Rs, Rp = controller.spread(reshaped_data)
+                if self.params.saliency:
+                    Rs, Rp = self.saliency_spread(controller, t0, t, batch_size)
+                else:
+                    Rs, Rp = controller.spread(reshaped_data)
 
                 # Store representation in history
                 result_keys_r = ["v_r", "ss_r", "p_r", "a_r"]
@@ -947,6 +971,8 @@ class Main:
                     chosen_policy_results = controller.choose_policy(
                         v_pt, v_rt, ss_rt, p_rt, goal_activation, t
                     )
+                    if self.params.saliency:
+                        controller.reset_saliency(success_mask)
 
                     (
                         goals_p,
@@ -973,6 +999,30 @@ class Main:
             policy_changed,
             goal_activation,
         )
+
+    def saliency_spread(self, controller, t0, t, batch_size):
+        md = controller.model_data
+        stms = (controller.stm_v, controller.stm_ss, controller.stm_p, controller.stm_a)
+        keys = ("batch_v", "batch_ss", "batch_p", "batch_a")
+        pts = [[] for _ in range(4)]
+        reps = [[] for _ in range(4)]
+        for s_ in range(t0, t):
+            xs = [md[k][:, s_, :] for k in keys]
+            bu, cw, zs = controller.saliency_step(xs, md["batch_g"][:, s_, :])
+            md["sal_bu"][:, s_] = bu
+            md["sal_cw"][:, s_] = cw
+            md["sal_store"][:, s_] = zs
+            for m in range(4):
+                p, r = controller.points_and_representations_from_winners(bu[:, m], stms[m])
+                pts[m].append(p)
+                reps[m].append(r)
+        g_p, _ = controller.stm_a.get_point_and_representation(
+            md["batch_g"][:, t0:t, :].reshape((batch_size * (t - t0), -1)),
+            sigma=self.params.base_internal_sigma,
+        )
+        Rs = [np.stack(r, axis=1).reshape(batch_size * (t - t0), -1) for r in reps]
+        Rp = [np.stack(p, axis=1).reshape(batch_size * (t - t0), -1) for p in pts]
+        return Rs + [md["batch_g"][:, t0:t, :].reshape(batch_size * (t - t0), -1)], Rp + [g_p]
 
     def _execute_and_collect_episode_results(
         self,
@@ -1357,6 +1407,7 @@ class Main:
                     local_sigma,
                     match_per_mod=self.controller.model_data["match_value_per_mod"].reshape(-1, 4),
                     actuator=self.agent.grip_agent.grip,
+                    **self.saliency_update_kwargs(self.controller),
                 )
             )
 
@@ -1475,6 +1526,7 @@ class Main:
                                 policy_ended[contexts == 3, :]
                             ].mean(),
                             "touch_freq": touch_freq,
+                            **({"sal_shift": self.controller.sal_shift} if self.params.saliency else {}),
                         },
                         step=epoch,
                     )
@@ -1794,6 +1846,7 @@ class Main:
                     local_sigma,
                     match_per_mod=self.controller.model_data["match_value_per_mod"].reshape(-1, 4),
                     actuator=self.agent.grip_agent.grip,
+                    **self.saliency_update_kwargs(self.controller),
                 )
             )
 
@@ -1817,6 +1870,7 @@ class Main:
                 local_sigma_par,
                 match_per_mod=self.controller_par.model_data["match_value_per_mod"].reshape(-1, 4),
                 actuator=self.agent.grip_agent.grip,
+                **self.saliency_update_kwargs(self.controller_par),
             )
 
             # Store trajectory data
@@ -1964,6 +2018,7 @@ class Main:
                                 "match_value_per_mod"
                             ][matches, 3].mean(),
                             "touch_freq": touch_freq,
+                            **({"sal_shift": self.controller.sal_shift} if self.params.saliency else {}),
                             "goal_activation": goal_activation[policy_ended].mean(),
                             "goal_activation_blue": goal_activation[contexts == 1, :][
                                 policy_ended[contexts == 1, :]

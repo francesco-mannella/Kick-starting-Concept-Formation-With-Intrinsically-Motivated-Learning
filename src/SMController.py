@@ -347,6 +347,48 @@ class SMController:
 
         return (v_r, ss_r, p_r, a_r, g_out), (v_p, ss_p, p_p, a_p, g_p)
 
+    def init_saliency(self, n_episodes):
+        K = self.params.internal_size
+        self.sal_S = np.zeros((n_episodes, 4, K))
+        self.sal_Z = np.zeros((n_episodes, 4, K))
+
+    def reset_saliency(self, rows):
+        self.sal_S[rows] = 0
+        self.sal_Z[rows] = 0
+
+    def saliency_step(self, xs, goal):
+        p = self.params
+        lam, gamma, kappa = p.sal_lambda, p.sal_gamma, p.sal_kappa
+        stms = (self.stm_v, self.stm_ss, self.stm_p, self.stm_a)
+        gmax = goal.max(axis=1, keepdims=True)
+        g = np.where(gmax > 0, goal / np.where(gmax > 0, gmax, 1), 0)
+        bu = np.zeros((len(g), 4), dtype=int)
+        alpha = []
+        for m, (stm, x) in enumerate(zip(stms, xs)):
+            d2 = stm.distances(x)
+            scale = np.maximum(p.sal_temp * np.median(d2, axis=1, keepdims=True), 1e-12)
+            a = np.exp(-(d2 - d2.min(axis=1, keepdims=True)) / scale)
+            a /= a.sum(axis=1, keepdims=True)
+            alpha.append(a)
+            self.sal_S[:, m] = lam * self.sal_S[:, m] + (1 - lam) * a
+            bu[:, m] = self.sal_S[:, m].argmax(axis=1)
+        norm = 1 + gamma + 3 * kappa
+        tot = self.sal_Z.sum(axis=1)
+        cw = np.zeros((len(g), 4), dtype=int)
+        zs = np.zeros_like(self.sal_Z)
+        for m in range(4):
+            z = self.sal_Z[:, m]
+            c = lam * z + (1 - lam) * (alpha[m] + gamma * g + kappa * (tot - z)) / norm
+            self.sal_Z[:, m] = c
+            zs[:, m] = c / np.maximum(c.max(axis=1, keepdims=True), 1e-12)
+            cw[:, m] = c.argmax(axis=1)
+        return bu, cw, zs
+
+    def points_and_representations_from_winners(self, idx, stm):
+        side = self.internal_side
+        point = np.stack((idx // side, idx % side), axis=1).astype(np.float32)
+        return point, stm.getRepresentation(point, sigma=self.params.base_internal_sigma)
+
     def updateParams(self, sigma, lr):
         self.stm_v.update_params(sigma=sigma, lr=lr)
         self.stm_ss.update_params(sigma=sigma, lr=lr)
@@ -354,10 +396,11 @@ class SMController:
         self.stm_a.update_params(sigma=sigma, lr=lr)
         self.sigma = sigma
 
-    def update_policy_map(self, policies, modulate, goals, lr):
+    def update_policy_map(self, policies, modulate, goals, lr, winners=None):
         mode = self.params.policy_winner
-        winners = goals.argmax(1) if mode == "forced" else None
-        anchor = goals if mode == "anchored" else None
+        if winners is None:
+            winners = goals.argmax(1) if mode == "forced" else None
+        anchor = goals if mode == "anchored" and winners is None else None
         if self.params.policy_update == "ema":
             weights = goals / goals.max(1, keepdims=True) * lr
             return self.stm_a.update(
@@ -415,12 +458,14 @@ class SMController:
             out[i] = (proto + Q.T @ (Q @ delta)).ravel()
         return out
 
-    def update_sensory_map(self, stm, data, modulate, goals, lr):
-        anchor = goals if self.params.map_winner == "anchored" else None
+    def update_sensory_map(self, stm, data, modulate, goals, lr, winners=None):
+        anchor = goals if self.params.map_winner == "anchored" and winners is None else None
         if self.params.map_update == "ema":
             weights = goals / goals.max(1, keepdims=True) * lr
-            return stm.update(data, weights, ema_eta=self.params.map_ema_eta, anchor=anchor).item()
-        return stm.update(data, modulate, anchor=anchor).item()
+            return stm.update(
+                data, weights, winners=winners, ema_eta=self.params.map_ema_eta, anchor=anchor
+            ).item()
+        return stm.update(data, modulate, winners=winners, anchor=anchor).item()
 
     def update(
         self,
@@ -438,6 +483,9 @@ class SMController:
         local_sigma,
         match_per_mod=None,
         actuator=None,
+        sal_store=None,
+        sal_cw=None,
+        sal_bu=None,
     ):
         curr_loss = None
         mean_modulation = None
@@ -501,24 +549,44 @@ class SMController:
                 policies_upd = self.project_policies(
                     policies, ssensories, proprios, goals, policy_sel, actuator
                 )
+            w_v = w_ss = w_p = w_a = None
+            if self.params.saliency and sal_store is not None:
+                g_c = goals_cond[cond_ind]
+                anchor_v = g_c / np.maximum(g_c.max(axis=1, keepdims=True), 1e-12)
+                w_v = (sal_store[cond_ind, 0] + self.params.sal_gamma * anchor_v).argmax(axis=1)
+                w_ss = sal_cw[match_ind, 1]
+                w_p = sal_cw[match_ind, 2]
+                w_a = sal_cw[policy_sel, 3]
             curr_loss = (
                 self.update_sensory_map(
-                    self.stm_v, visuals[cond_ind], modulate_cond, goals_cond[cond_ind], lr_cond[cond_ind]
+                    self.stm_v, visuals[cond_ind], modulate_cond, goals_cond[cond_ind], lr_cond[cond_ind], winners=w_v
                 ),
                 self.update_sensory_map(
-                    self.stm_ss, ssensories[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
+                    self.stm_ss, ssensories[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind], winners=w_ss
                 ),
                 self.update_sensory_map(
-                    self.stm_p, proprios[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind]
+                    self.stm_p, proprios[match_ind], modulate_effect, goals[match_ind], local_lr[match_ind], winners=w_p
                 ),
                 (
                     self.update_policy_map(
-                        policies_upd[policy_sel], cgoals[policy_sel], goals[policy_sel], lr_pol[policy_sel]
+                        policies_upd[policy_sel], cgoals[policy_sel], goals[policy_sel], lr_pol[policy_sel], winners=w_a
                     )
                     if policy_sel.any()
                     else 0.0
                 ),
             )
+
+        self.sal_shift = 0.0
+        if self.params.saliency and sal_cw is not None and sal_bu is not None:
+            side = self.internal_side
+            on = goals.sum(axis=1) > 0
+            if on.any():
+                d = []
+                for m in (1, 2):
+                    bu = sal_bu[on, m]
+                    cw = sal_cw[on, m]
+                    d.append(np.hypot(bu // side - cw // side, bu % side - cw % side))
+                self.sal_shift = float(np.concatenate(d).mean())
 
         # Update predictor: predictor predicts cumulated matches for a
         # particular goal.

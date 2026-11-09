@@ -213,6 +213,15 @@ class SMSTM(STM):
             .numpy()
         )
 
+    def distances(self, x):
+        with torch.no_grad():
+            x = torch.tensor(x, dtype=torch.float)
+            return (
+                x.pow(2).sum(dim=1, keepdim=True)
+                - 2 * x @ self.kernel
+                + self.kernel.pow(2).sum(dim=0)
+            ).clamp_min(0).numpy()
+
     def get_activation(self, x):
         activation = super(SMSTM, self).forward(torch.tensor(x, dtype=torch.float))
         return activation.cpu().detach().numpy()
