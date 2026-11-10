@@ -53,6 +53,8 @@ class Box2DSimOneArmEnv(gym.Env):
 
         super(Box2DSimOneArmEnv, self).__init__()
 
+        self.object_damping = None
+        self.object_friction = None
         self.set_seed()
 
         self.init_worlds()
@@ -399,8 +401,20 @@ class Box2DSimOneArmEnv(gym.Env):
         if world_dict is None:
             world_dict = Sim.loadWorldJson(self.world_file)
             world_dict = self.randomize_objects(world_dict)
+            self.set_object_surface(world_dict)
 
         return world_dict
+
+    def set_object_surface(self, world_dict):
+        for body in world_dict["body"]:
+            if body["name"] not in ("movable", "controllable"):
+                continue
+            if self.object_damping is not None:
+                body["linearDamping"] = self.object_damping
+                body["angularDamping"] = self.object_damping
+            if self.object_friction is not None:
+                for fixture in body["fixture"]:
+                    fixture["friction"] = self.object_friction
 
     def set_world(self, world_id=None, world_dict=None):
 
