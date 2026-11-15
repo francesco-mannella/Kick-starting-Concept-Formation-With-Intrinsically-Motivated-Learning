@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rebuild the demo/episode GIFs of slides 45-47 from a Fig 5-7 sweep and the Slides request batches.
+"""Rebuild the demo (all segments of the episode in one GIF) and episode GIFs of slides 45-47 from a Fig 5-7 sweep and the Slides request batches.
 
   python3 refresh_slides.py assets   --root SWEEP [--pick blue-cube=SEED,REP,EPISODE,GOAL ...] [--min-successes 1]
   python3 refresh_slides.py requests --ids ids.json
@@ -49,6 +49,51 @@ def successes(root, seed, rep, ep):
     run([sys.executable, str(HERE / "episode_video2.py"), "--episode", str(ep), "--rep", str(rep), "--res", "0.3", "--out", str(out)], ck, OUT / "probe.log")
     import pickle; return int(np.sum(pickle.load(open(out / "run.pkl", "rb"))["out"]["matches"][0]))
 
+def sequence_gif(hi, ep, goals, out, sync):
+    """All segments of the episode in one GIF on the episode video's own timeline (one frame per control step, same pauses at the same
+    successes), so the two GIFs stay in sync when they loop together. Per-frame palette noise is suppressed and only the cropped panels are kept."""
+    import tempfile
+    from PIL import Image
+    n, succ, hold = sync["n"], set(sync["succ"]), sync["hold_frames"]
+    df = pd.read_csv(hi / "trajectory_df.csv"); g = df[df.episode_id == ep].goal_id.values
+    runs, s = [], 0
+    for i in range(1, len(g) + 1):
+        if i == len(g) or g[i] != g[s]: runs.append((int(g[s]), i - s)); s = i
+    offset = n - sum(r[1] for r in runs)
+    seg_frames = {}
+    for goal in goals:
+        f = glob.glob(str(hi / "demos" / f"e{ep:02d}_g{goal:02d}_r0_*.gif"))
+        if not f: continue
+        im = Image.open(f[0]); fr = []
+        for i in range(im.n_frames): im.seek(i); fr.append(im.convert("RGB").resize((1200, 1600), Image.LANCZOS))
+        seg_frames[goal] = fr
+    first = seg_frames[runs[0][0]][0]; step_frame = []; last = first
+    for t in range(n):
+        k = t - offset; frame = None
+        if k >= 0:
+            acc = 0
+            for goal, length in runs:
+                if k < acc + length:
+                    fr = seg_frames.get(goal); frame = fr[min(k - acc, len(fr) - 1)] if fr else None; break
+                acc += length
+        step_frame.append(frame if frame is not None else last); last = step_frame[-1]
+    used = [(.04, .04, .27, .10), (.03, .235, .32, .485), (.03, .515, .995, .745), (.04, .805, .97, .995)]
+    tmp = Path(tempfile.mkdtemp()); k = 0; prev = None
+    for t, fr in enumerate(step_frame):
+        a = np.array(fr); mask = np.full(a.shape, 255, np.uint8)
+        for x0, y0, x1, y1 in used:
+            b = (int(y0 * 1600), int(y1 * 1600), int(x0 * 1200), int(x1 * 1200)); mask[b[0]:b[1], b[2]:b[3]] = a[b[0]:b[1], b[2]:b[3]]
+        cur = mask.astype(np.int16)
+        if prev is not None: cur = np.where((np.abs(cur - prev).max(-1) <= 45)[..., None], prev, cur)
+        prev = cur
+        for _ in range(hold if t in succ else 1):
+            Image.fromarray(cur.astype(np.uint8)).save(tmp / f"f_{k:04d}.png"); k += 1
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(sync["gif_fps"]), "-i", str(tmp / "f_%04d.png"), "-vf",
+                    "split[a][b];[a]palettegen=max_colors=128:stats_mode=full[p];[b][p]paletteuse=dither=none:diff_mode=rectangle", "-loop", "0", str(out)], check=True)
+    if shutil.which("gifsicle"): subprocess.run(["gifsicle", "-O3", str(out), "-o", str(out)], check=False, stderr=subprocess.DEVNULL)
+    shutil.rmtree(tmp)
+    return k
+
 def build(root, obj, seed, rep, ep, goal):
     s, ctx = OBJ[obj]; st = storage(root, seed); ck = st / "final_ckpt"; work = st / f"best_{obj}"; work.mkdir(exist_ok=True)
     for f in ("main.dump.npy", "weights.npy"): shutil.copy(ck / f, work / f)
@@ -58,15 +103,18 @@ def build(root, obj, seed, rep, ep, goal):
     tr = pd.read_csv(work / "trajectory_df.csv"); tr["Unnamed: 0"] = np.arange(len(tr)); tr.to_csv(hi / "trajectory_df.csv", index=False)
     shutil.copy(work / "weights.npy", hi / "weights.npy")
     for f in ("demos", "logs", "goal_frames"): (hi / f).mkdir()
-    run([sys.executable, str(HERE / "run_hi.py"), "-e", str(ep), "-r", "0", "-g", str(goal)], hi, OUT / f"{obj}_hi.log")
-    gif = glob.glob(str(hi / "demos" / f"e{ep:02d}_g{goal:02d}_r0_*.gif"))[0]; png = glob.glob(str(hi / "demos" / f"final_e{ep:02d}_g{goal:02d}_r0_*.png"))[0]
-    im = Image.open(gif); fr = []
-    step = 1 if im.n_frames <= 30 else 2
-    for i in range(0, im.n_frames, step): im.seek(i); fr.append(im.convert("RGB").copy())
-    dur = [160 * step] * (len(fr) - 1) + [2000]; fr[0].save(OUT / f"{obj}_demo.gif", save_all=True, append_images=fr[1:], duration=dur, loop=0)
+    seg = pd.read_csv(ck / "eval/segment_scores.csv"); goals = sorted(int(x) for x in seg[(seg.rep == rep) & (seg.episode == ep)].goal)
+    procs = [subprocess.Popen([sys.executable, str(HERE / "run_hi.py"), "-e", str(ep), "-r", "0", "-g", str(g)], cwd=hi, env=ENV, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT) for g in goals]
+    for p in procs: p.wait()
+    png = glob.glob(str(hi / "demos" / f"final_e{ep:02d}_g{goals[0]:02d}_r0_*.png"))[0]
     ev = OUT / f"{obj}_ev"; run([sys.executable, str(HERE / "episode_video2.py"), "--episode", str(ep), "--rep", str(rep), "--res", "4", "--out", str(ev)], ck, OUT / f"{obj}_video.log")
-    run([sys.executable, str(HERE / "compose.py"), "--run", str(ev / "run.pkl"), "--out", str(OUT / f"{obj}_episode.mp4"), "--title", f"{obj} seed{seed} rep{rep} ep{ep}"], HERE, OUT / f"{obj}_compose.log")
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(OUT / f"{obj}_episode.mp4"), "-vf", "fps=12,scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4", str(OUT / f"{obj}_episode.gif")], check=True)
+    run([sys.executable, str(HERE / "compose.py"), "--run", str(ev / "run.pkl"), "--out", str(OUT / f"{obj}_episode.mp4"), "--title", "", "--gif", str(OUT / f"{obj}_episode.gif"), "--gif-width", "600"], HERE, OUT / f"{obj}_compose.log")
+    nfr = sequence_gif(hi, ep, goals, OUT / f"{obj}_demo.gif", json.load(open(ev / "sync.json")))
+    def _dur(p):
+        im = Image.open(p); t = 0
+        for i in range(im.n_frames): im.seek(i); t += im.info.get("duration", 0)
+        return t
+    print(obj, "GIF total duration ms: demo", _dur(OUT / f"{obj}_demo.gif"), "episode", _dur(OUT / f"{obj}_episode.gif"), flush=True)
     for f in (OUT / f"{obj}_demo.gif", OUT / f"{obj}_episode.gif"): assert f.stat().st_size < 10e6, f"{f.name} over the 10 MB Drive upload limit"
     return png
 
@@ -89,13 +137,15 @@ def assets(a):
     print("done. Upload out/*_demo.gif and out/*_episode.gif to the Drive folder, fill ids.json, then run: refresh_slides.py requests --ids ids.json")
 
 def requests_(a):
-    ids = json.load(open(a.ids)); state = HERE / "state.json"; old = json.load(open(state))["prefix"] if state.exists() else "k2"
+    ids = json.load(open(a.ids)); state = HERE / "state.json"; st_ = json.load(open(state)) if state.exists() else {"prefix": "k2"}; old = st_["prefix"]; old_has_traj = st_.get("traj", True)
     new = "r" + str(int(time.time()))[-7:]; subprocess.run([sys.executable, "layout.py"], cwd=HERE, check=True)
     for s in ("45", "46", "47"):
-        env = {**os.environ, "REFRESH": "1", "PREFIX_OLD": old, "PREFIX_NEW": new, "DEMO_ID": ids[s]["demo"], "EPI_ID": ids[s]["epi"]}
+        w, h = Image.open(OUT / f"{ {'45': 'blue-cube', '46': 'red-triangle', '47': 'green-stick'}[s] }_episode.gif").size
+        dw, dh = Image.open(OUT / f"{ {'45': 'blue-cube', '46': 'red-triangle', '47': 'green-stick'}[s] }_demo.gif").size
+        env = {**os.environ, "DEMO_BASE": f"{dw * 25},{dh * 25}", "HAS_TRAJ": "1" if old_has_traj else "0", "EPI_AR": str(w / h), "REFRESH": "1", "PREFIX_OLD": old, "PREFIX_NEW": new, "DEMO_ID": ids[s]["demo"], "EPI_ID": ids[s]["epi"]}
         out = subprocess.run([sys.executable, "gen2.py", s], cwd=HERE, env=env, capture_output=True, text=True, check=True).stdout
         (OUT / f"slide{s}.json").write_text(out); print("wrote", OUT / f"slide{s}.json")
-    json.dump({"prefix": new}, open(state, "w")); print("object-id prefix of the images now on the slides after you apply the batches:", new)
+    json.dump({"prefix": new, "traj": False}, open(state, "w")); print("object-id prefix of the images now on the slides after you apply the batches:", new)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter); sp = p.add_subparsers(dest="cmd", required=True)

@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 p = argparse.ArgumentParser()
 p.add_argument("--run", required=True); p.add_argument("--out", required=True); p.add_argument("--title", default="")
-p.add_argument("--fps", type=int, default=15); p.add_argument("--hold", type=float, default=1.0)
+p.add_argument("--gif"); p.add_argument("--gif-width", type=int, default=480); p.add_argument("--gif-fps", type=int, default=12); p.add_argument("--fps", type=int, default=15); p.add_argument("--hold", type=float, default=1.0)
 a = p.parse_args()
 d = pickle.load(open(a.run, "rb")); frames = d["frames"][0]; o = d["out"]
 succ = [int(s) for s in np.where(o["matches"][0])[0]]
@@ -21,6 +21,8 @@ fnt = lambda s: ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-
 big, small = fnt(max(18, H // 14)), fnt(max(12, H // 36))
 out = []
 n = len(frames)
+import json as _json
+_json.dump(dict(n=n, succ=succ, hold_frames=int(a.hold * a.fps), gif_fps=a.gif_fps), open(Path(a.run).with_name("sync.json"), "w"))
 b0 = max(6, H // 60)
 for t, f in enumerate(frames):
     im = Image.fromarray(f).convert("RGB"); dr = ImageDraw.Draw(im)
@@ -29,7 +31,7 @@ for t, f in enumerate(frames):
     dr.rectangle([0, y + 4, int(W * t / (n - 1)), H], fill=(120, 170, 235))
     for s in succ: dr.rectangle([int(W * s / (n - 1)) - 2, y - 2, int(W * s / (n - 1)) + 2, H], fill=(0, 150, 0))
     hit = t in succ
-    dr.text((8, 6), f"{a.title}  step {t}/{n - 1}  successes {done}/{len(succ)}", fill=(0, 0, 0), font=small, stroke_width=2, stroke_fill=(255, 255, 255))
+    if a.title: dr.text((8, 6), f"{a.title}  step {t}/{n - 1}  successes {done}/{len(succ)}", fill=(0, 0, 0), font=small, stroke_width=2, stroke_fill=(255, 255, 255))
     arr = np.array(im); out += [arr] * (int(a.hold * a.fps) if hit else 1)
 Path(a.out).parent.mkdir(parents=True, exist_ok=True)
 pr = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
@@ -37,4 +39,13 @@ pr = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "
 for arr in out: pr.stdin.write(arr.tobytes())
 pr.stdin.close(); pr.wait()
 Image.fromarray(out[succ[0]] if succ else out[0]).save(str(Path(a.out).with_suffix(".png")))
+if a.gif:
+    import shutil
+    step = max(1, round(a.fps / a.gif_fps)); sel = out[::step]
+    gw = a.gif_width; gh = int(H * gw / W); gh -= gh % 2
+    pr = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.gif_fps), "-i", "-",
+                           "-vf", f"scale={gw}:{gh}:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=full[p];[b][p]paletteuse=dither=none:diff_mode=rectangle", "-loop", "0", a.gif], stdin=subprocess.PIPE)
+    for arr in sel: pr.stdin.write(arr.tobytes())
+    pr.stdin.close(); pr.wait()
+    if shutil.which("gifsicle"): subprocess.run(["gifsicle", "-O3", a.gif, "-o", a.gif], check=False, stderr=subprocess.DEVNULL)
 print("frames", len(out), "successes", succ, "size", W, H)

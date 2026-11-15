@@ -18,6 +18,7 @@ for s in E:
     for oid, kind, tx, ty, w, h in E[s]:
         if kind.startswith("p_"):
             k = kind[2:]; b = pb[k]; cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2; x0, y0, x1, y1 = cx - S / 2, cy - S / 2, cx + S / 2, cy + S / 2
+            if x0 < 72: x1 += 72 - x0; x0 = 72
             side = 0.84 * F; bx, by, bw, bh = COL[k] - side / 2, FY + (F - side) / 2, side, side
         else:
             if kind in ("start", "end"): x0, y0, x1, y1 = [int(v * q) for v, q in zip(WIN[kind], (W_, H_, W_, H_))]

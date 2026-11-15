@@ -100,7 +100,7 @@ def images(con, run_id, key):
 
 
 FIGURE_TYPES = {".png": "image", ".jpg": "image", ".jpeg": "image", ".svg": "image",
-                ".gif": "image", ".csv": "table", ".pdf": "other"}
+                ".gif": "image", ".csv": "table", ".pdf": "other", ".mp4": "other"}
 
 
 def figures_dir(db, figures):
