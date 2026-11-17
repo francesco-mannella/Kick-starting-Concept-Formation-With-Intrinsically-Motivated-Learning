@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import html
 import json
 import mimetypes
 import sqlite3
@@ -149,7 +150,9 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(url.path)
 
         if path in ("/", "/index.html"):
-            self.send_bytes(UI_FILE.read_bytes(), "text/html; charset=utf-8")
+            name = html.escape(Path(db_path(self.db)).resolve().parent.name)
+            page = UI_FILE.read_text().replace("Local runs", name)
+            self.send_bytes(page.encode(), "text/html; charset=utf-8")
             return
 
         for prefix, root in (("/media/", media_dir(self.db)), ("/figures/", self.figures_root())):
