@@ -42,6 +42,8 @@ class SMEnv:
         self.b2d_env.action_steps = action_steps
         self.b2d_env.object_damping = params.obj_damping
         self.b2d_env.object_friction = params.obj_friction
+        self.b2d_env.object_set = getattr(params, "obj_set", "orig")
+        self.b2d_env.object_pos = getattr(params, "obj_pos_kind", None)
 
         self.b2d_env.set_taskspace(**self.params.task_space)
         self.render = None

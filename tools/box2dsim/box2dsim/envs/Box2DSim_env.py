@@ -55,6 +55,8 @@ class Box2DSimOneArmEnv(gym.Env):
 
         self.object_damping = None
         self.object_friction = None
+        self.object_set = "orig"
+        self.object_pos = None
         self.set_seed()
 
         self.init_worlds()
@@ -215,6 +217,12 @@ class Box2DSimOneArmEnv(gym.Env):
             self.world_id = self.rng.randint(0, len(self.world_files))
 
         self.world_file = self.world_files[self.world_id]
+        if self.object_set in ("l2", "tri", "mix"):
+            swap = {"l2": {"movable.json": "plate.json", "controllable.json": "bar.json"},
+                    "tri": {"still.json": "still_tri.json", "controllable.json": "controllable_tri.json"},
+                    "mix": {"still.json": "still_mix.json", "controllable.json": "controllable_mix.json"}}[self.object_set]
+            if self.world_file.name in swap:
+                self.world_file = self.world_file.with_name(swap[self.world_file.name])
 
     def randomize_objects(self, world_dict):
 
@@ -265,6 +273,10 @@ class Box2DSimOneArmEnv(gym.Env):
 
                     world_dict["body"][i]["position"]["x"] += pos[1]
                     world_dict["body"][i]["position"]["y"] += pos[0]
+
+                    if self.object_pos and bodyName in self.object_pos:
+                        world_dict["body"][i]["position"]["x"] = float(self.object_pos[bodyName][0])
+                        world_dict["body"][i]["position"]["y"] = float(self.object_pos[bodyName][1])
 
                     # color = 0.1 * self.rng.randn(3)
                     # color = color + world_dict["body"][i]["color"]

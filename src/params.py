@@ -100,6 +100,8 @@ class Parameters(ParameterManager):
         obj_y=0.5,
         obj_damping=None,
         obj_friction=None,
+        obj_set="orig",
+        obj_pos_kind=None,
         maximum_goal_activation=575.0,
     ):
 
@@ -197,6 +199,8 @@ class Parameters(ParameterManager):
         self.obj_y = obj_y
         self.obj_damping = obj_damping
         self.obj_friction = obj_friction
+        self.obj_set = obj_set
+        self.obj_pos_kind = obj_pos_kind
         self.maximum_goal_activation = maximum_goal_activation
         self.evaluation_episodes = evaluation_episodes
         self.demo_episodes_max_single_goal = demo_episodes_max_single_goal
