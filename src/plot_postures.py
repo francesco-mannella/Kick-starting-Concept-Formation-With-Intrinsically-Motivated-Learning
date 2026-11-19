@@ -8,6 +8,8 @@ from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
+import os
+
 import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation
@@ -609,7 +611,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
         )
 
         query = self.episode_df.query(f"index=={episode_id}")
-        objs = ["blue cube", "red triangle", "green cube"]
+        objs = os.environ.get("OBJECT_LABELS", "blue cube,red triangle,green cube").split(",")
         obj = objs[query.context.iloc[0] - 1]
         stretch = query.stretch.iloc[0]
         rot = np.degrees(query.rotation.iloc[0]).round(0)

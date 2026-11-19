@@ -15,7 +15,8 @@ sys.path.insert(0, str(SRC))
 
 from best_goal_trajectories import score_segments  # noqa: E402
 
-ENV = {**os.environ, "OMP_NUM_THREADS": "1", "MPLBACKEND": "agg", "PYTHONPATH": str(SRC)}
+ENV = {**os.environ, "OMP_NUM_THREADS": "1", "MPLBACKEND": "agg",
+       "PYTHONPATH": os.pathsep.join([str(SRC)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p])}
 OBJECTS = {1: "blue-cube", 2: "red-triangle", 3: "green-stick"}
 
 
@@ -148,6 +149,7 @@ def parse_arguments():
     parser.add_argument("--epoch", type=int, default=1499)
     parser.add_argument("--seed", type=int, default=None, help="Skip the ranking and use this seed")
     parser.add_argument("--parallel", type=int, default=12)
+    parser.add_argument("--labels", default=None, help="Comma list of three names for contexts 1, 2, 3 (default blue-cube,red-triangle,green-stick)")
     parser.add_argument("--min-steps", type=int, default=15)
     parser.add_argument("--max-end", type=float, default=3.5)
     parser.add_argument("--min-gain", type=float, default=1.5)
@@ -157,6 +159,9 @@ def parse_arguments():
 
 if __name__ == "__main__":
     args = parse_arguments()
+    if args.labels:
+        OBJECTS.update(dict(zip((1, 2, 3), args.labels.split(","))))
+        ENV["OBJECT_LABELS"] = ",".join(OBJECTS[i].replace("-", " ") for i in (1, 2, 3))
     lo, _, hi = args.seeds.partition("-")
     seeds = list(range(int(lo), int(hi or lo) + 1))
     criteria = dict(min_steps=args.min_steps, max_end=args.max_end, min_gain=args.min_gain, min_directness=0.0, max_ratio=args.max_ratio)
