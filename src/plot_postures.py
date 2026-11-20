@@ -25,6 +25,9 @@ from SMMain import build_episode_dataset
 warnings.filterwarnings("error")
 
 RENDER_CROP = (slice(99, 280), slice(52, 233))
+VIDEO_ASPECT = 1.5
+GRIPPER_HALF_BASE = 0.0913
+SENSOR_OFFSET = 0.04
 
 
 def generate_offset_points(points, distance=0.05):
@@ -50,6 +53,20 @@ def generate_offset_points(points, distance=0.05):
     return points + normals * distance
 
 
+def crop_to_content(*frames, pad=10):
+    """Crop frames to a common square window centred on the non-white content."""
+    mask = np.any([(f[..., :3] < 235).any(-1) for f in frames], axis=0)
+    ys, xs = np.where(mask)
+    cy, cx = (ys.min() + ys.max()) / 2, (xs.min() + xs.max()) / 2
+    half = max(ys.max() - ys.min(), xs.max() - xs.min()) / 2 + pad
+    h, w = frames[0].shape[:2]
+    half = min(half, h / 2, w / 2)
+    y0 = int(np.clip(cy - half, 0, h - 2 * half))
+    x0 = int(np.clip(cx - half, 0, w - 2 * half))
+    win = (slice(y0, y0 + int(2 * half)), slice(x0, x0 + int(2 * half)))
+    return [f[win] for f in frames]
+
+
 def interp(points, n=10):
     """Interpolate points using B-spline."""
     tck, _ = splprep(points.T, s=0)
@@ -72,7 +89,18 @@ def plot_polyline(angles, lengths):
     arm_coords = compute_coords(angles)
     angles[-2:] *= -1
     x2y2 = compute_coords(angles)[-3:]
-    grip_coords = np.vstack([arm_coords[-2:][::-1], x2y2])
+
+    link = arm_coords[-3] - arm_coords[-4]
+    normal = np.array([-link[1], link[0]]) / np.linalg.norm(link)
+    offset = GRIPPER_HALF_BASE * lengths[0] * normal
+    grip_coords = np.vstack(
+        [
+            arm_coords[-2:][::-1] + offset,
+            x2y2[:1] + offset,
+            x2y2[:1] - offset,
+            x2y2[1:] - offset,
+        ]
+    )
 
     return arm_coords[:-2], grip_coords
 
@@ -80,8 +108,8 @@ def plot_polyline(angles, lengths):
 def get_sensors_coords(grip_coords, n=20):
     """Get sensor coordinates around gripper."""
     n_2 = n // 2
-    pts1 = interp(generate_offset_points(grip_coords, -0.1), n)[::-1]
-    pts2 = interp(generate_offset_points(grip_coords, 0.1), n)
+    pts1 = interp(generate_offset_points(grip_coords, -SENSOR_OFFSET), n)[::-1]
+    pts2 = interp(generate_offset_points(grip_coords, SENSOR_OFFSET), n)
     return np.vstack([pts1[n_2:], pts2, pts1[:n_2]])
 
 
@@ -283,14 +311,14 @@ def create_figure_layout(g, xlims=None, ylims=None):
     """Create figure with subplot grid layout."""
     if xlims is None:
         xlims, ylims = np.array([-2, 4]), np.array([-3, 3])
-    gridsize = (4, 3)
+    gridsize = (5, 3)
     ratio = gridsize[0] / gridsize[1]
     dim = 8
 
     fig = plt.figure(figsize=(dim, dim * ratio))
 
     axes = {}
-    for name, pos in [("pmap", [3, 0]), ("smap", [3, 1]), ("vmap", [3, 2])]:
+    for name, pos in [("pmap", [4, 0]), ("smap", [4, 1]), ("vmap", [4, 2])]:
         axes[name] = plt.subplot2grid(gridsize, pos, 1, 1, fig=fig)
         axes[name].set_axis_off()
 
@@ -300,16 +328,16 @@ def create_figure_layout(g, xlims=None, ylims=None):
         "visual": "Foveal vision",
     }
     for i, (name, title) in enumerate(titles.items()):
-        axes[name] = plt.subplot2grid(gridsize, [2, i], 1, 1, fig=fig)
+        axes[name] = plt.subplot2grid(gridsize, [3, i], 1, 1, fig=fig)
         axes[name].set_title(title)
 
     sensor_points = g.generate_sensor_points(40)
 
-    axes["video"] = plt.subplot2grid(gridsize, [0, 1], 2, 2, fig=fig, aspect="equal")
-    axes["label"] = plt.subplot2grid(gridsize, [0, 0], 1, 1, fig=fig, aspect="equal")
+    axes["video"] = plt.subplot2grid(gridsize, [0, 1], 3, 2, fig=fig, aspect="equal")
+    axes["label"] = plt.subplot2grid(gridsize, [0, 0], 2, 1, fig=fig, aspect="equal")
     axes["label"].set_axis_off()
 
-    axes["traces"] = plt.subplot2grid(gridsize, [1, 0], 1, 1, fig=fig, aspect="equal")
+    axes["traces"] = plt.subplot2grid(gridsize, [2, 0], 1, 1, fig=fig, aspect="equal")
     axes["traces"].set_xlim(-0.5, 9.5)
     axes["traces"].set_ylim(-0.5, 9.5)
     axes["traces"].set_xticks(np.arange(10), [])
@@ -471,6 +499,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
         fast=True,
         end_steps=40,
         online=False,
+        trail=12,
     ):
         """Initialize the trajectory animator."""
         super().__init__(fig, axes.get("video"), episode_id, rep, xlims, ylims, end_steps)
@@ -485,6 +514,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
         self.g = g
         self.wfile = wfile
         self.online = online
+        self.trail = trail
 
         self.scatters = []
         self.reps = {}
@@ -507,7 +537,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
 
         if self.has_sensors:
             for _ in range(n):
-                scatter = video_ax.scatter([], [], c="red", zorder=-100 + n - 1)
+                scatter = video_ax.scatter([], [], c="red", ec="k", lw=0.5, zorder=300)
                 self.scatters.append(scatter)
 
         self._init_traces(traces_ax, n)
@@ -517,22 +547,20 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
             fontsize=8, handletextpad=0.2, columnspacing=0.8,
         )
 
+        self.start_text = video_ax.text(0, 0, "", fontsize=self.font_size + 1, weight="bold", color="#0f8a5f", ha="center", va="bottom", zorder=500, bbox=dict(fc="w", ec="none", alpha=0.8, pad=1))
+        self.end_text = video_ax.text(0, 0, "", fontsize=self.font_size + 1, weight="bold", color="k", ha="center", va="bottom", zorder=500, bbox=dict(fc="w", ec="none", alpha=0.8, pad=1))
+        self.touch_text = video_ax.text(0, 0, "", fontsize=self.font_size + 1, weight="bold", color="#c00", ha="center", va="bottom", zorder=500, bbox=dict(fc="w", ec="none", alpha=0.8, pad=1))
+
         self._init_labels(self.axes["label"], trajectory, episode_id)
         self._initialized = True
 
     def _init_traces(self, ax, n):
         """Initialize trace lines."""
         trace_keys = [("g", "goal"), ("ss", "touch"), ("p", "proprio")]
-        if self.fast:
-            self.traces = {
-                k: ax.plot([999], [999], lw=0.5, c=self.COLORS[c])[0]
-                for k, c in trace_keys
-            }
-        else:
-            self.traces = {
-                k: [ax.plot([999], [999], c=self.COLORS[c])[0] for _ in range(n - 1)]
-                for k, c in trace_keys
-            }
+        self.traces = {
+            k: [ax.plot([999], [999], c=self.COLORS[c], solid_capstyle="round")[0] for _ in range(n - 1)]
+            for k, c in trace_keys
+        }
 
     def _init_reps(self, ax):
         """Initialize representation scatter plots."""
@@ -578,6 +606,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
             print(f"     timestep: {tsl}/{t_tot_frames}")
             gif.seek(start + tsl)
             framel = np.array(gif)[RENDER_CROP]
+            frames, framel = crop_to_content(frames, framel)
 
             if save:
                 goal_id = int(trajectory.goal_id.iat[0])
@@ -599,16 +628,20 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
     def _init_labels(self, ax, trajectory, episode_id):
         """Initialize episode labels and image."""
         ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
+        ax.set_ylim(0, 2 * 9.8 + 0.5)
 
         self.frames, self.framel = self._get_frame_from_trajectory(episode_id, trajectory)
+        tss, tsl = int(trajectory.ets.iloc[0]), int(trajectory.ets.iloc[-1])
         self.episode_templates = []
-        self.episode_templates.append(
-            ax.imshow(self.frames, extent=[0, 5, 5, 10], zorder=900)
-        )
-        self.episode_templates.append(
-            ax.imshow(self.framel, extent=[5, 10, 5, 10], zorder=900)
-        )
+        h = 9.8 * self.frames.shape[0] / self.frames.shape[1]
+        for frame, y0, name, t_ in ((self.frames, h + 0.4, "start", tss), (self.framel, 0.1, "end", tsl)):
+            self.episode_templates.append(ax.imshow(frame, extent=[0.1, 9.9, y0, y0 + h], zorder=900))
+            self.episode_templates.append(
+                ax.add_patch(Rectangle((0.1, y0), 9.8, h, fill=False, ec="#0f8a5f" if name == "start" else "k", lw=3, zorder=950))
+            )
+            self.episode_templates.append(
+                ax.text(0.4, y0 + h - 0.2, f"{name} (t = {t_})", fontsize=self.font_size + 1, weight="bold", va="top", zorder=1000, bbox=dict(fc="w", ec="none", alpha=0.85, pad=2))
+            )
 
         query = self.episode_df.query(f"index=={episode_id}")
         objs = os.environ.get("OBJECT_LABELS", "blue cube,red triangle,green cube").split(",")
@@ -616,22 +649,30 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
         stretch = query.stretch.iloc[0]
         rot = np.degrees(query.rotation.iloc[0]).round(0)
 
-        self.episode_label = ax.text(
-            0,
-            0,
-            f" Object: {obj}\nStretch: {stretch}\nrotation: {rot}°\n",
+        self.episode_label = self.axes["video"].text(
+            0.98,
+            0.02,
+            f"Object: {obj}\nStretch: {stretch}\nRotation: {rot}°",
+            transform=self.axes["video"].transAxes,
             fontdict={"size": self.font_size},
             zorder=800,
+            horizontalalignment="right",
             verticalalignment="bottom",
         )
 
-        self.axes["proprio"].set_title("Proprioception")
-        self.axes["ssensory"].set_title("Somatosensory")
-        self.axes["visual"].set_title("Foveal vision")
+        for key in ("proprio", "ssensory", "visual"):
+            for lw, ec in ((4, "black"), (2, "yellow")):
+                self.axes[key].add_patch(
+                    Rectangle((0, 0), 1, 1, transform=self.axes[key].transAxes, fill=False, ec=ec, lw=lw, clip_on=False, zorder=1000)
+                )
+
+        self.axes["proprio"].set_title("Proprioception", pad=8)
+        self.axes["ssensory"].set_title("Somatosensory", pad=8)
+        self.axes["visual"].set_title("Foveal vision", pad=8)
         self.axes["proprio"].text(
             -0.3,
             -0.5,
-            "Current prototypes",
+            "Goal",
             fontdict={"size": self.font_size},
             rotation=90,
         )
@@ -658,11 +699,6 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
         ss_data = trajectory.loc[:, ["touch_x", "touch_y"]].to_numpy()[:, ::-1]
         p_data = trajectory.loc[:, ["proprio_x", "proprio_y"]].to_numpy()[:, ::-1]
         g_data = trajectory.loc[:, ["prototype_x", "prototype_y"]].to_numpy()[:, ::-1]
-
-        ss_pp = p_pp = None
-        if not self.fast:
-            ss_pp = np.stack([ss_data[:-1], ss_data[1:]], axis=1)
-            p_pp = np.stack([p_data[:-1], p_data[1:]], axis=1)
 
         if not self._initialized or len(self.lines1) != n:
             self._clear_artists()
@@ -705,30 +741,48 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
 
             for i in range(data_idx + 1):
                 arm_coords, grip_coords = polylines[i]
-                loc_alphas = 0.01 + 0.99 * np.exp(-np.linspace(-14, 0, i + 1) ** 2)
-
                 age = data_idx - i
-                alpha = 1.0 if age == 0 else 0.03 + 0.97 * np.exp(-((age / 12) ** 2))
-                width = 3.0 if age == 0 else 1.2
+                is_start = i == 0
+                visible = age <= self.trail or is_start
+                alpha = 1.0 if age == 0 or is_start else float(np.clip(0.08 + 0.7 * (1 - age / self.trail), 0, 1))
+                width = 3.0 if age == 0 or is_start else 1.5
+                color = "#0f8a5f" if is_start else "k"
                 for line, coords in ((self.lines1[i], arm_coords), (self.lines2[i], grip_coords)):
-                    line.set_data(coords[:, 0], coords[:, 1])
+                    line.set_data(coords[:, 0], coords[:, 1]) if visible else line.set_data([], [])
                     line.set_alpha(alpha)
                     line.set_linewidth(width)
+                    line.set_color(color)
+                    line.set_markeredgecolor(color)
+                    line.set_markerfacecolor(color)
                     line.set_zorder(-100 + n + i / n)
-
-                self._update_traces(i, ss_data, p_data, ss_pp, p_pp, loc_alphas)
-                self._update_reps(i, ss_data, p_data, g_data, loc_alphas, n)
-
-                artists.extend([self.lines1[i], self.lines2[i], *self.reps.values()])
-                artists.extend(self._get_trace_artists())
+                artists.extend([self.lines1[i], self.lines2[i]])
 
                 if self.has_sensors:
                     self.scatters[i].set_offsets(offsets_pts[i])
                     self.scatters[i].set_sizes(sizes_arr[i])
-                    self.scatters[i].set_alpha(0.2 + 0.8 * alpha)
+                    self.scatters[i].set_alpha(0.9 if age <= self.trail else 0.35)
                     artists.append(self.scatters[i])
 
-                artists.extend(self.episode_templates + [self.episode_label])
+            lo_i = max(0, data_idx - 3)
+            loc_alphas = np.array([0.2, 0.4, 0.7, 1.0])[4 - (data_idx - lo_i + 1):]
+            self._update_traces(data_idx, lo_i, ss_data, p_data, g_data, loc_alphas)
+            self._update_reps(data_idx, lo_i, ss_data, p_data, g_data, loc_alphas)
+            artists.extend([*self.reps.values(), *self._get_trace_artists()])
+
+            tip = polylines[0][1][-1]
+            self.start_text.set_position((tip[0], tip[1] + 0.15))
+            self.start_text.set_text("start")
+            tip = polylines[data_idx][1][-1]
+            self.end_text.set_position((tip[0], tip[1] + 0.15))
+            self.end_text.set_text("end" if data_idx == n - 1 else "")
+            if self.has_sensors and sizes_arr[data_idx].max() > 0:
+                k = int(np.argmax(sizes_arr[data_idx]))
+                px_, py_ = offsets_pts[data_idx][k]
+                self.touch_text.set_position((px_, py_ + 0.3))
+                self.touch_text.set_text("touch")
+            else:
+                self.touch_text.set_text("")
+            artists.extend(self.episode_templates + [self.episode_label, self.start_text, self.end_text, self.touch_text])
 
             self.proprio_plot.update(px, py)
             self.somato_plot.update(px, py)
@@ -750,7 +804,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
             all_sensors = sensor_data[indices]
             for i, (_, grip_coords) in enumerate(polylines):
                 offsets_pts.append(get_sensors_coords(grip_coords))
-                sizes_arr.append(100 * all_sensors[i])
+                sizes_arr.append(np.where(all_sensors[i] > 0, 40 + 160 * all_sensors[i], 0))
         return offsets_pts, sizes_arr
 
     def _clear_artists(self):
@@ -763,40 +817,31 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
         self.reps.clear()
         self._initialized = False
 
-    def _update_traces(self, i, ss_data, p_data, ss_pp, p_pp, loc_alphas):
-        """Update trace line data."""
-        if self.fast:
-            self.traces["ss"].set_data(*ss_data[: i + 1].T)
-            self.traces["p"].set_data(*p_data[: i + 1].T)
-        else:
-            trace_configs = [("ss", ss_pp, 0.2), ("p", p_pp, 0.8)]
-            for key, pp_data, base_lw in trace_configs:
-                for k, tr in enumerate(self.traces[key][: i + 1]):
-                    tr.set_data(*pp_data[k].T)
-                    tr.set_linewidth(base_lw + 4 * loc_alphas[k])
-                    tr.set_alpha(loc_alphas[k])
+    def _update_traces(self, i, lo, ss_data, p_data, g_data, loc_alphas):
+        """Draw segments among the current and three previous steps, fading with age."""
+        for key, data in (("g", g_data), ("ss", ss_data), ("p", p_data)):
+            for k, tr in enumerate(self.traces[key]):
+                if lo <= k < i:
+                    tr.set_data(*data[k : k + 2].T)
+                    tr.set_linewidth(1.5 + 3 * loc_alphas[k + 1 - lo])
+                    tr.set_alpha(loc_alphas[k + 1 - lo])
+                else:
+                    tr.set_data([], [])
 
-    def _update_reps(self, i, ss_data, p_data, g_data, loc_alphas, n):
-        """Update representation scatter plots."""
-        rep_configs = [("ss", ss_data, 50, 250), ("p", p_data, 0, 300)]
-        for key, data, base_size, scale in rep_configs:
-            self.reps[key].set_offsets(data[: i + 1])
-            sizes = base_size + scale * loc_alphas[: i + 1]
-            self.reps[key].set_sizes(sizes)
-
-            fc = np.tile(self.reps[key].get_facecolor(), [n, 1])
-            ec = np.tile(self.reps[key].get_edgecolor(), [n, 1])
-            fc[: i + 1, 3] = loc_alphas[: i + 1]
-            ec[: i + 1, 3] = loc_alphas[: i + 1]
-            self.reps[key].set_facecolor(fc[: i + 1])
-            self.reps[key].set_edgecolor(ec[: i + 1])
-
-        self.reps["g"].set_offsets([g_data[i]])
+    def _update_reps(self, i, lo, ss_data, p_data, g_data, loc_alphas):
+        """Draw markers for the current and three previous steps, fading with age."""
+        for key, data in (("g", g_data), ("ss", ss_data), ("p", p_data)):
+            self.reps[key].set_offsets(data[lo : i + 1])
+            self.reps[key].set_sizes(100 + 250 * loc_alphas)
+            fc = np.tile(self.reps[key].get_facecolor()[:1], [len(loc_alphas), 1])
+            ec = np.tile(self.reps[key].get_edgecolor()[:1], [len(loc_alphas), 1])
+            fc[:, 3] = loc_alphas
+            ec[:, 3] = loc_alphas
+            self.reps[key].set_facecolor(fc)
+            self.reps[key].set_edgecolor(ec)
 
     def _get_trace_artists(self):
         """Get all trace artists as flat list."""
-        if self.fast:
-            return list(self.traces.values())
         return [seg for trace in self.traces.values() for seg in trace]
 
 
@@ -818,7 +863,14 @@ if __name__ == "__main__":
         "-g",
         "--goal_id",
         type=int,
-        help="Unique identifier for the goal",
+        help="Unique identifier for the goal (default: the goal with most touch steps)",
+    )
+    parser.add_argument(
+        "-t",
+        "--trail",
+        type=int,
+        default=12,
+        help="Number of past timesteps shown for arm and representation traces",
     )
     parser.add_argument(
         "-l",
@@ -895,6 +947,15 @@ if __name__ == "__main__":
         print(gdf)
         sys.exit()
 
+    if args.goal_id is None:
+        sensor_cols = [c for c in df.columns if c[0] == "s" and c[1:].isdigit()]
+        if not sensor_cols:
+            raise ValueError("No touch data to choose a goal from: pass --goal_id")
+        sel = df[(df.e_seed == seeds[args.rep]) & (df.episode_id == args.episode_id)]
+        touch_steps = (sel[sensor_cols].sum(axis=1) > 0).groupby(sel.goal_id).sum()
+        args.goal_id = int(touch_steps.idxmax())
+        print(f"Goal {args.goal_id} chosen: {touch_steps.max()} touch steps")
+
     curr_episode_gdf = gdf.query(
         f"episode_id == {args.episode_id} and e_seed == {int(seeds[args.rep])}"
     )
@@ -943,6 +1004,7 @@ if __name__ == "__main__":
 
     else:
         xlims, ylims = arm_limits(trajectory)
+        ylims = np.array([ylims[1] - VIDEO_ASPECT * np.ptp(xlims), ylims[1]])
         fig, axes, xlims, ylims, sensor_points = create_figure_layout(g, xlims, ylims)
 
         setup_ax(axes, "video", xlims, ylims)
@@ -964,6 +1026,7 @@ if __name__ == "__main__":
             g=g,
             wfile=wfile,
             online=args.online,
+            trail=args.trail,
         )
 
         if args.last_frame:
