@@ -16,6 +16,7 @@ import torch
 from sklearn.cluster import KMeans
 from sklearn.metrics import mutual_info_score
 
+import mi_standard
 from params import Parameters
 from SMAgent import SMAgent
 from SMController import SMController
@@ -637,6 +638,7 @@ class Main:
         discrete_touch[touch.sum(axis=-1) == 0] = 0
         discrete_touch = discrete_touch.reshape(-1)
 
+        episode_contexts = np.asarray(contexts)
         contexts = np.repeat(contexts[:, None], self.params.stime, axis=1)[mask].reshape(
             -1
         )
@@ -656,6 +658,16 @@ class Main:
             "policies_inertia_norm": policies_inertia_norm,
             "gripper_inertia_norm": gripper_inertia_norm,
         }
+
+        layout = np.repeat(
+            (np.asarray(params_ind) * 10 + episode_contexts.astype(int))[:, None], mask.shape[1], axis=1
+        )[mask]
+        episode = np.repeat(np.arange(mask.shape[0])[:, None], mask.shape[1], axis=1)[mask]
+        res.update(
+            mi_standard.layout_excess(
+                episode, policy_ended[mask], contexts, layout, policies_ind, touch, gripper
+            )
+        )
 
         return res
 
