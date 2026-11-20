@@ -1,8 +1,8 @@
 import sqlite3, sys
 import numpy as np, pandas as pd
 new = sys.argv[1]; old = sys.argv[2]
-METRICS = [("alignment", "grid_comp_mean"), ("success", "eval_episode_success_rate"), ("MI ctx-policy", "mi_score_context_policy"),
-           ("MI ctx-touch", "mi_score_context_touch"), ("touch freq", "eval_touch_freq")]
+METRICS = [("alignment", "grid_comp_mean"), ("success", "eval_episode_success_rate"), ("MI2 ctx-policy", "mi2_context_policy"),
+           ("MI2 ctx-touch", "mi2_context_touch"), ("touch freq", "eval_touch_freq")]
 SERIES = [("agent", "parasite", ""), ("parasite", "parasite", "_par"), ("former", "former", "")]
 WINDOWS = [(0, 100), (100, 400), (400, 1000), (1000, 1500)]
 def load(path):
@@ -11,6 +11,7 @@ def load(path):
         for mname, key in METRICS:
             df = pd.read_sql("SELECT r.name, m.step, m.value FROM metrics m JOIN runs r ON r.id=m.run_id WHERE r.grp=? AND m.key=?", con, params=(grp, key + suf))
             if len(df): out[(sname, mname)] = df.assign(seed=df.name.str[-3:].astype(int))
+            elif key.startswith("mi2"): print(f"warning: no {key + suf} in {path} (runs made before the mi2 keys)", file=sys.stderr)
     return out
 A, B = load(new), load(old)
 def win(df, lo, hi):
