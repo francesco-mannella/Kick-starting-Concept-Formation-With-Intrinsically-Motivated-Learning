@@ -89,8 +89,13 @@ th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background
 .tablewrap { overflow: auto; max-height: 60vh; border: 1px solid var(--line); border-radius: 8px; }
 .pager { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none; align-items: center; justify-content: center; z-index: 20; cursor: zoom-out; }
-.lightbox img { max-width: 96vw; max-height: 94vh; background: #fcfcfb; }
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 20; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
+.lightbox.drag { cursor: grabbing; }
+.lightbox img { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: #fcfcfb; max-width: none; max-height: none; }
+.lightbox .lbbar { position: absolute; top: 10px; right: 12px; display: flex; gap: 8px; align-items: center; color: #ddd; font-size: 12px; }
+.lightbox .lbbar button { background: rgba(255,255,255,.15); color: #fff; border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 14px; }
+.lightbox .lbhint { position: absolute; left: 12px; bottom: 10px; color: #bbb; font-size: 12px; }
+.imgs img { cursor: zoom-in; }
 td.diff { background: color-mix(in srgb, var(--warn) 18%, transparent); }
 .ghead { display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin-top: 4px; border-radius: 6px;
   background: var(--bg); cursor: pointer; font-weight: 650; }
@@ -663,7 +668,7 @@ async function renderImages() {
     const list = per[id].filter((i) => i.step <= state.imgStep);
     const pick = list.length ? list[list.length - 1] : per[id][0];
     if (!pick) return null;
-    return h("figure", { style: "border-left:4px solid " + runColor(id) }, h("img", { src: pick.url, loading: "lazy" }),
+    return h("figure", { style: "border-left:4px solid " + runColor(id) }, h("img", { src: pick.url, loading: "lazy", title: "double-click to zoom and pan", ondblclick: () => showLightbox(pick.url) }),
       h("figcaption", {}, runLabel(runById(id)) + " · step " + pick.step));
   });
   content.replaceChildren(controls, h("div", { class: "imgs" }, figs));
@@ -721,9 +726,72 @@ function fmtCell(v) {
 }
 
 function showLightbox(src) {
-  const box = h("div", { class: "lightbox", onclick: () => box.remove() }, h("img", { src }));
-  box.style.display = "flex";
+  const img = h("img", { src, draggable: "false" });
+  const zoomLabel = h("span", {}, "");
+  let s = 1, tx = 0, ty = 0, fit = 1, drag = null;
+  const pts = new Map();
+  let pinch = null;
+  const box = h("div", { class: "lightbox" }, img,
+    h("div", { class: "lbbar" }, zoomLabel,
+      h("button", { title: "fit to screen", onclick: (e) => { e.stopPropagation(); fitView(); } }, "fit"),
+      h("button", { title: "actual size", onclick: (e) => { e.stopPropagation(); zoomAt(innerWidth / 2, innerHeight / 2, 1); } }, "100%"),
+      h("button", { title: "close (Esc)", onclick: (e) => { e.stopPropagation(); close(); } }, "×")),
+    h("div", { class: "lbhint" }, "wheel: zoom · drag: pan · double-click: fit / 100% · Esc: close"));
+  const apply = () => {
+    img.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")";
+    zoomLabel.textContent = Math.round(s * 100) + "%";
+  };
+  const fitView = () => {
+    const w = img.naturalWidth || 1, hh = img.naturalHeight || 1;
+    fit = Math.min(innerWidth / w, innerHeight / hh);
+    s = fit; tx = (innerWidth - w * s) / 2; ty = (innerHeight - hh * s) / 2;
+    apply();
+  };
+  const zoomAt = (x, y, ns) => {
+    ns = Math.min(Math.max(ns, fit * 0.2), 60);
+    tx = x - (x - tx) * (ns / s); ty = y - (y - ty) * (ns / s); s = ns;
+    apply();
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { document.removeEventListener("keydown", onKey); box.remove(); };
+  img.addEventListener("load", () => { img.style.width = img.naturalWidth + "px"; img.style.height = img.naturalHeight + "px"; fitView(); });
+  box.addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, s * Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+  box.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".lbbar")) return;
+    box.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) { drag = { x: e.clientX, y: e.clientY, tx, ty }; box.classList.add("drag"); }
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s };
+      drag = null;
+    }
+  });
+  box.addEventListener("pointermove", (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d);
+    } else if (drag) {
+      tx = drag.tx + e.clientX - drag.x; ty = drag.ty + e.clientY - drag.y; apply();
+    }
+  });
+  const up = (e) => {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (pts.size === 0) { drag = null; box.classList.remove("drag"); }
+    else if (pts.size === 1) { const [p] = [...pts.values()]; drag = { x: p.x, y: p.y, tx, ty }; }
+  };
+  box.addEventListener("pointerup", up);
+  box.addEventListener("pointercancel", up);
+  box.addEventListener("dblclick", (e) => {
+    if (e.target.closest(".lbbar")) return;
+    if (Math.abs(s - fit) < 1e-3) zoomAt(e.clientX, e.clientY, 1); else fitView();
+  });
+  document.addEventListener("keydown", onKey);
   document.body.append(box);
+  if (img.complete && img.naturalWidth) img.dispatchEvent(new Event("load"));
 }
 
 async function renderFigures() {
@@ -745,7 +813,7 @@ async function renderFigures() {
     parts.push(h("div", { class: "section" }, "Figures"),
       h("div", { class: "figgrid" }, images.map((x) =>
         h("div", { class: "fig" },
-          h("img", { src: url(x), loading: "lazy", alt: x.name, onclick: () => showLightbox(url(x)) }),
+          h("img", { src: url(x), loading: "lazy", alt: x.name, title: "double-click to zoom and pan", ondblclick: () => showLightbox(url(x)) }),
           h("div", { class: "cap" }, h("span", {}, x.name),
             h("a", { href: url(x), download: x.name }, "download"))))));
   }
