@@ -19,6 +19,11 @@ PANELS = [
     ("MI context-touch (layout excess)", "mi2_context_touch", None),
 ]
 
+PLUGIN_MI = [
+    ("MI context-policy (plug-in)", "mi_score_context_policy", None),
+    ("MI context-touch (plug-in)", "mi_score_context_touch", None),
+]
+
 FIGURES = {
     5: [("agent", "parasite", "")],
     6: [("agent", "parasite", ""), ("parasite", "parasite", "_par")],
@@ -110,11 +115,15 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Plot Figs 5-7 from the local database")
     parser.add_argument("--db", required=True)
     parser.add_argument("--out", default="figures")
+    parser.add_argument("--mi", choices=["layout", "plugin"], default="plugin",
+                        help="plugin: original per-step mi_score keys; layout: mi2 layout-excess keys")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_arguments()
+    if args.mi == "plugin":
+        PANELS[2:] = PLUGIN_MI
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(args.db)
