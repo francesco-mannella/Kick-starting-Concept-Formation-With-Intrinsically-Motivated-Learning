@@ -90,7 +90,24 @@ def test_mix_design():
     assert sizes[(1, "still")] == [4.8, 2.1] and sizes[(1, "controllable")] == [4.0, 4.0] and sizes[(1, "movable")] == [7.74, 7.84], sizes
 
 
+def test_mixg_design():
+    pos = {"still": [14.0, 12.0], "movable": [7.0, 12.0], "controllable": [11.3, 3.2]}
+    for stretch, rot in ((1, 0.0), (2, 1.570796)):
+        env = SMEnv(0, Parameters(obj_set="mixg", obj_pos_kind=pos, obj_stretch_conditions=[stretch], obj_rotation_conditions=[rot]))
+        sizes = {}
+        for world, name in ((1, "still"), (2, "movable"), (3, "controllable")):
+            env.reset(world=world)
+            body = env.b2d_env.sim.bodies[name]
+            assert abs(body.position[0] - pos[name][0]) < 0.05 and abs(body.position[1] - pos[name][1]) < 0.05
+            assert body.type == (0 if name == "still" else 2), (name, body.type)
+            verts = np.array([body.transform * v for v in body.fixtures[0].shape.vertices])
+            sizes[name] = np.round(verts.max(0) - verts.min(0), 2).tolist()
+        if stretch == 1:
+            assert sizes["controllable"] == [3.2, 3.2] and sizes["still"] == [4.8, 2.1] and sizes["movable"] == [7.74, 7.84], sizes
+
+
 if __name__ == "__main__":
+    test_mixg_design()
     test_mix_design()
     test_triangle_design()
     test_position_per_kind()

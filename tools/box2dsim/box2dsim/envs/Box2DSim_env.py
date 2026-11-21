@@ -217,10 +217,11 @@ class Box2DSimOneArmEnv(gym.Env):
             self.world_id = self.rng.randint(0, len(self.world_files))
 
         self.world_file = self.world_files[self.world_id]
-        if self.object_set in ("l2", "tri", "mix"):
+        if self.object_set in ("l2", "tri", "mix", "mixg"):
             swap = {"l2": {"movable.json": "plate.json", "controllable.json": "bar.json"},
                     "tri": {"still.json": "still_tri.json", "controllable.json": "controllable_tri.json"},
-                    "mix": {"still.json": "still_mix.json", "controllable.json": "controllable_mix.json"}}[self.object_set]
+                    "mix": {"still.json": "still_mix.json", "controllable.json": "controllable_mix.json"},
+                    "mixg": {"still.json": "still_mix.json", "controllable.json": "controllable_mix_small.json"}}[self.object_set]
             if self.world_file.name in swap:
                 self.world_file = self.world_file.with_name(swap[self.world_file.name])
 
