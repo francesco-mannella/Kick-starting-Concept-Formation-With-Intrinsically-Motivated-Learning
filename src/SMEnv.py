@@ -45,6 +45,7 @@ class SMEnv:
         self.b2d_env.object_set = getattr(params, "obj_set", "orig")
         self.b2d_env.object_pos = getattr(params, "obj_pos_kind", None)
 
+        self.b2d_env.fovea_width = self.b2d_env.fovea_height = getattr(params, "fovea_range", 4.0)
         self.b2d_env.set_taskspace(**self.params.task_space)
         self.render = None
         self.world = 0
