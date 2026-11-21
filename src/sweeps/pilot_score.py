@@ -9,7 +9,7 @@ R = "/home/fmannella/tmp/kss/pilot_pos_"
 ARMS = {"ctrl": "original layout", "kind": "per-kind positions"}
 SEEDS = range(300, 305)
 LO, HI = 150, 300
-M = {"align": "grid_comp_mean", "succ": "eval_episode_success_rate", "MIpol": "mi2_context_policy", "touch": "eval_touch_freq"}
+M = {"align": "grid_comp_mean", "succ": "eval_episode_success_rate", "MIpol": "mi_score_context_policy", "touch": "eval_touch_freq"}
 
 
 def training(arm):

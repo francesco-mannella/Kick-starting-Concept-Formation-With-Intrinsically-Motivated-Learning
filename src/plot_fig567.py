@@ -15,13 +15,8 @@ COLORS = {"agent": "#2a78d6", "parasite": "#eb6834", "former parasite": "#1baf7a
 PANELS = [
     ("Internal alignment", "grid_comp_mean", None),
     ("Success rate", "eval_episode_success_rate", (0, 1)),
-    ("MI context-policy (layout excess)", "mi2_context_policy", None),
-    ("MI context-touch (layout excess)", "mi2_context_touch", None),
-]
-
-PLUGIN_MI = [
-    ("MI context-policy (plug-in)", "mi_score_context_policy", None),
-    ("MI context-touch (plug-in)", "mi_score_context_touch", None),
+    ("MI score context-policy", "mi_score_context_policy", None),
+    ("MI score context-touch", "mi_score_context_touch", None),
 ]
 
 FIGURES = {
@@ -42,8 +37,6 @@ def series(con, group, key):
         con,
         params=(group, key),
     )
-    if df.empty:
-        return None, None, 0
     df["seed"] = df["name"].str[-3:].astype(int)
     wide = df.pivot(index="step", columns="seed", values="value")
     return wide.mean(axis=1), wide.std(axis=1), wide.shape[1]
@@ -66,8 +59,7 @@ def panel_tops(con):
         for series_list in FIGURES.values():
             for _, group, suffix in series_list:
                 mean, sd, _ = series(con, group, key + suffix)
-                if mean is not None:
-                    tops[key] = max(tops.get(key, 0), (mean + sd).max())
+                tops[key] = max(tops.get(key, 0), (mean + sd).max())
     return tops
 
 
@@ -78,13 +70,9 @@ def make_figure(con, number, out_dir, table, tops):
         style(ax)
         ax.set_title(title, color=INK, fontsize=11, loc="left")
         ax.set_xlabel("Epoch", color=INK2, fontsize=9)
-        missing = []
         for label, group, suffix in FIGURES[number]:
             name = "parasite" if suffix else label
             mean, sd, n = series(con, group, key + suffix)
-            if mean is None:
-                missing.append(name)
-                continue
             nseeds.add(n)
             color = COLORS[name]
             ax.fill_between(mean.index, mean - sd, mean + sd, color=color, alpha=0.16,
@@ -93,12 +81,10 @@ def make_figure(con, number, out_dir, table, tops):
             handles[name] = line
             for step, m, s in zip(mean.index, mean, sd):
                 table.append((number, title, name, step, m, s, n))
-        if missing:
-            ax.text(0.5, 0.5, f"no {key} values for: {', '.join(missing)}", transform=ax.transAxes, ha="center", color=INK2, fontsize=9)
         ax.set_xlim(0, 1500)
         if ylim:
             ax.set_ylim(*ylim)
-        elif key in tops:
+        else:
             ax.set_ylim(0, tops[key] * 1.02)
     fig.legend(handles.values(), handles.keys(), loc="upper right", ncol=len(handles),
                frameon=False, labelcolor=INK, fontsize=10, bbox_to_anchor=(0.995, 1.02))
@@ -115,15 +101,11 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Plot Figs 5-7 from the local database")
     parser.add_argument("--db", required=True)
     parser.add_argument("--out", default="figures")
-    parser.add_argument("--mi", choices=["layout", "plugin"], default="plugin",
-                        help="plugin: original per-step mi_score keys; layout: mi2 layout-excess keys")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_arguments()
-    if args.mi == "plugin":
-        PANELS[2:] = PLUGIN_MI
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(args.db)

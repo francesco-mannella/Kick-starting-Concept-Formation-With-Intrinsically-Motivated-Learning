@@ -8,7 +8,7 @@ import pandas as pd
 H = Path.home() / "tmp/kss"
 NEW, REF, REF2 = H / "fig567_designB", H / "fig567_r2_fric", H / "fig567_r2_base"
 LO, HI = 1000, 1500
-M = {"align": "grid_comp_mean", "succ": "eval_episode_success_rate", "MIpol": "mi2_context_policy", "MItouch": "mi2_context_touch", "touch": "eval_touch_freq"}
+M = {"align": "grid_comp_mean", "succ": "eval_episode_success_rate", "MIpol": "mi_score_context_policy", "MItouch": "mi_score_context_touch", "touch": "eval_touch_freq"}
 S = [("agent", "parasite", ""), ("parasite", "parasite", "_par"), ("former", "former", "")]
 SEEDS = range(100, 110)
 

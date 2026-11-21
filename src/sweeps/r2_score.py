@@ -2,7 +2,7 @@ import sqlite3, json, glob
 import numpy as np, pandas as pd
 R = "/home/fmannella/tmp/kss/fig567_r2_"
 CONDS = {"base": "no-fric/no-sal", "sal": "no-fric/sal", "fric": "fric/no-sal", "fricsal": "fric/sal"}
-M = {"align": "grid_comp_mean", "succ": "eval_episode_success_rate", "MIpol": "mi2_context_policy", "MItouch": "mi2_context_touch", "touch": "eval_touch_freq"}
+M = {"align": "grid_comp_mean", "succ": "eval_episode_success_rate", "MIpol": "mi_score_context_policy", "MItouch": "mi_score_context_touch", "touch": "eval_touch_freq"}
 S = [("agent", "parasite", ""), ("parasite", "parasite", "_par"), ("former", "former", "")]
 LO, HI = 1000, 1500
 
