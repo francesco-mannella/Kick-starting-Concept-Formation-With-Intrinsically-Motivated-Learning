@@ -1,7 +1,7 @@
 import numpy as np
 
 from params import Parameters
-from SMMain import touch_grade, touch_input
+from SMMain import near_record_match, touch_grade, touch_input
 
 
 def touch(**active):
@@ -51,9 +51,18 @@ def test_double_bonus():
     assert list(batch) == [1.0, 4.0, 0.0]
 
 
+def test_near_record_match():
+    p = Parameters(match_abs_bonus=1.0, match_abs_frac=0.75)
+    assert Parameters().match_abs_bonus == 0.0
+    out = near_record_match(p, np.array([0.1, 0.5, 0.74, 0.76, 1.0]), 1.0)
+    assert np.allclose(out, [0.0, 0.0, 0.0, 0.76, 1.0])
+    assert np.allclose(near_record_match(p, np.array([0.31]), 0.4), [0.31])
+
+
 if __name__ == "__main__":
     test_defaults_are_off()
     test_normalised_input()
     test_grade_values()
     test_double_bonus()
+    test_near_record_match()
     print("ok")

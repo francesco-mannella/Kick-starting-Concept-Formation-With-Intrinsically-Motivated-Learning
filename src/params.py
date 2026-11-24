@@ -75,6 +75,8 @@ class Parameters(ParameterManager):
         touch_grade_ref=2.0,
         touch_grade_events=True,
         touch_grade_double=0.0,
+        match_abs_bonus=0.0,
+        match_abs_frac=0.75,
         touch_incr_th=0.0,
         policy_update_min_match=0.0,
         policy_update_min_mod_match=0.0,
@@ -186,6 +188,8 @@ class Parameters(ParameterManager):
         self.touch_grade_ref = touch_grade_ref
         self.touch_grade_events = touch_grade_events
         self.touch_grade_double = touch_grade_double
+        self.match_abs_bonus = match_abs_bonus
+        self.match_abs_frac = match_abs_frac
         self.touch_incr_th = touch_incr_th
         self.policy_update_min_match = policy_update_min_match
         self.policy_update_min_mod_match = policy_update_min_mod_match

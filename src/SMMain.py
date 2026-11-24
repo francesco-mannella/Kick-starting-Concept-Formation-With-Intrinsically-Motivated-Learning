@@ -94,6 +94,11 @@ def touch_grade(params, touch):
     return np.where((touch > 0).any(-1), credit, 0.0)
 
 
+def near_record_match(params, match, record):
+    """Match kept only when it reaches match_abs_frac of the highest match seen so far in the run."""
+    return np.where(match >= params.match_abs_frac * record, match, 0.0)
+
+
 def build_episode_dataset(params):
     """
     Build a dataset mapping unique indices to (obj_param_space_index, context) pairs.
@@ -820,6 +825,7 @@ class Main:
         cum_match = np.zeros((batch_size, self.params.stime), dtype=int)
         episode_len = np.zeros(batch_size, dtype=int)
         max_match = np.zeros((batch_size, self.params.stime))
+        abs_max = np.zeros((batch_size, self.params.stime))
         matches = np.zeros((batch_size, self.params.stime), dtype=bool)
         policy_changed = np.zeros((batch_size, self.params.stime), dtype=bool)
         bsize = batch_size * self.params.action_steps
@@ -964,6 +970,14 @@ class Main:
                             mmask, i, None
                         ]
 
+                        if self.params.match_abs_bonus > 0:
+                            m_i = controller.model_data["match_value"][:, i]
+                            controller.maxmatch = max(controller.maxmatch or 0.0, float(m_i.max()))
+                            b_i = near_record_match(self.params, m_i, controller.maxmatch)
+                            reset = policy_changed[:, i]
+                            abs_max[reset, i:] = b_i[reset, None]
+                            abs_max[~reset, i:] = np.maximum(abs_max[~reset, i - 1 : i], b_i[~reset, None])
+
                         # ####### Competence - Option 1
                         # # use controller.model_data['match_value'] as it is
 
@@ -1043,6 +1057,9 @@ class Main:
                     data["batch_g"][success_mask, t:, :] = goals[:, None, :]
                     data["batch_c"][success_mask, t:, :] = competences[:, None, :]
                     data["batch_log"][success_mask, t:, :] = lcompetences[:, None, :]
+
+        if self.params.match_abs_bonus > 0:
+            max_match = max_match + self.params.match_abs_bonus * abs_max * (max_match > 0)
 
         return (
             matches,
