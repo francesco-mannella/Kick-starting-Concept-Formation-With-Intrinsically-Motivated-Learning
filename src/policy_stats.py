@@ -51,7 +51,8 @@ def segments(data, episodes):
             if not v.any() or (last is not None and np.allclose(v, last)):
                 continue
             policies.append(v.copy())
-            rows.append((ep, episodes.context[ep], episodes.stretch[ep], round(episodes.rotation[ep], 2), k,
+            row = ep % len(episodes)
+            rows.append((ep, episodes.context[row], episodes.stretch[row], round(episodes.rotation[row], 2), k,
                          int(data["v_r"][ep, t].argmax())))
             last, k = v, k + 1
     return np.array(policies), pd.DataFrame(rows, columns=["ep", "ctx", "stretch", "rot", "k", "node"])
@@ -66,7 +67,7 @@ def postures(data, episodes, epoch):
         if len(idx) < 5:
             continue
         contact = idx[touch[ep, idx]]
-        rows.append((f"{epoch}_{ep}", episodes.context[ep], data["p"][ep, idx].mean(0),
+        rows.append((f"{epoch}_{ep}", episodes.context[ep % len(episodes)], data["p"][ep, idx].mean(0),
                      data["p"][ep, contact].mean(0) if len(contact) else None))
     return rows
 
@@ -110,6 +111,7 @@ def mi_time_weighted(data, main, policies, rng, n_shuffle):
     mask[:, : params.drop_first_n_steps + params.policy_selection_steps] = False
     index = KMeans(10, n_init=5, random_state=0).fit(policies).predict(actions[mask])
     contexts = main.episode_dataset.context.values
+    contexts = contexts[np.arange(actions.shape[0]) % len(contexts)]
 
     def mi(ctx, score=mutual_info_score):
         return score(np.repeat(ctx[:, None], actions.shape[1], 1)[mask], index)
@@ -233,12 +235,21 @@ def episode_table(tr, episodes):
     rows = []
     for ep, g in tr.groupby("episode_id"):
         touch = g[touch_cols].values.sum(1) > 0
+        left = g[[f"s{i}" for i in range(10, 20)]].values.sum(1) > 0
+        right = g[[f"s{i}" for i in range(20, 30)]].values.sum(1) > 0
+        both = left & right
+        run = longest = 0
+        for flag in both:
+            run = run + 1 if flag else 0
+            longest = max(longest, run)
         goal_x, goal_y = g.prototype_x.values, g.prototype_y.values
         dist = np.hypot(g.touch_x.values - goal_x, g.touch_y.values - goal_y)
         rows.append({"ep": int(ep), "ctx": int(episodes.context[int(ep) % len(episodes)]),
+                     "rot": round(float(np.degrees(episodes.rotation[int(ep) % len(episodes)])), 1),
                      "success": float(g.tr_id.nunique() >= 2), "match": g.match.mean(),
                      "max_match": g.match.max(), "touch": touch.mean(),
-                     "hit2": (dist[touch] <= 2).mean() if touch.any() else 0.0})
+                     "hit2": (dist[touch] <= 2).mean() if touch.any() else 0.0,
+                     "grasp": float(longest >= 5), "claw": float(np.abs(g.d4.values[both]).mean()) if both.any() else np.nan})
     return pd.DataFrame(rows)
 
 
@@ -335,7 +346,7 @@ if __name__ == "__main__":
         Path(args.out + "_static.json").write_text(json.dumps(stats, indent=1))
     if args.counterfactual:
         table, sizes = counterfactual(args, rng)
-        cols = ["success", "match", "max_match", "touch", "hit2"]
+        cols = ["success", "match", "max_match", "touch", "hit2", "grasp", "claw"]
         overall = table.groupby("cond")[cols].mean().round(3)
         by_ctx = table.groupby(["cond", "ctx"])[cols].mean().round(3)
         print(overall.to_string())
@@ -343,3 +354,4 @@ if __name__ == "__main__":
         if args.out:
             table.to_csv(args.out + "_counterfactual_episodes.csv", index=False)
             by_ctx.to_csv(args.out + "_counterfactual_by_context.csv")
+            table.groupby(["cond", "ctx", "rot"])[cols].mean().round(3).to_csv(args.out + "_counterfactual_by_context_rotation.csv")

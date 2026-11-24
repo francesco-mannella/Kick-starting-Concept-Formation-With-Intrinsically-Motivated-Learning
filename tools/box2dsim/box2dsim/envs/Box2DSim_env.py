@@ -217,8 +217,9 @@ class Box2DSimOneArmEnv(gym.Env):
             self.world_id = self.rng.randint(0, len(self.world_files))
 
         self.world_file = self.world_files[self.world_id]
-        if self.object_set in ("l2", "tri", "mix", "mixg"):
+        if self.object_set in ("l2", "tri", "mix", "mixg", "grasp3"):
             swap = {"l2": {"movable.json": "plate.json", "controllable.json": "bar.json"},
+                    "grasp3": {"still.json": "grasp3_s.json", "movable.json": "grasp3_m.json", "controllable.json": "grasp3_l.json"},
                     "tri": {"still.json": "still_tri.json", "controllable.json": "controllable_tri.json"},
                     "mix": {"still.json": "still_mix.json", "controllable.json": "controllable_mix.json"},
                     "mixg": {"still.json": "still_mix.json", "controllable.json": "controllable_mix_small.json"}}[self.object_set]
@@ -495,6 +496,7 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
         self.fovea_width = 4
         self.fovea_height = 4
         self.fovea_pixel_side = 10
+        self.fovea_binary = False
 
         self.action_steps = 5
 
@@ -568,6 +570,8 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
             self.sim,
             shape=(self.fovea_pixel_side, self.fovea_pixel_side),
             rng=(self.fovea_width, self.fovea_height),
+            binary=self.fovea_binary,
+            bodies=self.object_names,
         )
 
         self.observation_space = gym.spaces.Dict(
@@ -584,7 +588,7 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
                 "SALIENCY_POS": gym.spaces.Box(-np.inf, np.inf, [2], dtype=float),
                 "EYE_POS": gym.spaces.Box(-np.inf, np.inf, [2], dtype=float),
                 "VISUAL_SENSORS": gym.spaces.Box(
-                    0, np.inf, self.fovea.shape + [3], dtype=float
+                    0, np.inf, self.fovea.shape + [self.fovea.channels], dtype=float
                 ),
                 "OBJ_POSITION": gym.spaces.Box(-np.inf, np.inf, [2], dtype=float),
             }

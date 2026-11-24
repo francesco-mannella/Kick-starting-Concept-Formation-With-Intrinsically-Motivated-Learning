@@ -29,7 +29,8 @@ palette = matplotlib.colors.LinearSegmentedColormap.from_list(
     name="custom", colors=[[0, 1, 0], [1, 0, 0], [0, 0, 1]]
 )
 internal_side = int(np.sqrt(params.internal_size))
-visual_side = int(np.sqrt(params.visual_size / 3))
+visual_channels = 1 if getattr(params, "visual_binary", False) else 3
+visual_side = int(np.sqrt(params.visual_size / visual_channels))
 
 
 class GraphManager:
@@ -216,18 +217,34 @@ class GraphManager:
 
     def visual_map(self, wfile=None, ax=None, png_suffix=""):
         internal_side = int(np.sqrt(self.params.internal_size))
-        visual_side = int(np.sqrt(self.params.visual_size // 3))
+        channels = 1 if getattr(self.params, "visual_binary", False) else 3
+        visual_side = int(np.sqrt(self.params.visual_size // channels))
 
         if wfile is None:
             wfile = self.sm.site_dir / "weights.npy"
         data_v = np.load(wfile, allow_pickle=True)[0]["visual"]
-        data_v = data_v.reshape(visual_side, visual_side, 3, internal_side, internal_side)
+        data_v = data_v.reshape(visual_side, visual_side, channels, internal_side, internal_side)
         data_v = data_v.transpose(3, 0, 4, 1, 2)
         data_v = data_v[::-1, :, :, :, :]
         data_v = data_v.reshape(
-            visual_side * internal_side, visual_side * internal_side, 3
+            visual_side * internal_side, visual_side * internal_side, channels
         )
         fig = None
+        if channels == 1:
+            # every retina pixel is drawn as a 4x4 block (nearest, integer scale) with a thin line between node tiles
+            scale = 4
+            image = 1.0 - np.kron(np.clip(data_v[:, :, 0], 0.0, 1.0), np.ones((scale, scale)))
+            image[:: visual_side * scale, :] = 0.7
+            image[:, :: visual_side * scale] = 0.7
+            if ax is None:
+                fig, ax = plt.subplots(1, 1, figsize=(image.shape[1] / 100, image.shape[0] / 100))
+            ax.imshow(image, cmap=plt.cm.gray, vmin=0.0, vmax=1.0, interpolation="nearest")
+            ax.set_axis_off()
+            if fig:
+                fig.tight_layout(pad=0.0)
+                fig.savefig(self.sm.site_dir / f"visual_map{png_suffix}.png", dpi=100)
+                plt.close("all")
+            return
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
         ax.imshow(np.clip(data_v, 0.0, 1.0))

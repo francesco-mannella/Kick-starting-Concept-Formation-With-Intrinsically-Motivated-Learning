@@ -36,6 +36,8 @@ class Parameters(ParameterManager):
         policy_ema_eta=0.05,
         internal_size=100,
         visual_size=300,
+        visual_pixels=10,
+        visual_binary=False,
         somatosensory_size=40,
         proprioception_size=5,
         num_objects=4,
@@ -67,6 +69,12 @@ class Parameters(ParameterManager):
         modalities_weights=(0.0, 1.0, 1.0, 0.0),  # use only touch and proprioception
         match_mode="arithmetic",
         touch_gate=True,
+        touch_normalize=False,
+        touch_grade=False,
+        touch_grade_any=0.25,
+        touch_grade_ref=2.0,
+        touch_grade_events=True,
+        touch_grade_double=0.0,
         touch_incr_th=0.0,
         policy_update_min_match=0.0,
         policy_update_min_mod_match=0.0,
@@ -138,6 +146,8 @@ class Parameters(ParameterManager):
         self.policy_ema_eta = policy_ema_eta
         self.internal_size = internal_size
         self.visual_size = visual_size
+        self.visual_pixels = visual_pixels
+        self.visual_binary = visual_binary
         self.somatosensory_size = somatosensory_size
         self.proprioception_size = proprioception_size
         self.policy_size = (grip_policy_dim or grip_hidden) * grip_output
@@ -170,6 +180,12 @@ class Parameters(ParameterManager):
         self.modalities_weights = modalities_weights
         self.match_mode = match_mode
         self.touch_gate = touch_gate
+        self.touch_normalize = touch_normalize
+        self.touch_grade = touch_grade
+        self.touch_grade_any = touch_grade_any
+        self.touch_grade_ref = touch_grade_ref
+        self.touch_grade_events = touch_grade_events
+        self.touch_grade_double = touch_grade_double
         self.touch_incr_th = touch_incr_th
         self.policy_update_min_match = policy_update_min_match
         self.policy_update_min_mod_match = policy_update_min_mod_match

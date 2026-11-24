@@ -106,7 +106,49 @@ def test_mixg_design():
             assert sizes["controllable"] == [3.2, 3.2] and sizes["still"] == [4.8, 2.1] and sizes["movable"] == [7.74, 7.84], sizes
 
 
+def test_grasp3_design():
+    pos = {"still": [10.0, 8.0], "movable": [12.0, 5.0], "controllable": [14.0, 11.0]}
+    widths = {"still": 1.5, "movable": 3.0, "controllable": 5.0}
+    env = SMEnv(0, Parameters(obj_set="grasp3", obj_pos_kind=pos, obj_stretch_conditions=[1], obj_rotation_conditions=[0.0],
+                              visual_pixels=24, visual_binary=True, visual_size=576, fovea_range=8.0))
+    nverts, colors, pixels = set(), set(), []
+    for world, name in ((1, "still"), (2, "movable"), (3, "controllable")):
+        env.reset(world=world)
+        body = env.b2d_env.sim.bodies[name]
+        verts = np.array([body.transform * v for v in body.fixtures[0].shape.vertices])
+        assert body.type == 0, (name, body.type)
+        assert np.round(verts.max(0) - verts.min(0), 2).tolist() == [widths[name]] * 2, (name, verts)
+        assert abs(body.position[0] - pos[name][0]) < 0.05 and abs(body.position[1] - pos[name][1]) < 0.05
+        nverts.add(len(body.fixtures[0].shape.vertices))
+        colors.add(tuple(body.color))
+        img = env.b2d_env.fovea.step(pos[name])
+        rows, cols = np.where(img[..., 0] > 0)
+        extent = (np.ptp(rows) + 1, np.ptp(cols) + 1)
+        ideal = widths[name] / (8.0 / 24)
+        assert img.shape == (24, 24, 1) and extent[0] == extent[1] and abs(extent[0] - ideal) <= 2, (name, extent, ideal)
+        pixels.append(int(img.sum()))
+    assert len(nverts) == 1 and len(colors) == 1, (nverts, colors)
+    assert pixels == sorted(pixels) and len(set(pixels)) == 3, pixels
+
+
+def test_grasp3_rotations_share_one_position():
+    pos = {"still": [14.0, 6.0], "movable": [14.0, 6.0], "controllable": [14.0, 6.0]}
+    for deg in (0.0, 22.5, 45.0):
+        rot = np.radians(deg)
+        env = SMEnv(0, Parameters(obj_set="grasp3", obj_pos_kind=pos, obj_stretch_conditions=[1], obj_rotation_conditions=[rot]))
+        for world, name, width in ((1, "still", 1.5), (2, "movable", 3.0), (3, "controllable", 5.0)):
+            env.reset(world=world)
+            body = env.b2d_env.sim.bodies[name]
+            verts = np.array([body.transform * v for v in body.fixtures[0].shape.vertices])
+            extent = verts.max(0) - verts.min(0)
+            expected = width * (abs(np.cos(rot)) + abs(np.sin(rot)))
+            assert body.type == 0 and np.allclose(extent, expected, atol=0.02), (deg, name, extent, expected)
+            assert abs(body.position[0] - 14.0) < 0.05 and abs(body.position[1] - 6.0) < 0.05, (deg, name, body.position)
+
+
 if __name__ == "__main__":
+    test_grasp3_rotations_share_one_position()
+    test_grasp3_design()
     test_mixg_design()
     test_mix_design()
     test_triangle_design()

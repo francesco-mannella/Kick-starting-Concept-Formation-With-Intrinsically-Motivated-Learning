@@ -46,6 +46,11 @@ class SMEnv:
         self.b2d_env.object_pos = getattr(params, "obj_pos_kind", None)
 
         self.b2d_env.fovea_width = self.b2d_env.fovea_height = getattr(params, "fovea_range", 4.0)
+        self.b2d_env.fovea_pixel_side = getattr(params, "visual_pixels", 10)
+        self.b2d_env.fovea_binary = getattr(params, "visual_binary", False)
+        expected = self.b2d_env.fovea_pixel_side ** 2 * (1 if self.b2d_env.fovea_binary else 3)
+        if getattr(params, "visual_size", expected) != expected:
+            raise ValueError(f"visual_size {params.visual_size} does not match visual_pixels/visual_binary ({expected})")
         self.b2d_env.set_taskspace(**self.params.task_space)
         self.render = None
         self.world = 0

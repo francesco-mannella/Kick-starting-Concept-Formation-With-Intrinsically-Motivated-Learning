@@ -12,16 +12,25 @@ WORK = Path(sys.argv[2])
 ROOT = Path(sys.argv[3])
 SEEDS = range(int(sys.argv[4]), int(sys.argv[5]) + 1)
 N_TWO, N_LONG = int(sys.argv[6]), int(sys.argv[7])
-LABELS = "blue plate,red triangle,green wedge"
+G3 = len(sys.argv) > 8 and sys.argv[8] == "grasp3"
+LABELS = "small square,medium square,large square" if G3 else "blue plate,red triangle,green wedge"
+LEFT, RIGHT = (slice(10, 20), slice(20, 30)) if G3 else (slice(0, 20), slice(20, 40))
 OUT = ROOT / "demos" / "grasp_demos"
 CASEDIR = WORK / "grasp_cases"
 ENV = {**os.environ, "OMP_NUM_THREADS": "1", "MPLBACKEND": "agg", "PYTHONPATH": f"{WT / 'src'}:{WT / 'tools/box2dsim'}", "OBJECT_LABELS": LABELS}
-NAMES = {1: "plate", 2: "triangle", 3: "wedge"}
+NAMES = {1: "small", 2: "medium", 3: "large"} if G3 else {1: "plate", 2: "triangle", 3: "wedge"}
 sys.path.insert(0, str(WT / "src"))
 from params import Parameters  # noqa: E402
 from SMMain import build_episode_dataset  # noqa: E402
 
-dataset, _ = build_episode_dataset(Parameters())
+if G3:
+    from SMMain import Main  # noqa: E402
+
+    _ = Main
+    first = WORK / f"seed_{SEEDS[0]}/parasite_{SEEDS[0]}/simulations/parasite_{SEEDS[0]}/storage/final_ckpt/main.dump.npy"
+    dataset, _ = build_episode_dataset(np.load(first, allow_pickle=True)[0].params)
+else:
+    dataset, _ = build_episode_dataset(Parameters())
 ctx = dataset.set_index("index")
 
 
@@ -40,8 +49,8 @@ for seed in SEEDS:
     scols = sorted([c for c in d.columns if c.startswith("s") and c[1:].isdigit()], key=lambda c: int(c[1:]))
     for (es, ep), g in d.groupby(["e_seed", "episode_id"]):
         t = g.sort_values("ts")[scols].values > 0
-        anyc, both = t.any(1), t[:, :20].any(1) & t[:, 20:].any(1)
-        rows.append(dict(seed=seed, e_seed=int(es), episode=int(ep), context=int(ctx.loc[int(ep), "context"]), longest_bilateral=longest_run(both),
+        anyc, both = t.any(1), t[:, LEFT].any(1) & t[:, RIGHT].any(1)
+        rows.append(dict(seed=seed, e_seed=int(es), episode=int(ep), context=int(ctx.loc[int(ep) % len(ctx), "context"]), longest_bilateral=longest_run(both),
                          bilateral_steps=int(both.sum()), longest_contact=longest_run(anyc), max_sensors=int(t.sum(1).max())))
 scan = pd.DataFrame(rows)
 print(f"{len(scan)} episode runs; two fingers >= 5 steps: {(scan.longest_bilateral >= 5).sum()}; >= 10: {(scan.longest_bilateral >= 10).sum()}; contact >= 20: {(scan.longest_contact >= 20).sum()}; >= 40: {(scan.longest_contact >= 40).sum()}", flush=True)
@@ -64,7 +73,7 @@ def pick(df, key, n, per_seed, taken):
 
 taken = set()
 two = pick(scan[scan.longest_bilateral >= 5], ["longest_bilateral", "longest_contact"], N_TWO, 3, taken)
-long = pick(scan[(scan.context >= 2) & (scan.longest_contact >= 30)], ["longest_contact", "max_sensors"], N_LONG, 2, taken)
+long = pick(scan[(scan.context >= (1 if G3 else 2)) & (scan.longest_contact >= 30)], ["longest_contact", "max_sensors"], N_LONG, 2, taken)
 cases = [("two_fingers", r) for r in two] + [("sustained_contact", r) for r in long]
 print(len(cases), "cases selected", flush=True)
 
@@ -99,7 +108,7 @@ for cat, r in cases:
     best = None
     for goal, gg in g.groupby("goal_id"):
         t = gg[scols].values > 0
-        both, contact = int((t[:, :20].any(1) & t[:, 20:].any(1)).sum()), int(t.any(1).sum())
+        both, contact = int((t[:, LEFT].any(1) & t[:, RIGHT].any(1)).sum()), int(t.any(1).sum())
         key = (both, contact) if cat == "two_fingers" else (contact, both)
         if best is None or key > best[0]:
             best = (key, int(goal), len(gg), both, contact, int(t.sum(1).max()))
@@ -128,7 +137,7 @@ for p, (cat, seed, es, ep, goal, n, both, contact, ms, final) in running:
     if p.returncode != 0 or not found:
         print("FAILED", seed, es, ep, err, flush=True)
         continue
-    t = ctx.loc[ep]
+    t = ctx.loc[ep % len(ctx)]
     name = f"{cat}_seed{seed}_ep{ep:02d}_{NAMES[int(t.context)]}_stretch{t.stretch}_rot{int(round(np.degrees(t.rotation)))}_eval{es}_goal{goal}.gif"
     shutil.copy(found[0], OUT / name)
     index.append(dict(file=name, category=cat, seed=seed, eval_seed=es, episode=ep, object=NAMES[int(t.context)], stretch=t.stretch, rotation_deg=int(round(np.degrees(t.rotation))),

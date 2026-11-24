@@ -38,8 +38,36 @@ def test_object_looks_smaller():
     assert covered(b) < covered(a), (covered(a), covered(b))
 
 
+def binary(**kw):
+    return make(visual_pixels=24, visual_binary=True, visual_size=576, fovea_range=8.0, **kw)
+
+
+def test_binary_retina():
+    env = binary()
+    assert env.b2d_env.fovea.shape == [24, 24] and np.allclose(env.b2d_env.fovea.scale, [8.0 / 24] * 2)
+    assert env.reset(world=1)["VISUAL_SENSORS"].shape == (24, 24, 1)
+    v = visual(env, world=1)
+    assert set(np.unique(v)) <= {0.0, 1.0} and v.max() == 1.0
+
+
+def test_binary_retina_draws_only_objects():
+    assert visual(binary(), world=4).max() == 0.0
+
+
+def test_visual_size_must_match():
+    for kw in ({"visual_pixels": 24, "visual_binary": True}, {"visual_size": 576}):
+        try:
+            make(**kw)
+        except ValueError:
+            continue
+        raise AssertionError(kw)
+
+
 if __name__ == "__main__":
     test_default_scale()
     test_doubled_scale()
     test_object_looks_smaller()
+    test_binary_retina()
+    test_binary_retina_draws_only_objects()
+    test_visual_size_must_match()
     print("ok")

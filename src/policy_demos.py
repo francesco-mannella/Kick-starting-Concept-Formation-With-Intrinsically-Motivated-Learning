@@ -113,10 +113,12 @@ def render_gifs(final, jobs, parallel):
 
 
 def collect(final, good, out, seed):
-    from params import Parameters
-    from SMMain import build_episode_dataset
+    import __main__
+    from SMMain import Main, build_episode_dataset
 
-    dataset, _ = build_episode_dataset(Parameters())
+    __main__.Main = Main
+    params = np.load(final.parent / "main.dump.npy", allow_pickle=True)[0].params
+    dataset, _ = build_episode_dataset(params)
     best = good.sort_values("score", ascending=False).groupby(["episode", "node_x", "node_y"]).head(1)
     best = best.sort_values(["episode", "score"], ascending=[True, False])
     rows = []
@@ -124,7 +126,7 @@ def collect(final, good, out, seed):
         found = glob.glob(str(final / "demos" / f"e{int(r.episode):02d}_g{int(r.goal):02d}_r{int(r.rep)}_*.gif"))
         if len(found) != 1:
             continue
-        t = dataset[dataset["index"] == int(r.episode)].iloc[0]
+        t = dataset[dataset["index"] == int(r.episode) % len(dataset)].iloc[0]
         name = (f"ep{int(r.episode):02d}_{OBJECTS[int(t.context)]}_stretch{t.stretch}_rot{int(round(np.degrees(t.rotation)))}"
                 f"_goal{int(r.node_x)}-{int(r.node_y)}_seed{seed}rep{int(r.rep)}.gif")
         shutil.copy(found[0], out / name)

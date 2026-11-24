@@ -19,6 +19,20 @@ from scipy.interpolate import splev, splprep
 
 from params import Parameters
 from SMGraphs import GraphManager
+
+
+def run_parameters():
+    for folder in (Path.cwd(), Path.cwd().parent):
+        dump = folder / "main.dump.npy"
+        if dump.is_file():
+            import __main__
+            from SMMain import Main
+
+            __main__.Main = Main
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return np.load(dump, allow_pickle=True)[0].params
+    return Parameters()
 from SMMain import build_episode_dataset
 
 
@@ -178,12 +192,17 @@ class RetinaPlot:
     def _init_plot(self):
         self.ax.clear()
         self.ax.set_axis_off()
-        dummy = np.zeros((10, 10))
-        self.image = self.ax.imshow(dummy, aspect="auto")
+        side, _, channels = self.weights["visual"].shape[2:5]
+        dummy = np.zeros((side, side))
+        self.image = self.ax.imshow(
+            dummy, aspect="auto", cmap=plt.cm.gray_r if channels == 1 else None
+        )
 
     def update(self, px, py):
         retina = self.weights["visual"][py, px]
         retina = (retina - retina.min()) / np.ptp(retina)
+        if retina.shape[-1] == 1:
+            retina = retina[..., 0]
         self.image.set_data(retina)
 
 
@@ -285,7 +304,11 @@ def load_and_process_data(trajectory_file="trajectories.csv", weight_file="weigh
     weights["ssensory"] = weights["ssensory"].reshape(dim, 10, 10)
     weights["ssensory"] = weights["ssensory"].transpose(1, 2, 0)
 
-    weights["visual"] = weights["visual"].reshape(10, 10, 3, 10, 10)
+    n_visual = weights["visual"].shape[0]
+    side3 = int(round((n_visual / 3) ** 0.5))
+    channels = 3 if 3 * side3**2 == n_visual else 1
+    side = side3 if channels == 3 else int(round(n_visual**0.5))
+    weights["visual"] = weights["visual"].reshape(side, side, channels, 10, 10)
     weights["visual"] = weights["visual"].transpose(4, 3, 0, 1, 2)
 
     return df, has_sensors, weights
@@ -643,7 +666,7 @@ class TrajectoryAnimator(BaseTrajectoryAnimator):
                 ax.text(0.4, y0 + h - 0.2, f"{name} (t = {t_})", fontsize=self.font_size + 1, weight="bold", va="top", zorder=1000, bbox=dict(fc="w", ec="none", alpha=0.85, pad=2))
             )
 
-        query = self.episode_df.query(f"index=={episode_id}")
+        query = self.episode_df.query(f"index=={episode_id % len(self.episode_df)}")
         objs = os.environ.get("OBJECT_LABELS", "blue cube,red triangle,green cube").split(",")
         obj = objs[query.context.iloc[0] - 1]
         stretch = query.stretch.iloc[0]
@@ -910,7 +933,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    params = Parameters()
+    params = run_parameters()
     g = GraphManager(None, params)
     font_size = 11
 

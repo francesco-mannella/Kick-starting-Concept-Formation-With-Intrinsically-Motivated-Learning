@@ -153,16 +153,21 @@ class Box2DSim(object):
 class VisualSensor:
     """Compute the retina state at each ste of simulation"""
 
-    def __init__(self, sim, shape, rng):
+    def __init__(self, sim, shape, rng, binary=False, bodies=None):
         """
         Args:
 
             sim (Box2DSim): a simulator object
             shape (int, int): width, height of the retina in pixels
             rng (float, float): x and y range in the task space
+            binary (bool): one channel, 1 where a drawn body covers the pixel and 0 elsewhere
+            bodies (list of str): with binary, the only bodies drawn (None: all visible)
 
         """
 
+        self.binary = binary
+        self.bodies = None if bodies is None else list(bodies)
+        self.channels = 1 if binary else 3
         self.shape = list(shape)
         self.n_pixels = self.shape[0] * self.shape[1]
 
@@ -173,7 +178,7 @@ class VisualSensor:
         self.grid = np.vstack((X.flatten(), Y.flatten())).T
         self.scale = np.array(rng) / shape
         self.radius = np.mean(np.array(rng) / shape)
-        self.retina = np.zeros(self.shape + [3])
+        self.retina = np.zeros(self.shape + [self.channels])
 
         self.reset(sim)
 
@@ -193,7 +198,10 @@ class VisualSensor:
             (np.ndarray): a rescaled retina state
         """
         self.retina *= 0
-        for body in self.sim.visible_bodies.values():
+        canvas = np.zeros(self.shape) if self.binary else self.retina
+        for name, body in self.sim.visible_bodies.items():
+            if self.binary and self.bodies is not None and name not in self.bodies:
+                continue
             if body.color is None:
                 body.color = [0.5, 0.5, 0.5]
             color = np.array(body.color)
@@ -210,10 +218,15 @@ class VisualSensor:
             ]
             vertices_t[:, 1] = -vertices_t[:, 1]
             cv2.fillPoly(
-                self.retina, pts=[vertices_t.astype(np.int32)], color=1 - color
+                canvas,
+                pts=[vertices_t.astype(np.int32)],
+                color=1.0 if self.binary else 1 - color,
             )
 
-        self.retina = np.maximum(0, 1 - (self.retina))
+        if self.binary:
+            self.retina = canvas.reshape(self.shape + [1])
+        else:
+            self.retina = np.maximum(0, 1 - (self.retina))
         return self.retina
 
 

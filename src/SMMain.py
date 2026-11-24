@@ -74,6 +74,26 @@ def softmax(x, t=0.01):
     return e / (e.sum() + 1e-100)
 
 
+def touch_input(params, touch):
+    """Touch fed to the maps: with touch_normalize the pattern s / sum(s) times the peak amplitude (support unchanged)."""
+    touch = np.asarray(touch, dtype=float)
+    if not getattr(params, "touch_normalize", False):
+        return touch
+    total = touch.sum(-1, keepdims=True)
+    return np.where(total > 0, touch / np.where(total > 0, total, 1.0) * touch.max(-1, keepdims=True), 0.0)
+
+
+def touch_grade(params, touch):
+    """Graded touch gain: partial credit for any contact plus credit growing with the smaller inner-face receptor count."""
+    touch = np.asarray(touch)
+    both = np.minimum((touch[..., 10:20] > 0).sum(-1), (touch[..., 20:30] > 0).sum(-1))
+    if params.touch_grade_double > 0:
+        credit = np.where(both >= params.touch_grade_ref, params.touch_grade_double, 1.0)
+    else:
+        credit = params.touch_grade_any + (1 - params.touch_grade_any) * np.minimum(1.0, both / params.touch_grade_ref)
+    return np.where((touch > 0).any(-1), credit, 0.0)
+
+
 def build_episode_dataset(params):
     """
     Build a dataset mapping unique indices to (obj_param_space_index, context) pairs.
@@ -201,7 +221,7 @@ class EpisodeRunner:
         controller.model_data["batch_v"][episode_index, 0, :] = state[
             "VISUAL_SENSORS"
         ].ravel()
-        controller.model_data["batch_ss"][episode_index, 0, :] = state["TOUCH_SENSORS"]
+        controller.model_data["batch_ss"][episode_index, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"])
         controller.model_data["batch_p"][episode_index, 0, :] = state["JOINT_POSITIONS"][
             :5
         ]
@@ -595,6 +615,29 @@ class Main:
         episode_match_inc_ss = np.mean(corrs_coeffs_ss)
         return episode_match_inc_p, episode_match_inc_ss
 
+    def calc_grasp_metrics(self, contexts, controller, min_steps=5):
+        """
+        Readout only: an episode has a grasp when the inner faces of both fingers touch at the same
+        time for min_steps consecutive steps (sensors 10-19 left, 20-29 right).
+        """
+        touch = controller.model_data["batch_ss"]
+        both = (touch[..., 10:20].sum(-1) > 0) & (touch[..., 20:30].sum(-1) > 0)
+        current = np.zeros(both.shape[0], dtype=int)
+        longest = np.zeros(both.shape[0], dtype=int)
+        for t in range(both.shape[1]):
+            current = np.where(both[:, t], current + 1, 0)
+            longest = np.maximum(longest, current)
+        grasped = longest >= min_steps
+        claw = np.abs(controller.model_data["batch_p"][..., 3])
+        metrics = {"grasp_rate": grasped.mean(), "grasp_step_freq": both.mean()}
+        for context in np.unique(contexts):
+            in_context = contexts == context
+            metrics[f"grasp_rate_ctx{int(context)}"] = grasped[in_context].mean()
+            steps = both[in_context]
+            if steps.any():
+                metrics[f"grasp_claw_ctx{int(context)}"] = claw[in_context][steps].mean()
+        return metrics
+
     def calc_mi_metrics(self, contexts, params_ind, controller, policy_ended):
         """
         Calculate mutual information between object configuration and touch sensors.
@@ -687,7 +730,7 @@ class Main:
             controller.model_data["batch_v"][episode, t - 1, :] = state[
                 "VISUAL_SENSORS"
             ].ravel()
-            controller.model_data["batch_ss"][episode, t - 1, :] = state["TOUCH_SENSORS"]
+            controller.model_data["batch_ss"][episode, t - 1, :] = touch_input(self.params, state["TOUCH_SENSORS"])
             controller.model_data["batch_p"][episode, t - 1, :] = state[
                 "JOINT_POSITIONS"
             ][:5]
@@ -880,7 +923,11 @@ class Main:
                     data["p_p"][sa],
                     data["a_p"][sa],
                     data["g_p"][sa],
-                    ss_contact=np.linalg.norm(data["batch_ss"][sa], axis=-1) > 1e-6,
+                    ss_contact=(
+                        touch_grade(self.params, data["batch_ss"][sa])
+                        if self.params.touch_grade
+                        else np.linalg.norm(data["batch_ss"][sa], axis=-1) > 1e-6
+                    ),
                 )
 
                 # update cumulative match only after the first policy was selected
@@ -926,8 +973,14 @@ class Main:
 
                         # Match is cumulated within a single policy and reset with
                         # policy change
+                        event_weight = (
+                            touch_grade(self.params, data["batch_ss"][:, i])
+                            if self.params.touch_grade and self.params.touch_grade_events
+                            else 1.0
+                        )
                         cum_match[:, i] = (
-                            cum_match[:, i - 1] * (1 - policy_changed[:, i]) + mmask
+                            cum_match[:, i - 1] * (1 - policy_changed[:, i])
+                            + mmask * event_weight
                         )
 
                 # Counts touch global increases up to threshold
@@ -1282,9 +1335,7 @@ class Main:
                 self.controller.model_data["batch_v"][episode, 0, :] = state[
                     "VISUAL_SENSORS"
                 ].ravel()
-                self.controller.model_data["batch_ss"][episode, 0, :] = state[
-                    "TOUCH_SENSORS"
-                ]
+                self.controller.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"])
                 self.controller.model_data["batch_p"][episode, 0, :] = state[
                     "JOINT_POSITIONS"
                 ][:5]
@@ -1626,9 +1677,7 @@ class Main:
                 self.controller.model_data["batch_v"][episode, 0, :] = state[
                     "VISUAL_SENSORS"
                 ].ravel()
-                self.controller.model_data["batch_ss"][episode, 0, :] = state[
-                    "TOUCH_SENSORS"
-                ]
+                self.controller.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"])
                 self.controller.model_data["batch_p"][episode, 0, :] = state[
                     "JOINT_POSITIONS"
                 ][:5]
@@ -1663,9 +1712,7 @@ class Main:
                 self.controller_par.model_data["batch_v"][episode, 0, :] = state_par[
                     "VISUAL_SENSORS"
                 ].ravel()
-                self.controller_par.model_data["batch_ss"][episode, 0, :] = state_par[
-                    "TOUCH_SENSORS"
-                ]
+                self.controller_par.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state_par["TOUCH_SENSORS"])
                 self.controller_par.model_data["batch_p"][episode, 0, :] = state_par[
                     "JOINT_POSITIONS"
                 ][:5]
@@ -2454,6 +2501,7 @@ class Main:
         mi_metrics = self.calc_mi_metrics(
             contexts, params_ind, controller_out, policy_ended
         )
+        grasp_metrics = self.calc_grasp_metrics(contexts, controller_out)
 
         if self.params.use_wandb:
             log_data = {}
@@ -2475,6 +2523,8 @@ class Main:
                 }
                 for key, val in mi_metrics.items():
                     log_data[f"{key}{suffix}"] = val
+                for key, val in grasp_metrics.items():
+                    log_data[f"eval_{key}{suffix}"] = val
             for f in glob.glob(f"{self.sm.site_dir}/episode_*{suffix}*.gif"):
                 log_data[Path(f).stem] = wandb.Image(f)
             wandb.log(log_data, step=epoch)
@@ -2534,7 +2584,7 @@ class Main:
             contexts = [context]
 
             controller.model_data["batch_v"][0, 0, :] = state["VISUAL_SENSORS"].ravel()
-            controller.model_data["batch_ss"][0, 0, :] = state["TOUCH_SENSORS"]
+            controller.model_data["batch_ss"][0, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"])
             controller.model_data["batch_p"][0, 0, :] = state["JOINT_POSITIONS"][:5]
 
             # Use minimal sigma for building internal representations
