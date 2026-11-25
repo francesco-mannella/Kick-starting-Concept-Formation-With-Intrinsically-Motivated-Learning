@@ -97,6 +97,17 @@ def unit_null(policies, units, label, rng, n_perm):
     return float(np.mean(values)), float(np.percentile(values, 95))
 
 
+def node_effects(main, controller, steps=(30, 50)):
+    from policy_map_glyphs import rollout
+
+    protos = getattr(main, controller).stm_a.get_weights().T
+    effects = []
+    for proto in protos:
+        snap = rollout(main, proto, 4, steps)
+        effects.append(np.concatenate([q.ravel() for s in steps for q in snap[s]["polygons"].values()]))
+    return np.array(effects)
+
+
 def residual_node(policies, nodes):
     out = policies.copy()
     for n in np.unique(nodes):
@@ -121,7 +132,7 @@ def mi_time_weighted(data, main, policies, rng, n_shuffle):
 
 
 def static_stats(args, rng):
-    pooled, labels, protos, goal_protos = [], [], None, []
+    pooled, labels, protos, goal_protos, effect_rows = [], [], None, [], []
     mi_raw, mi_null, mi_adj = [], [], []
     posture_rows = []
     for epoch in parse_epochs(args.epochs):
@@ -135,6 +146,7 @@ def static_stats(args, rng):
         labels.append(label)
         protos = getattr(main, args.controller).stm_a.get_weights().T
         goal_protos.append(protos[label.node.values])
+        effect_rows.append(node_effects(main, args.controller)[label.node.values])
         raw, null, adjusted = mi_time_weighted(data, main, policies, rng, args.n_perm_mi)
         mi_raw.append(raw)
         mi_null.append(null)
@@ -204,6 +216,9 @@ def static_stats(args, rng):
     out["eta2_context_goal_prototype"] = float(eta2(goal_protos, contexts))
     out["eta2_context_goal_prototype_null"], out["eta2_context_goal_prototype_p95"] = unit_null(
         goal_protos, units, contexts, rng, args.n_perm)
+    effects = np.vstack(effect_rows)
+    out["eta2_context_effect"] = float(eta2(effects, contexts))
+    out["eta2_context_effect_null"], out["eta2_context_effect_p95"] = unit_null(effects, units, contexts, rng, args.n_perm)
 
     components = np.linalg.svd(protos - protos.mean(0), full_matrices=False)[2]
     for k in map(int, args.dims.split(",")):
