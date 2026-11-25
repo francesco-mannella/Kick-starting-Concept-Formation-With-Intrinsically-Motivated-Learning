@@ -37,7 +37,7 @@ class SMController:
         )
         self.stm_ss = SMSTM(
             learning_rate=self.params.stm_lr * self.params.ss_lr,
-            input_size=self.params.somatosensory_size,
+            input_size=self.params.somatosensory_size + int(getattr(self.params, "touch_bilateral_scale", 0.0) > 0),
             output_size=self.params.internal_size,
             sigma=self.params.internal_sigma,
             external_radial_prop=self.params.ss_eradial_prop,

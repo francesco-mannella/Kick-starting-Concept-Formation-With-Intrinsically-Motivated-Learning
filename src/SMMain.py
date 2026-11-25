@@ -74,13 +74,27 @@ def softmax(x, t=0.01):
     return e / (e.sum() + 1e-100)
 
 
+def touch_map_size(params):
+    return params.somatosensory_size + int(getattr(params, "touch_bilateral_scale", 0.0) > 0)
+
+
 def touch_input(params, touch):
-    """Touch fed to the maps: with touch_normalize the pattern s / sum(s) times the peak amplitude (support unchanged)."""
+    """Touch fed to the maps: with touch_normalize the pattern s / sum(s) times the peak amplitude (support unchanged); with touch_bilateral_scale an extra input equal to scale times the AND of the two inner faces; with touch_bilateral_gain the inner-face sensors are multiplied by the gain while both faces are active."""
     touch = np.asarray(touch, dtype=float)
-    if not getattr(params, "touch_normalize", False):
-        return touch
-    total = touch.sum(-1, keepdims=True)
-    return np.where(total > 0, touch / np.where(total > 0, total, 1.0) * touch.max(-1, keepdims=True), 0.0)
+    if getattr(params, "touch_normalize", False):
+        total = touch.sum(-1, keepdims=True)
+        touch = np.where(total > 0, touch / np.where(total > 0, total, 1.0) * touch.max(-1, keepdims=True), 0.0)
+    scale = getattr(params, "touch_bilateral_scale", 0.0)
+    gain = getattr(params, "touch_bilateral_gain", 0.0)
+    if scale > 0 or gain > 0:
+        both = (touch[..., 10:20] > 0).any(-1) & (touch[..., 20:30] > 0).any(-1)
+        if gain > 0:
+            inner = np.zeros(touch.shape[-1], dtype=bool)
+            inner[10:30] = True
+            touch = np.where(both[..., None] & inner, gain * touch, touch)
+        if scale > 0:
+            touch = np.concatenate([touch, scale * both[..., None]], axis=-1)
+    return touch
 
 
 def touch_grade(params, touch):
@@ -497,7 +511,7 @@ class Main:
                 [
                     n_episodes,
                     self.params.stime,
-                    self.params.somatosensory_size,
+                    touch_map_size(self.params),
                 ]
             ),
             "batch_p": np.zeros(
@@ -677,7 +691,7 @@ class Main:
         gripper_dispersion = (((gripper - gripper.mean(axis=0)) ** 2).sum(axis=1)).mean()
         gripper_inertia_norm = km.inertia_ / gripper.shape[0] / gripper_dispersion
 
-        touch = controller.model_data["batch_ss"][mask]
+        touch = controller.model_data["batch_ss"][mask][..., : self.params.somatosensory_size]
         # Discretize touch into 4 regions corresponding to gripper edges
         bins = np.arange(touch.shape[-1], step=10)
         discrete_touch = np.digitize(touch.argmax(axis=-1), bins)
@@ -1184,7 +1198,7 @@ class Main:
             postures = pd.DataFrame(controller_out.model_data["batch_p"][i, :, :])
             postures.columns = ["d1", "d2", "d3", "d4", "d5"]
             postures.loc[:, "index_"] = np.arange(postures.shape[0])
-            ss_sensors = pd.DataFrame(controller_out.model_data["batch_ss"][i, :, :])
+            ss_sensors = pd.DataFrame(controller_out.model_data["batch_ss"][i, :, : self.params.somatosensory_size])
             ss_sensors.columns = [f"s{x}" for x in range(self.params.somatosensory_size)]
             ss_sensors.loc[:, "index_"] = np.arange(ss_sensors.shape[0])
             trajectories = pd.merge(postures, ss_sensors, on="index_")

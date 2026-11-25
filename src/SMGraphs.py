@@ -289,7 +289,7 @@ class GraphManager:
         internal_side = int(np.sqrt(self.params.internal_size))
         if wfile is None:
             wfile = self.sm.site_dir / "weights.npy"
-        data = np.load(wfile, allow_pickle=True)[0]["ssensory"]
+        data = np.load(wfile, allow_pickle=True)[0]["ssensory"][: self.params.somatosensory_size]
         ss_dim, _ = data.shape
         data = data.reshape(ss_dim, internal_side, internal_side)
         data = data.transpose(1, 2, 0)

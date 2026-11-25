@@ -300,6 +300,7 @@ def load_and_process_data(trajectory_file="trajectories.csv", weight_file="weigh
     weights["proprio"] = weights["proprio"].reshape(dim, 10, 10)
     weights["proprio"] = weights["proprio"].transpose(1, 2, 0)[:, :, -2:]
 
+    weights["ssensory"] = weights["ssensory"][:40]
     dim = weights["ssensory"].shape[0]
     weights["ssensory"] = weights["ssensory"].reshape(dim, 10, 10)
     weights["ssensory"] = weights["ssensory"].transpose(1, 2, 0)

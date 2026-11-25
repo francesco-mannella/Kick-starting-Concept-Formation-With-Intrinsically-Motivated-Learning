@@ -1,7 +1,7 @@
 import numpy as np
 
 from params import Parameters
-from SMMain import near_record_match, touch_grade, touch_input
+from SMMain import near_record_match, touch_grade, touch_input, touch_map_size
 
 
 def touch(**active):
@@ -59,10 +59,39 @@ def test_near_record_match():
     assert np.allclose(near_record_match(p, np.array([0.31]), 0.4), [0.31])
 
 
+def test_bilateral_input():
+    p = Parameters(touch_bilateral_scale=4.0)
+    assert touch_map_size(Parameters()) == 40 and touch_map_size(p) == 41
+    one = touch_input(p, touch(s11=1, s12=2))
+    two = touch_input(p, touch(s11=1, s22=1))
+    assert one.shape == (41,) and one[40] == 0.0 and np.array_equal(one[:40], touch(s11=1, s12=2))
+    assert two[40] == 4.0 and np.array_equal(two[:40], touch(s11=1, s22=1))
+    assert touch_input(p, touch(s3=1, s35=1))[40] == 0.0
+    batch = touch_input(p, np.stack([touch(s11=1), touch(s11=1, s22=1)]))
+    assert batch.shape == (2, 41) and list(batch[:, 40]) == [0.0, 4.0]
+    off = touch(s11=1, s22=1)
+    assert np.array_equal(touch_input(Parameters(), off), off)
+
+
+def test_bilateral_gain():
+    p = Parameters(touch_bilateral_gain=16.0)
+    assert touch_map_size(p) == 40
+    two = touch_input(p, touch(s3=1, s11=1, s12=2, s22=1))
+    assert np.allclose(two[[3, 11, 12, 22]], [1, 16, 32, 16]) and two.shape == (40,)
+    one = touch(s3=1, s11=1, s12=2)
+    assert np.array_equal(touch_input(p, one), one)
+    batch = touch_input(p, np.stack([touch(s11=1, s22=1), touch(s11=1)]))
+    assert batch[0, 11] == 16.0 and batch[1, 11] == 1.0
+    off = touch(s11=1, s22=1)
+    assert np.array_equal(touch_input(Parameters(), off), off)
+
+
 if __name__ == "__main__":
     test_defaults_are_off()
     test_normalised_input()
     test_grade_values()
     test_double_bonus()
     test_near_record_match()
+    test_bilateral_input()
+    test_bilateral_gain()
     print("ok")
