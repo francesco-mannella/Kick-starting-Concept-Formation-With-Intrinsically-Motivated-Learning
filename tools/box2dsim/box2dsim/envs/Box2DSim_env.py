@@ -57,6 +57,7 @@ class Box2DSimOneArmEnv(gym.Env):
         self.object_friction = None
         self.object_set = "orig"
         self.object_pos = None
+        self.touch_effort = False
         self.set_seed()
 
         self.init_worlds()
@@ -182,6 +183,14 @@ class Box2DSimOneArmEnv(gym.Env):
 
         return joints, sensors, obj_pos
 
+    def get_claw_effort(self):
+        """How far the claw joints are held open past their commanded angle by whatever blocks them"""
+        effort = 0.0
+        for name in self.joint_names[3:]:
+            joint = self.sim.joints[name]
+            effort += max(0.0, abs(joint.angle) - abs(self.sim.joint_pids[name].setpoint))
+        return effort
+
     def sim_step(self, action):
 
         self.set_action(action)
@@ -192,6 +201,8 @@ class Box2DSimOneArmEnv(gym.Env):
             "TOUCH_SENSORS": sensors,
             "OBJ_POSITION": obj_pos,
         }
+        if self.touch_effort:
+            observation["TOUCH_EFFORT"] = self.get_claw_effort()
 
         return observation
 
@@ -625,6 +636,8 @@ class Box2DSimOneArmOneEyeEnv(Box2DSimOneArmEnv):
             "VISUAL_SENSORS": self.visual,
             "OBJ_POSITION": obj_pos,
         }
+        if self.touch_effort:
+            observation["TOUCH_EFFORT"] = self.get_claw_effort()
 
         self.t += 1
 

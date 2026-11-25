@@ -78,8 +78,15 @@ def touch_map_size(params):
     return params.somatosensory_size + int(getattr(params, "touch_bilateral_scale", 0.0) > 0)
 
 
-def touch_input(params, touch):
-    """Touch fed to the maps: with touch_normalize the pattern s / sum(s) times the peak amplitude (support unchanged); with touch_bilateral_scale an extra input equal to scale times the AND of the two inner faces; with touch_bilateral_gain the inner-face sensors are multiplied by the gain while both faces are active."""
+def touch_overloaded(params, touch, effort):
+    """True when the claw is held open past its command by more than touch_overload while something touches."""
+    limit = getattr(params, "touch_overload", 0.0)
+    return bool(limit > 0 and effort is not None and effort > limit and np.any(np.asarray(touch) > 0))
+
+
+def touch_input(params, touch, effort=None):
+    """Touch fed to the maps: with touch_overload the input is all zeros while the motor effort of the claw is over the limit; with touch_normalize the pattern s / sum(s) times the peak amplitude (support unchanged); with touch_bilateral_scale an extra input equal to scale times the AND of the two inner faces; with touch_bilateral_gain the inner-face sensors are multiplied by the gain while both faces are active."""
+    overloaded = touch_overloaded(params, touch, effort)
     touch = np.asarray(touch, dtype=float)
     if getattr(params, "touch_normalize", False):
         total = touch.sum(-1, keepdims=True)
@@ -94,7 +101,7 @@ def touch_input(params, touch):
             touch = np.where(both[..., None] & inner, gain * touch, touch)
         if scale > 0:
             touch = np.concatenate([touch, scale * both[..., None]], axis=-1)
-    return touch
+    return np.zeros_like(touch) if overloaded else touch
 
 
 def touch_grade(params, touch):
@@ -240,7 +247,7 @@ class EpisodeRunner:
         controller.model_data["batch_v"][episode_index, 0, :] = state[
             "VISUAL_SENSORS"
         ].ravel()
-        controller.model_data["batch_ss"][episode_index, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"])
+        controller.model_data["batch_ss"][episode_index, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"], state.get("TOUCH_EFFORT"))
         controller.model_data["batch_p"][episode_index, 0, :] = state["JOINT_POSITIONS"][
             :5
         ]
@@ -514,6 +521,7 @@ class Main:
                     touch_map_size(self.params),
                 ]
             ),
+            "batch_effort": np.zeros([n_episodes, self.params.stime]),
             "batch_p": np.zeros(
                 [
                     n_episodes,
@@ -649,6 +657,16 @@ class Main:
         grasped = longest >= min_steps
         claw = np.abs(controller.model_data["batch_p"][..., 3])
         metrics = {"grasp_rate": grasped.mean(), "grasp_step_freq": both.mean()}
+        if self.params.touch_overload > 0:
+            effort = controller.model_data["batch_effort"]
+            over = effort > self.params.touch_overload
+            contact = (touch.sum(-1) > 0) | over
+            metrics["overload_rate"] = over.sum() / max(contact.sum(), 1)
+            for context in np.unique(contexts):
+                in_context = contexts == context
+                seen = effort[in_context][contact[in_context]]
+                if seen.size:
+                    metrics[f"effort_mean_ctx{int(context)}"] = seen.mean()
         for context in np.unique(contexts):
             in_context = contexts == context
             metrics[f"grasp_rate_ctx{int(context)}"] = grasped[in_context].mean()
@@ -749,7 +767,9 @@ class Main:
             controller.model_data["batch_v"][episode, t - 1, :] = state[
                 "VISUAL_SENSORS"
             ].ravel()
-            controller.model_data["batch_ss"][episode, t - 1, :] = touch_input(self.params, state["TOUCH_SENSORS"])
+            controller.model_data["batch_ss"][episode, t - 1, :] = touch_input(self.params, state["TOUCH_SENSORS"], state.get("TOUCH_EFFORT"))
+            if np.any(np.asarray(state["TOUCH_SENSORS"]) > 0):
+                controller.model_data["batch_effort"][episode, t - 1] = state.get("TOUCH_EFFORT", 0.0)
             controller.model_data["batch_p"][episode, t - 1, :] = state[
                 "JOINT_POSITIONS"
             ][:5]
@@ -1161,6 +1181,7 @@ class Main:
             for key in [
                 "batch_v",
                 "batch_ss",
+                "batch_effort",
                 "batch_p",
                 "batch_a",
                 "batch_c",
@@ -1202,6 +1223,8 @@ class Main:
             ss_sensors.columns = [f"s{x}" for x in range(self.params.somatosensory_size)]
             ss_sensors.loc[:, "index_"] = np.arange(ss_sensors.shape[0])
             trajectories = pd.merge(postures, ss_sensors, on="index_")
+            if self.params.touch_overload > 0:
+                trajectories["effort"] = controller_out.model_data["batch_effort"][i, :]
             trajectories.drop("index_", axis=1, inplace=True)
 
             trajectories["prototype_x"] = controller_out.model_data["g_p"][i, :, 0]
@@ -1366,7 +1389,7 @@ class Main:
                 self.controller.model_data["batch_v"][episode, 0, :] = state[
                     "VISUAL_SENSORS"
                 ].ravel()
-                self.controller.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"])
+                self.controller.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"], state.get("TOUCH_EFFORT"))
                 self.controller.model_data["batch_p"][episode, 0, :] = state[
                     "JOINT_POSITIONS"
                 ][:5]
@@ -1708,7 +1731,7 @@ class Main:
                 self.controller.model_data["batch_v"][episode, 0, :] = state[
                     "VISUAL_SENSORS"
                 ].ravel()
-                self.controller.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"])
+                self.controller.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"], state.get("TOUCH_EFFORT"))
                 self.controller.model_data["batch_p"][episode, 0, :] = state[
                     "JOINT_POSITIONS"
                 ][:5]
@@ -1743,7 +1766,7 @@ class Main:
                 self.controller_par.model_data["batch_v"][episode, 0, :] = state_par[
                     "VISUAL_SENSORS"
                 ].ravel()
-                self.controller_par.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state_par["TOUCH_SENSORS"])
+                self.controller_par.model_data["batch_ss"][episode, 0, :] = touch_input(self.params, state_par["TOUCH_SENSORS"], state_par.get("TOUCH_EFFORT"))
                 self.controller_par.model_data["batch_p"][episode, 0, :] = state_par[
                     "JOINT_POSITIONS"
                 ][:5]
@@ -2615,7 +2638,7 @@ class Main:
             contexts = [context]
 
             controller.model_data["batch_v"][0, 0, :] = state["VISUAL_SENSORS"].ravel()
-            controller.model_data["batch_ss"][0, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"])
+            controller.model_data["batch_ss"][0, 0, :] = touch_input(self.params, state["TOUCH_SENSORS"], state.get("TOUCH_EFFORT"))
             controller.model_data["batch_p"][0, 0, :] = state["JOINT_POSITIONS"][:5]
 
             # Use minimal sigma for building internal representations

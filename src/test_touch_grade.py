@@ -1,7 +1,7 @@
 import numpy as np
 
 from params import Parameters
-from SMMain import near_record_match, touch_grade, touch_input, touch_map_size
+from SMMain import near_record_match, touch_grade, touch_input, touch_map_size, touch_overloaded
 
 
 def touch(**active):
@@ -86,6 +86,24 @@ def test_bilateral_gain():
     assert np.array_equal(touch_input(Parameters(), off), off)
 
 
+def test_touch_overload():
+    p = Parameters(touch_overload=0.3)
+    v = touch(s11=1, s22=2)
+    assert not touch_overloaded(Parameters(), v, 5.0)
+    assert not touch_overloaded(p, v, None)
+    assert not touch_overloaded(p, v, 0.2)
+    assert touch_overloaded(p, v, 0.31)
+    assert not touch_overloaded(p, np.zeros(40), 5.0)
+    assert np.array_equal(touch_input(p, v, 0.2), v)
+    zeroed = touch_input(p, v, 0.5)
+    assert zeroed.shape == (40,) and not zeroed.any()
+    pb = Parameters(touch_overload=0.3, touch_bilateral_scale=4.0)
+    assert touch_input(pb, v, 0.2)[40] == 4.0
+    out = touch_input(pb, v, 0.5)
+    assert out.shape == (41,) and not out.any()
+    assert np.array_equal(touch_input(Parameters(), v, 9.9), v)
+
+
 if __name__ == "__main__":
     test_defaults_are_off()
     test_normalised_input()
@@ -94,4 +112,5 @@ if __name__ == "__main__":
     test_near_record_match()
     test_bilateral_input()
     test_bilateral_gain()
+    test_touch_overload()
     print("ok")

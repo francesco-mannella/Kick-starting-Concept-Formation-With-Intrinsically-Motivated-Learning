@@ -79,6 +79,7 @@ class Parameters(ParameterManager):
         match_abs_frac=0.75,
         touch_bilateral_scale=0.0,
         touch_bilateral_gain=0.0,
+        touch_overload=0.0,
         touch_incr_th=0.0,
         policy_update_min_match=0.0,
         policy_update_min_mod_match=0.0,
@@ -194,6 +195,7 @@ class Parameters(ParameterManager):
         self.match_abs_frac = match_abs_frac
         self.touch_bilateral_scale = touch_bilateral_scale
         self.touch_bilateral_gain = touch_bilateral_gain
+        self.touch_overload = touch_overload
         self.touch_incr_th = touch_incr_th
         self.policy_update_min_match = policy_update_min_match
         self.policy_update_min_mod_match = policy_update_min_mod_match

@@ -44,6 +44,7 @@ class SMEnv:
         self.b2d_env.object_friction = params.obj_friction
         self.b2d_env.object_set = getattr(params, "obj_set", "orig")
         self.b2d_env.object_pos = getattr(params, "obj_pos_kind", None)
+        self.b2d_env.touch_effort = getattr(params, "touch_overload", 0.0) > 0
 
         self.b2d_env.fovea_width = self.b2d_env.fovea_height = getattr(params, "fovea_range", 4.0)
         self.b2d_env.fovea_pixel_side = getattr(params, "visual_pixels", 10)
