@@ -79,6 +79,22 @@ def touch_map_size(params):
     return params.somatosensory_size + int(getattr(params, "touch_bilateral_scale", 0.0) > 0)
 
 
+def held_onsets(onset, batch_ss, policy_changed, i, k):
+    """Touch onsets of k steps ago whose contact held in every step since and whose policy did not change."""
+    if i - k < 0:
+        return np.zeros(onset.shape[0], dtype=bool)
+    contact = (batch_ss[:, i - k : i + 1, :].sum(-1) > 0).all(axis=1)
+    unchanged = ~policy_changed[:, i - k + 1 : i + 1].any(axis=1)
+    return onset[:, i - k] & contact & unchanged
+
+
+def smooth_effort(alpha, effort, previous):
+    """Exponential average of the claw effort within a contact bout; the first step of a bout (previous is NaN) is raw."""
+    if alpha >= 1.0 or previous is None or np.isnan(previous):
+        return effort
+    return alpha * effort + (1.0 - alpha) * previous
+
+
 def touch_overloaded(params, touch, effort):
     """True when the claw is held open past its command by more than touch_overload while something touches."""
     limit = getattr(params, "touch_overload", 0.0)
@@ -530,6 +546,7 @@ class Main:
                 ]
             ),
             "batch_effort": np.zeros([n_episodes, self.params.stime]),
+            "batch_effort_s": np.full([n_episodes, self.params.stime], np.nan),
             "batch_p": np.zeros(
                 [
                     n_episodes,
@@ -667,7 +684,7 @@ class Main:
         claw = np.abs(controller.model_data["batch_p"][..., 3])
         metrics = {"grasp_rate": grasped.mean(), "grasp_step_freq": both.mean()}
         if self.params.touch_overload > 0:
-            effort = controller.model_data["batch_effort"]
+            effort = np.nan_to_num(controller.model_data["batch_effort_s"], nan=0.0)
             over = effort > self.params.touch_overload
             contact = (touch.sum(-1) > 0) | over
             metrics["overload_rate"] = over.sum() / max(contact.sum(), 1)
@@ -776,9 +793,15 @@ class Main:
             controller.model_data["batch_v"][episode, t - 1, :] = state[
                 "VISUAL_SENSORS"
             ].ravel()
-            controller.model_data["batch_ss"][episode, t - 1, :] = touch_input(self.params, state["TOUCH_SENSORS"], state.get("TOUCH_EFFORT"))
-            if np.any(np.asarray(state["TOUCH_SENSORS"]) > 0):
-                controller.model_data["batch_effort"][episode, t - 1] = state.get("TOUCH_EFFORT", 0.0)
+            effort = state.get("TOUCH_EFFORT")
+            if effort is not None and np.any(np.asarray(state["TOUCH_SENSORS"]) > 0):
+                previous = controller.model_data["batch_effort_s"][episode, t - 2] if t >= 2 else np.nan
+                effort_s = smooth_effort(self.params.touch_overload_alpha, effort, previous)
+                controller.model_data["batch_effort"][episode, t - 1] = effort
+                controller.model_data["batch_effort_s"][episode, t - 1] = effort_s
+            else:
+                effort_s = effort
+            controller.model_data["batch_ss"][episode, t - 1, :] = touch_input(self.params, state["TOUCH_SENSORS"], effort_s)
             controller.model_data["batch_p"][episode, t - 1, :] = state[
                 "JOINT_POSITIONS"
             ][:5]
@@ -868,6 +891,7 @@ class Main:
         cum_match = np.zeros((batch_size, self.params.stime), dtype=int)
         episode_len = np.zeros(batch_size, dtype=int)
         max_match = np.zeros((batch_size, self.params.stime))
+        onset = np.zeros((batch_size, self.params.stime), dtype=bool)
         abs_max = np.zeros((batch_size, self.params.stime))
         matches = np.zeros((batch_size, self.params.stime), dtype=bool)
         policy_changed = np.zeros((batch_size, self.params.stime), dtype=bool)
@@ -1008,6 +1032,16 @@ class Main:
                             controller.model_data["match_value"][:, i] - max_match[:, i]
                             < self.params.match_incr_th
                         ] = 0
+
+                        if self.params.credit_hold_steps > 0:
+                            onset[:, i] = mmask
+                            mmask = held_onsets(
+                                onset,
+                                controller.model_data["batch_ss"],
+                                policy_changed,
+                                i,
+                                self.params.credit_hold_steps,
+                            )
 
                         max_match[mmask, i:] = controller.model_data["match_value"][
                             mmask, i, None
@@ -1191,6 +1225,7 @@ class Main:
                 "batch_v",
                 "batch_ss",
                 "batch_effort",
+                "batch_effort_s",
                 "batch_p",
                 "batch_a",
                 "batch_c",
@@ -1234,6 +1269,7 @@ class Main:
             trajectories = pd.merge(postures, ss_sensors, on="index_")
             if self.params.touch_overload > 0:
                 trajectories["effort"] = controller_out.model_data["batch_effort"][i, :]
+                trajectories["effort_s"] = np.nan_to_num(controller_out.model_data["batch_effort_s"][i, :], nan=0.0)
             trajectories.drop("index_", axis=1, inplace=True)
 
             trajectories["prototype_x"] = controller_out.model_data["g_p"][i, :, 0]

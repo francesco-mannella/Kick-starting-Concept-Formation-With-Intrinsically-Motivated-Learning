@@ -2,7 +2,7 @@ import numpy as np
 
 from params import Parameters
 from touch_layout import SKETCH, inner_slices
-from SMMain import near_record_match, touch_grade, touch_input, touch_map_size, touch_overloaded
+from SMMain import held_onsets, near_record_match, smooth_effort, touch_grade, touch_input, touch_map_size, touch_overloaded
 
 
 def touch(**active):
@@ -105,6 +105,40 @@ def test_touch_overload():
     assert np.array_equal(touch_input(Parameters(), v, 9.9), v)
 
 
+def test_smooth_effort():
+    assert smooth_effort(0.3, 2.0, np.nan) == 2.0
+    assert smooth_effort(0.3, 2.0, None) == 2.0
+    assert np.isclose(smooth_effort(0.3, 2.0, 1.0), 0.3 * 2.0 + 0.7 * 1.0)
+    assert smooth_effort(1.0, 2.0, 1.0) == 2.0
+    assert Parameters().touch_overload_alpha == 1.0
+    p = Parameters(touch_overload=1.0, touch_overload_alpha=0.3)
+    v = touch(s11=1)
+    e1 = smooth_effort(p.touch_overload_alpha, 3.0, np.nan)
+    e2 = smooth_effort(p.touch_overload_alpha, 0.0, e1)
+    assert touch_overloaded(p, v, e1) and touch_overloaded(p, v, e2)
+    e3 = smooth_effort(p.touch_overload_alpha, 0.0, e2)
+    assert e3 < e1 and np.isclose(e3, 0.49 * 3.0)
+    assert np.array_equal(touch_input(p, v, 0.5), v)
+
+
+def test_held_onsets():
+    T = 12
+    onset = np.zeros((4, T), dtype=bool)
+    ss = np.zeros((4, T, 40))
+    changed = np.zeros((4, T), dtype=bool)
+    onset[:, 2] = True
+    ss[0, 2:7] = 1.0  # held
+    ss[1, 2:4] = 1.0  # contact lost after 2 steps
+    ss[2, 2:7] = 1.0  # held but the policy changes inside the window
+    changed[2, 4] = True
+    ss[3, 2:7] = 1.0
+    ss[3, 4] = 0.0  # overload zeroes one step of the window
+    assert list(held_onsets(onset, ss, changed, 5, 3)) == [True, False, False, False]
+    assert not held_onsets(onset, ss, changed, 4, 3).any()
+    assert not held_onsets(onset, ss, changed, 1, 3).any()
+    assert Parameters().credit_hold_steps == 0
+
+
 def test_sketch_layout_groups():
     left, right = inner_slices("grasp3s")
     assert (left, right) == SKETCH and left.stop - left.start == 14 and right.stop - right.start == 14
@@ -139,6 +173,8 @@ if __name__ == "__main__":
     test_bilateral_input()
     test_bilateral_gain()
     test_touch_overload()
+    test_smooth_effort()
+    test_held_onsets()
     test_sketch_layout_groups()
     test_sketch_layout_plot_points()
     print("ok")
