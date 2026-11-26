@@ -1,6 +1,7 @@
 import numpy as np
 
 from params import Parameters
+from touch_layout import SKETCH, inner_slices
 from SMMain import near_record_match, touch_grade, touch_input, touch_map_size, touch_overloaded
 
 
@@ -104,6 +105,31 @@ def test_touch_overload():
     assert np.array_equal(touch_input(Parameters(), v, 9.9), v)
 
 
+def test_sketch_layout_groups():
+    left, right = inner_slices("grasp3s")
+    assert (left, right) == SKETCH and left.stop - left.start == 14 and right.stop - right.start == 14
+    assert inner_slices("grasp3") == (slice(10, 20), slice(20, 30)) and inner_slices("orig") == (slice(10, 20), slice(20, 30))
+    p = Parameters(obj_set="grasp3s", touch_grade=True, touch_grade_double=4.0, touch_grade_ref=1.0)
+    assert touch_grade(p, touch(s7=1, s21=1)) == 4.0  # both inner faces in the sketch layout
+    assert touch_grade(p, touch(s7=1, s1=1)) == 1.0  # one inner and one outer sensor
+    classic = Parameters(touch_grade=True, touch_grade_double=4.0, touch_grade_ref=1.0)
+    assert touch_grade(classic, touch(s11=1, s22=1)) == 4.0
+    pg = Parameters(obj_set="grasp3s", touch_bilateral_gain=16.0)
+    out = touch_input(pg, touch(s7=1, s21=1, s2=1))
+    assert out[7] == 16.0 and out[21] == 16.0 and out[2] == 1.0
+
+
+def test_sketch_layout_plot_points():
+    from SMGraphs import GraphManager
+    from touch_layout import SKETCH_POINTS, sensor_outline
+
+    pts = GraphManager(None, Parameters(obj_set="grasp3s")).generate_sensor_points(40)
+    assert pts.shape == (40, 2) and np.allclose(pts, SKETCH_POINTS) and pts.min() >= 0.1 - 1e-9 and pts.max() <= 0.9 + 1e-9
+    classic = GraphManager(None, Parameters(obj_set="grasp3")).generate_sensor_points(40)
+    assert classic.shape == (40, 2) and not np.allclose(classic, pts)
+    assert len(sensor_outline("grasp3s")) == 4 and sensor_outline("grasp3") == []
+
+
 if __name__ == "__main__":
     test_defaults_are_off()
     test_normalised_input()
@@ -113,4 +139,6 @@ if __name__ == "__main__":
     test_bilateral_input()
     test_bilateral_gain()
     test_touch_overload()
+    test_sketch_layout_groups()
+    test_sketch_layout_plot_points()
     print("ok")

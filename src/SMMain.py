@@ -22,6 +22,7 @@ from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
 from SMGraphs import GraphManager
 from storage import StorageManager
+from touch_layout import inner_slices
 from tplot import TPlotManager
 
 try:
@@ -94,20 +95,27 @@ def touch_input(params, touch, effort=None):
     scale = getattr(params, "touch_bilateral_scale", 0.0)
     gain = getattr(params, "touch_bilateral_gain", 0.0)
     if scale > 0 or gain > 0:
-        both = (touch[..., 10:20] > 0).any(-1) & (touch[..., 20:30] > 0).any(-1)
+        left, right = inner_faces(params)
+        both = (touch[..., left] > 0).any(-1) & (touch[..., right] > 0).any(-1)
         if gain > 0:
             inner = np.zeros(touch.shape[-1], dtype=bool)
-            inner[10:30] = True
+            inner[left] = True
+            inner[right] = True
             touch = np.where(both[..., None] & inner, gain * touch, touch)
         if scale > 0:
             touch = np.concatenate([touch, scale * both[..., None]], axis=-1)
     return np.zeros_like(touch) if overloaded else touch
 
 
+def inner_faces(params):
+    return inner_slices(getattr(params, "obj_set", "orig"))
+
+
 def touch_grade(params, touch):
     """Graded touch gain: partial credit for any contact plus credit growing with the smaller inner-face receptor count."""
     touch = np.asarray(touch)
-    both = np.minimum((touch[..., 10:20] > 0).sum(-1), (touch[..., 20:30] > 0).sum(-1))
+    left, right = inner_faces(params)
+    both = np.minimum((touch[..., left] > 0).sum(-1), (touch[..., right] > 0).sum(-1))
     if params.touch_grade_double > 0:
         credit = np.where(both >= params.touch_grade_ref, params.touch_grade_double, 1.0)
     else:
@@ -648,7 +656,8 @@ class Main:
         time for min_steps consecutive steps (sensors 10-19 left, 20-29 right).
         """
         touch = controller.model_data["batch_ss"]
-        both = (touch[..., 10:20].sum(-1) > 0) & (touch[..., 20:30].sum(-1) > 0)
+        left, right = inner_faces(self.params)
+        both = (touch[..., left].sum(-1) > 0) & (touch[..., right].sum(-1) > 0)
         current = np.zeros(both.shape[0], dtype=int)
         longest = np.zeros(both.shape[0], dtype=int)
         for t in range(both.shape[1]):

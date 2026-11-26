@@ -12,6 +12,7 @@ from sklearn.decomposition import PCA
 
 from params import Parameters
 from storage import StorageManager
+from touch_layout import SKETCH_POINTS, sensor_outline
 
 
 params = Parameters()
@@ -71,6 +72,8 @@ class GraphManager:
         return (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
 
     def generate_sensor_points(self, n_sensors):
+        if getattr(self.params, "obj_set", "orig") == "grasp3s" and n_sensors == len(SKETCH_POINTS):
+            return np.array(SKETCH_POINTS)
         a = 0.707
         opoints = np.array(
             [
@@ -299,8 +302,11 @@ class GraphManager:
         fig = None
         if ax is None:
             fig, ax = plt.subplots(1, 1)
+        outline = sensor_outline(getattr(self.params, "obj_set", "orig"))
         for j in range(internal_side):
             for i in range(internal_side):
+                for a, b in outline:
+                    ax.plot([a[0] + i, b[0] + i], [a[1] + j, b[1] + j], c="lightgrey", lw=0.4, zorder=0)
                 ax.scatter(*np.array(grid[i, j]).T, c="grey", s=0.05)
                 ax.scatter(
                     *np.array(grid[i, j]).T,

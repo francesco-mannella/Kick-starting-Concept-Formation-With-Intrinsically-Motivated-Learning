@@ -19,6 +19,7 @@ from scipy.interpolate import splev, splprep
 
 from params import Parameters
 from SMGraphs import GraphManager
+from touch_layout import SKETCH_OUTLINE, SKETCH_POINTS
 
 
 def run_parameters():
@@ -171,6 +172,9 @@ class SomatosensoryPlot:
         self.ax.set_xlim(0, 1)
         self.ax.set_ylim(-0.5, 1.5)
         self.ax.set_axis_off()
+        if len(self.sensor_points) == len(SKETCH_POINTS) and np.allclose(self.sensor_points, SKETCH_POINTS):
+            for a, b in SKETCH_OUTLINE:
+                self.ax.plot([a[0], b[0]], [a[1], b[1]], c="lightgrey", lw=1.0, zorder=0)
         self.scatter_active = self.ax.scatter([], [], c="black")
         self.scatter_base = self.ax.scatter(*self.sensor_points.T, c="black", s=0.1)
 

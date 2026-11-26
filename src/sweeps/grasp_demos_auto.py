@@ -12,9 +12,9 @@ WORK = Path(sys.argv[2])
 ROOT = Path(sys.argv[3])
 SEEDS = range(int(sys.argv[4]), int(sys.argv[5]) + 1)
 N_TWO, N_LONG = int(sys.argv[6]), int(sys.argv[7])
-G3 = len(sys.argv) > 8 and sys.argv[8] == "grasp3"
+G3 = len(sys.argv) > 8 and sys.argv[8] in ("grasp3", "grasp3s")
 LABELS = "small square,medium square,large square" if G3 else "blue plate,red triangle,green wedge"
-LEFT, RIGHT = (slice(10, 20), slice(20, 30)) if G3 else (slice(0, 20), slice(20, 40))
+LEFT, RIGHT = ((slice(6, 20), slice(20, 34)) if sys.argv[8] == "grasp3s" else (slice(10, 20), slice(20, 30))) if G3 else (slice(0, 20), slice(20, 40))
 OUT = ROOT / "demos" / "grasp_demos"
 CASEDIR = WORK / "grasp_cases"
 ENV = {**os.environ, "OMP_NUM_THREADS": "1", "MPLBACKEND": "agg", "PYTHONPATH": f"{WT / 'src'}:{WT / 'tools/box2dsim'}", "OBJECT_LABELS": LABELS}

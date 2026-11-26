@@ -18,6 +18,7 @@ SRC = Path(__file__).resolve().parent
 sys.path.insert(0, str(SRC))
 
 from SMMain import Main  # noqa: E402  (pickled dumps look up Main in __main__)
+from touch_layout import inner_slices  # noqa: E402
 
 _ = Main
 GRID = 10
@@ -245,13 +246,14 @@ def static_stats(args, rng):
     return out
 
 
-def episode_table(tr, episodes):
+def episode_table(tr, episodes, obj_set="orig"):
     touch_cols = [f"s{i}" for i in range(40)]
+    left_ids, right_ids = (range(s.start, s.stop) for s in inner_slices(obj_set))
     rows = []
     for ep, g in tr.groupby("episode_id"):
         touch = g[touch_cols].values.sum(1) > 0
-        left = g[[f"s{i}" for i in range(10, 20)]].values.sum(1) > 0
-        right = g[[f"s{i}" for i in range(20, 30)]].values.sum(1) > 0
+        left = g[[f"s{i}" for i in left_ids]].values.sum(1) > 0
+        right = g[[f"s{i}" for i in right_ids]].values.sum(1) > 0
         both = left & right
         run = longest = 0
         for flag in both:
@@ -325,7 +327,7 @@ def counterfactual(args, rng):
             w = build(kind) if kind != "intact" else weights
             for eseed in eseeds:
                 tr, success = evaluate(w, eseed)
-                table = episode_table(tr, episodes)
+                table = episode_table(tr, episodes, getattr(main.params, "obj_set", "orig"))
                 table["cond"], table["eseed"], table["draw"] = kind, eseed, draw
                 rows.append(table)
     table = pd.concat(rows, ignore_index=True)
