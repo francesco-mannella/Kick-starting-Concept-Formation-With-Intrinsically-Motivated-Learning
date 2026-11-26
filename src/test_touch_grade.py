@@ -155,13 +155,16 @@ def test_sketch_layout_groups():
 
 def test_sketch_layout_plot_points():
     from SMGraphs import GraphManager
-    from touch_layout import SKETCH_POINTS, sensor_outline
+    from touch_layout import HAND_INNER, HAND_LINKS, HAND_POINTS, sensor_links
 
     pts = GraphManager(None, Parameters(obj_set="grasp3s")).generate_sensor_points(40)
-    assert pts.shape == (40, 2) and np.allclose(pts, SKETCH_POINTS) and pts.min() >= 0.1 - 1e-9 and pts.max() <= 0.9 + 1e-9
+    assert pts.shape == (40, 2) and np.allclose(pts, HAND_POINTS) and pts.min() >= 0.1 - 1e-9 and pts.max() <= 0.9 + 1e-9
     classic = GraphManager(None, Parameters(obj_set="grasp3")).generate_sensor_points(40)
     assert classic.shape == (40, 2) and not np.allclose(classic, pts)
-    assert len(sensor_outline("grasp3s")) == 4 and sensor_outline("grasp3") == []
+    assert len(sensor_links("grasp3s")) == 4 and sensor_links("grasp3") == []
+    left, right = inner_slices("grasp3s")
+    assert HAND_INNER[left].all() and HAND_INNER[right].all() and HAND_INNER.sum() == 28
+    assert all(r.shape == (4, 2) for r in HAND_LINKS)
 
 
 if __name__ == "__main__":

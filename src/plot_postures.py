@@ -13,13 +13,13 @@ import os
 import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Polygon, Rectangle
 from PIL import Image
 from scipy.interpolate import splev, splprep
 
 from params import Parameters
 from SMGraphs import GraphManager
-from touch_layout import SKETCH_OUTLINE, SKETCH_POINTS
+from touch_layout import HAND_INNER, HAND_LINKS, HAND_POINTS, INNER_COLOUR, LINK_COLOUR, OUTER_COLOUR
 
 
 def run_parameters():
@@ -172,17 +172,22 @@ class SomatosensoryPlot:
         self.ax.set_xlim(0, 1)
         self.ax.set_ylim(-0.5, 1.5)
         self.ax.set_axis_off()
-        if len(self.sensor_points) == len(SKETCH_POINTS) and np.allclose(self.sensor_points, SKETCH_POINTS):
-            for a, b in SKETCH_OUTLINE:
-                self.ax.plot([a[0], b[0]], [a[1], b[1]], c="lightgrey", lw=1.0, zorder=0)
+        self.colours = None
+        if len(self.sensor_points) == len(HAND_POINTS) and np.allclose(self.sensor_points, HAND_POINTS):
+            for rect in HAND_LINKS:
+                self.ax.add_patch(Polygon(rect, closed=True, fc=LINK_COLOUR, ec="#aeb6bf", lw=0.8, zorder=0))
+            self.colours = np.where(HAND_INNER, INNER_COLOUR, OUTER_COLOUR)
         self.scatter_active = self.ax.scatter([], [], c="black")
-        self.scatter_base = self.ax.scatter(*self.sensor_points.T, c="black", s=0.1)
+        self.scatter_base = self.ax.scatter(*self.sensor_points.T, c="black" if self.colours is None else "#7f8c8d", s=0.1 if self.colours is None else 3)
 
     def update(self, px, py):
         sensors = self.weights["ssensory"][px, py]
         idcs = np.where(sensors > 1e-5)[0]
         self.scatter_active.set_offsets(self.sensor_points[idcs])
         self.scatter_active.set_sizes(0.5 + 60 * sensors[idcs])
+        if self.colours is not None:
+            self.scatter_active.set_facecolors(self.colours[idcs])
+            self.scatter_active.set_edgecolors("none")
 
 
 class RetinaPlot:

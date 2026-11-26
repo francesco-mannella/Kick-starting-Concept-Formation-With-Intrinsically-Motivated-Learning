@@ -6,13 +6,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Polygon
 from scipy.cluster.hierarchy import fcluster, linkage
 from shapely import LineString, MultiLineString
 from sklearn.decomposition import PCA
 
 from params import Parameters
 from storage import StorageManager
-from touch_layout import SKETCH_POINTS, sensor_outline
+from touch_layout import HAND_INNER, HAND_POINTS, INNER_COLOUR, LINK_COLOUR, OUTER_COLOUR, sensor_links
 
 
 params = Parameters()
@@ -72,8 +73,8 @@ class GraphManager:
         return (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
 
     def generate_sensor_points(self, n_sensors):
-        if getattr(self.params, "obj_set", "orig") == "grasp3s" and n_sensors == len(SKETCH_POINTS):
-            return np.array(SKETCH_POINTS)
+        if getattr(self.params, "obj_set", "orig") == "grasp3s" and n_sensors == len(HAND_POINTS):
+            return HAND_POINTS.copy()
         a = 0.707
         opoints = np.array(
             [
@@ -297,16 +298,15 @@ class GraphManager:
         data = data.reshape(ss_dim, internal_side, internal_side)
         data = data.transpose(1, 2, 0)
         data = np.clip(data, 0, None)
+        if sensor_links(getattr(self.params, "obj_set", "orig")):
+            return self._hand_touch_map(data, internal_side, ax, png_suffix)
         grid = self.generate_sensor_grid()
         print(grid.shape)
         fig = None
         if ax is None:
             fig, ax = plt.subplots(1, 1)
-        outline = sensor_outline(getattr(self.params, "obj_set", "orig"))
         for j in range(internal_side):
             for i in range(internal_side):
-                for a, b in outline:
-                    ax.plot([a[0] + i, b[0] + i], [a[1] + j, b[1] + j], c="lightgrey", lw=0.4, zorder=0)
                 ax.scatter(*np.array(grid[i, j]).T, c="grey", s=0.05)
                 ax.scatter(
                     *np.array(grid[i, j]).T,
@@ -319,6 +319,31 @@ class GraphManager:
         if fig:
             fig.tight_layout(pad=0.0)
             fig.savefig(self.sm.site_dir / f"ssensory_map{png_suffix}.png")
+            plt.close("all")
+
+    def _hand_touch_map(self, data, side, ax, png_suffix):
+        """One small drawing of the hand per map node: finger links in grey, sensors as dots whose area is the
+        weight (red inner face, blue outer face)."""
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=(12, 12.6))
+        colours = np.where(HAND_INNER, INNER_COLOUR, OUTER_COLOUR)
+        links = sensor_links(self.params.obj_set)
+        for j in range(side):
+            for i in range(side):
+                for rect in links:
+                    ax.add_patch(Polygon(rect + [i, j], closed=True, fc=LINK_COLOUR, ec="#aeb6bf", lw=0.5, zorder=1))
+                xy = HAND_POINTS + [i, j]
+                ax.scatter(xy[:, 0], xy[:, 1], s=2, c="#7f8c8d", zorder=2, linewidths=0)
+                ax.scatter(xy[:, 0], xy[:, 1], s=40 * data[j, i], c=colours, zorder=3, linewidths=0, alpha=0.9)
+        ax.set_xlim(-0.1, side + 0.1)
+        ax.set_ylim(-0.1, side + 0.1)
+        ax.set_aspect("equal")
+        ax.set_axis_off()
+        if fig:
+            fig.text(0.5, 0.012, "touch weights: red = inner face sensors, blue = outer face sensors, dot area = weight", ha="center", fontsize=10, color="#555555")
+            fig.subplots_adjust(left=0.01, right=0.99, top=0.995, bottom=0.04)
+            fig.savefig(self.sm.site_dir / f"ssensory_map{png_suffix}.png", dpi=80)
             plt.close("all")
 
     def comp_map(self, wfile=None, ax=None, png_suffix=""):
