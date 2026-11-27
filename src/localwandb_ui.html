@@ -107,6 +107,13 @@ td.diff { background: color-mix(in srgb, var(--warn) 18%, transparent); }
 .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
 .field input[type=text], .field select { width: 100%; }
 .hidden { display: none; }
+.picker { margin: 8px 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.picker .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.picker .bar input[type=text] { flex: 1; min-width: 160px; }
+.picker .bar .count { color: var(--muted); font-size: 12px; }
+.picker .list { max-height: 220px; overflow: auto; columns: 3 260px; column-gap: 16px; font-size: 12px; }
+.picker .list label { display: flex; align-items: flex-start; gap: 6px; break-inside: avoid; padding: 1px 0; overflow-wrap: anywhere; }
+.picker .list label.hidden { display: none; }
 .ghead .gsub { font-weight: 400; font-size: 11px; color: var(--muted); }
 </style>
 </head>
@@ -172,6 +179,7 @@ const state = {
   tab: "charts", smooth: 0.6, pair: true, metricFilter: "", limit: 24,
   imgKey: "", imgStep: null, imgData: {}, diffOnly: true,
   mcache: {}, gkeys: [], aggregate: true, collapsed: new Set(), colors: new Map(), seq: 0,
+  pick: new Set(), pickerOpen: false, pickerFilter: "", pickerScroll: 0,
 };
 const FIELDS = ["name", "group", "project", "status", "entity", "id"];
 
@@ -451,10 +459,9 @@ function unionKeys(kind) {
   return [...set].sort();
 }
 
-function chartGroups() {
+function allChartGroups() {
   const keys = unionKeys("metrics");
   const all = new Set(keys);
-  const q = state.metricFilter.toLowerCase();
   const groups = [];
   for (const k of keys) {
     const isPar = k.endsWith("_par");
@@ -462,10 +469,58 @@ function chartGroups() {
     if (state.pair && isPar && all.has(base)) continue;
     const members = [k];
     if (state.pair && !isPar && all.has(k + "_par")) members.push(k + "_par");
-    if (q && !k.toLowerCase().includes(q)) continue;
     groups.push({ title: k, members });
   }
   return groups;
+}
+
+function chartGroups() {
+  const q = state.metricFilter.toLowerCase();
+  return allChartGroups().filter((g) =>
+    (!q || g.title.toLowerCase().includes(q)) && (!state.pick.size || state.pick.has(g.title)));
+}
+
+function setPick(titles) {
+  state.pick = new Set(titles);
+  store("pick", [...state.pick]);
+  state.limit = 24;
+  renderCharts();
+}
+
+function variablePicker() {
+  const groups = allChartGroups();
+  const count = h("span", { class: "count" },
+    state.pick.size ? state.pick.size + " of " + groups.length + " variables shown" : "all " + groups.length + " variables shown");
+  const list = h("div", { class: "list" });
+  const rowsEls = groups.map((g) => {
+    const row = h("label", {},
+      h("input", { type: "checkbox", checked: state.pick.has(g.title),
+        onchange: (e) => {
+          const next = new Set(state.pick);
+          if (e.target.checked) next.add(g.title); else next.delete(g.title);
+          setPick(next);
+        } }),
+      g.title);
+    row.classList.toggle("hidden", !!state.pickerFilter && !g.title.toLowerCase().includes(state.pickerFilter));
+    return [g, row];
+  });
+  list.append(...rowsEls.map(([, r]) => r));
+  list.addEventListener("scroll", () => { state.pickerScroll = list.scrollTop; });
+  const filter = h("input", { type: "text", placeholder: "Search variables", value: state.pickerFilter,
+    oninput: (e) => {
+      state.pickerFilter = e.target.value.toLowerCase();
+      for (const [g, r] of rowsEls) r.classList.toggle("hidden", !!state.pickerFilter && !g.title.toLowerCase().includes(state.pickerFilter));
+    } });
+  const matching = () => rowsEls.filter(([, r]) => !r.classList.contains("hidden")).map(([g]) => g.title);
+  const bar = h("div", { class: "bar" }, filter,
+    h("button", { title: "show only the variables matching the search", onclick: () => setPick(matching()) }, "Show only matching"),
+    h("button", { title: "add the variables matching the search to the shown ones", onclick: () => setPick([...state.pick, ...matching()]) }, "Add matching"),
+    h("button", { title: "remove the matching variables from the shown ones", onclick: () => setPick([...state.pick].filter((t) => !matching().includes(t))) }, "Remove matching"),
+    h("button", { title: "show every variable again", onclick: () => setPick([]) }, "Show all"),
+    count);
+  const box = h("div", { class: "picker" }, bar, list);
+  requestAnimationFrame(() => { list.scrollTop = state.pickerScroll; });
+  return box;
 }
 
 /* ---------- charts ---------- */
@@ -591,6 +646,9 @@ async function renderCharts(rebuild) {
   if (state.pair) legend.append(h("span", {}, h("span", { class: "swatch dashed", style: "border-color:var(--muted)" }), "dashed: parasite (_par)"));
 
   const controls = h("div", { class: "controls" },
+    h("button", { title: "choose which variables are plotted",
+      onclick: () => { state.pickerOpen = !state.pickerOpen; store("pickerOpen", state.pickerOpen); renderCharts(); } },
+      "Variables" + (state.pick.size ? " (" + state.pick.size + ")" : "") + (state.pickerOpen ? " \u25B4" : " \u25BE")),
     h("input", { type: "text", placeholder: "Filter metrics", value: state.metricFilter, id: "mfilter",
       oninput: (e) => { state.metricFilter = e.target.value; state.limit = 24; renderCharts(); } }),
     h("label", { class: "inline" }, "smoothing",
@@ -625,7 +683,8 @@ async function renderCharts(rebuild) {
     grid.append(h("div", { class: "card" }, h("h3", {}, g.title), canvas, tip));
     toDraw.push([canvas, tip, series]);
   }
-  const children = [legend, controls, grid.children.length ? grid : h("div", { class: "empty" }, "No matching metrics.")];
+  const children = [legend, controls, ...(state.pickerOpen ? [variablePicker()] : []),
+    grid.children.length ? grid : h("div", { class: "empty" }, "No matching metrics.")];
   if (groups.length > shown.length) {
     children.push(h("div", { style: "margin-top:12px" },
       h("button", { onclick: () => { state.limit += 24; renderCharts(); } }, "Show more (" + (groups.length - shown.length) + " left)")));
@@ -906,6 +965,8 @@ async function main() {
   state.selected = new Set(load("selected", []));
   state.smooth = load("smooth", 0.6);
   state.pair = load("pair", true);
+  state.pick = new Set(load("pick", []));
+  state.pickerOpen = load("pickerOpen", false);
   applyTheme(load("theme", null));
   $("#tabs").addEventListener("click", (e) => {
     const tab = e.target.dataset && e.target.dataset.tab;
