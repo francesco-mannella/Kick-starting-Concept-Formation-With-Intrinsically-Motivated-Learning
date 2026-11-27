@@ -86,6 +86,8 @@ class Parameters(ParameterManager):
         gentle_limit=1.5,
         gentle_hold=3,
         policy_prune=0.0,
+        policy_noise_local_only=False,
+        policy_noise_rel=0.0,
         touch_incr_th=0.0,
         policy_update_min_match=0.0,
         policy_update_min_mod_match=0.0,
@@ -208,6 +210,8 @@ class Parameters(ParameterManager):
         self.gentle_limit = gentle_limit
         self.gentle_hold = gentle_hold
         self.policy_prune = policy_prune
+        self.policy_noise_local_only = policy_noise_local_only
+        self.policy_noise_rel = policy_noise_rel
         self.touch_incr_th = touch_incr_th
         self.policy_update_min_match = policy_update_min_match
         self.policy_update_min_mod_match = policy_update_min_mod_match

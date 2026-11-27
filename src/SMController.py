@@ -200,11 +200,16 @@ class SMController:
         # Modulating policy exploration noise according to local competence
         comp_dict = self.get_global_local_competence(goal_competence)
 
-        noise_sigma = (
-            self.base_policy_noise
-            + (self.max_policy_noise - self.base_policy_noise)
-            * comp_dict["local_incompetence"]
+        incompetence = (
+            1 - comp_dict["local_competence"]
+            if self.params.policy_noise_local_only
+            else comp_dict["local_incompetence"]
         )
+        ceiling = self.max_policy_noise - self.base_policy_noise
+        if self.params.policy_noise_rel > 0:
+            protos = self.stm_a.get_weights()
+            ceiling = self.params.policy_noise_rel * np.sqrt((protos**2).mean())
+        noise_sigma = self.base_policy_noise + ceiling * incompetence
 
         noise = self.rng.randn(*policies.shape)
         k = self.params.policy_noise_subspace_k

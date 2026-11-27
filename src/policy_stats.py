@@ -24,6 +24,10 @@ _ = Main
 GRID = 10
 
 
+ARGS_PARAM = []
+ARGS_NOISE = [False]
+
+
 def parse_epochs(spec):
     epochs = []
     for part in spec.split(","):
@@ -39,6 +43,11 @@ def load(storage, epoch, data_name):
     folder = Path(storage) / f"{epoch:06d}"
     main = np.load(folder / "main.dump.npy", allow_pickle=True)[0]
     main.params.use_wandb = False
+    for item in ARGS_PARAM:
+        key, value = item.split("=", 1)
+        for obj in (main.params, getattr(main.controller, "params", None)):
+            if obj is not None:
+                setattr(obj, key, eval(value))
     return main, np.load(folder / data_name, allow_pickle=True)[0]
 
 
@@ -293,7 +302,7 @@ def counterfactual(args, rng):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             _, tr = main.evaluation_episodes(orig_controller=controller, epoch=0, n_episodes=args.n_episodes,
-                                             render=None, save_stats=False, e_seed=eseed)
+                                             render=None, save_stats=False, e_seed=eseed, zero_noise=not ARGS_NOISE[0])
         controller.stm_a.set_weights(weights)
         return tr, float(re.search(r"eval success rate ([\d.]+)", buf.getvalue()).group(1))
 
@@ -342,6 +351,8 @@ def parse_arguments():
     parser.add_argument("--controller", default="controller", help="controller or controller_par")
     parser.add_argument("--out", default=None, help="Prefix of the output files")
     parser.add_argument("--dims", default="3,10", help="Prototype principal components kept for the low-dimensional eta2")
+    parser.add_argument("--param", action="append", default=[], help="override a parameter, key=value")
+    parser.add_argument("--noise", action="store_true", help="evaluate with the training exploration noise")
     parser.add_argument("--counterfactual", action="store_true")
     parser.add_argument("--eseeds", default="101,102,103")
     parser.add_argument("--n-episodes", type=int, default=36)
@@ -356,6 +367,8 @@ def parse_arguments():
 
 if __name__ == "__main__":
     args = parse_arguments()
+    ARGS_PARAM.extend(args.param)
+    ARGS_NOISE[0] = args.noise
     rng = np.random.default_rng(args.seed)
     stats = static_stats(args, rng)
     print(json.dumps(stats, indent=1))
