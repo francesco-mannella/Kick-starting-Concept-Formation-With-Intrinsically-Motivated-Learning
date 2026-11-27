@@ -64,7 +64,7 @@ class Parameters(ParameterManager):
         base_policy_noise=0.01,
         max_policy_noise=20.0,
         policy_weights_sigma=2.0,
-        motor_noise=1.0,
+        motor_noise=0.0,
         representation_sigma=2.0,
         modalities_weights=(0.0, 1.0, 1.0, 0.0),  # use only touch and proprioception
         match_mode="arithmetic",
@@ -86,6 +86,8 @@ class Parameters(ParameterManager):
         gentle_limit=1.5,
         gentle_hold=3,
         policy_prune=0.0,
+        early_measures=False,
+        early_steps=(10, 20),
         touch_incr_th=0.0,
         policy_update_min_match=0.0,
         policy_update_min_mod_match=0.0,
@@ -208,6 +210,8 @@ class Parameters(ParameterManager):
         self.gentle_limit = gentle_limit
         self.gentle_hold = gentle_hold
         self.policy_prune = policy_prune
+        self.early_measures = early_measures
+        self.early_steps = list(early_steps)
         self.touch_incr_th = touch_incr_th
         self.policy_update_min_match = policy_update_min_match
         self.policy_update_min_mod_match = policy_update_min_mod_match

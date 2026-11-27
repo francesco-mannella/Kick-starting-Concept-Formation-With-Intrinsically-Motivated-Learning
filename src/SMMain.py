@@ -4,6 +4,7 @@ import os
 import shutil
 import sys
 import time
+import traceback
 import types
 from collections import defaultdict
 from itertools import chain, cycle, repeat
@@ -20,6 +21,7 @@ from params import Parameters
 from SMAgent import SMAgent
 from SMController import SMController
 from SMEnv import SMEnv, SMEnvParasite
+from early_measures import early_measures
 from SMGraphs import GraphManager
 from storage import StorageManager
 from touch_layout import inner_slices
@@ -2389,6 +2391,15 @@ class Main:
         )
 
         tr.to_csv(self.sm.epoch_dir / f"trajectories{suffix}.csv")
+
+        if self.params.early_measures:
+            print("----> Early-posture measures  ...", flush=True)
+            try:
+                measures = early_measures(self, controller, self.params.early_steps, self.params.tests)
+                if self.params.use_wandb:
+                    wandb.log({f"eval_{k}{suffix}": float(v) for k, v in measures.items()}, step=epoch)
+            except Exception:
+                traceback.print_exc()
 
         print("----> Map renderings  ...", flush=True)
         weights_file = self.sm.site_dir / f"weights{tag_suffix}.npy"

@@ -18,6 +18,7 @@ SRC = Path(__file__).resolve().parent
 sys.path.insert(0, str(SRC))
 
 from SMMain import Main  # noqa: E402  (pickled dumps look up Main in __main__)
+from early_measures import early_eta2, early_rows, eta2, node_groups, node_postures, paired_early  # noqa: E402
 from touch_layout import inner_slices  # noqa: E402
 
 _ = Main
@@ -71,14 +72,6 @@ def postures(data, episodes, epoch):
         rows.append((f"{epoch}_{ep}", episodes.context[ep % len(episodes)], data["p"][ep, idx].mean(0),
                      data["p"][ep, contact].mean(0) if len(contact) else None))
     return rows
-
-
-def eta2(policies, labels):
-    mu = policies.mean(0)
-    total = ((policies - mu) ** 2).sum()
-    between = sum((labels == lab).sum() * ((policies[labels == lab].mean(0) - mu) ** 2).sum()
-                  for lab in np.unique(labels))
-    return between / total
 
 
 def participation(x):
@@ -136,6 +129,8 @@ def static_stats(args, rng):
     pooled, labels, protos, goal_protos, effect_rows = [], [], None, [], []
     mi_raw, mi_null, mi_adj = [], [], []
     posture_rows = []
+    early_x, early_ctx, early_rot = [], [], []
+    early_steps = [int(k) for k in args.posture_steps.split(",") if k]
     for epoch in parse_epochs(args.epochs):
         main, data = load(args.storage, epoch, args.data)
         policies, label = segments(data, main.episode_dataset)
@@ -148,6 +143,11 @@ def static_stats(args, rng):
         protos = getattr(main, args.controller).stm_a.get_weights().T
         goal_protos.append(protos[label.node.values])
         effect_rows.append(node_effects(main, args.controller)[label.node.values])
+        if early_steps:
+            k0 = label[label.k == 0]
+            early_x.append(node_postures(main, args.controller, early_steps)[k0.node.values])
+            early_ctx.append(k0.ctx.values.astype(int))
+            early_rot.append(k0.rot.values.astype(float))
         raw, null, adjusted = mi_time_weighted(data, main, policies, rng, args.n_perm_mi)
         mi_raw.append(raw)
         mi_null.append(null)
@@ -221,6 +221,14 @@ def static_stats(args, rng):
     out["eta2_context_effect"] = float(eta2(effects, contexts))
     out["eta2_context_effect_null"], out["eta2_context_effect_p95"] = unit_null(effects, units, contexts, rng, args.n_perm)
 
+    if early_steps:
+        x_all, ctx_all, rot_all = np.vstack(early_x), np.concatenate(early_ctx), np.concatenate(early_rot)
+        for j, k in enumerate(early_steps):
+            out[f"early_spread_s{k}"] = float(x_all[:, j].std(0).mean())
+            for name, (obs, null, p95) in early_eta2(x_all[:, j], ctx_all, rot_all, rng, args.n_perm).items():
+                out[f"early_eta2_{name}_s{k}"], out[f"early_eta2_{name}_s{k}_null"], out[f"early_eta2_{name}_s{k}_p95"] = obs, null, p95
+        out["early_rows"] = int(len(ctx_all))
+
     components = np.linalg.svd(protos - protos.mean(0), full_matrices=False)[2]
     for k in map(int, args.dims.split(",")):
         low = policies @ components[:k].T
@@ -270,19 +278,9 @@ def episode_table(tr, episodes, obj_set="orig"):
     return pd.DataFrame(rows)
 
 
-def node_groups(tr, episodes, n_nodes, min_segments):
-    seg = tr.drop_duplicates(["episode_id", "tr_id"])
-    node = (np.round(seg.prototype_x.values) * GRID + np.round(seg.prototype_y.values)).astype(int)
-    ctx = episodes.context.values[seg.episode_id.astype(int).values % len(episodes)]
-    count = np.zeros((n_nodes, 3))
-    for n, c in zip(node, ctx):
-        count[n, int(c) - 1] += 1
-    group = np.where(count.sum(1) >= min_segments, count.argmax(1), -1)
-    return group, count
-
-
 def counterfactual(args, rng):
     main, _ = load(args.storage, parse_epochs(args.epochs)[-1], args.data)
+    main.params.motor_noise = 0.0
     controller = getattr(main, args.controller)
     weights = controller.stm_a.get_weights().copy()
     protos = weights.T
@@ -321,7 +319,9 @@ def counterfactual(args, rng):
             p[used] = protos[used].mean(0)
         return p.T
 
-    rows = []
+    rows, early = [], []
+    onset = main.params.drop_first_n_steps + main.params.policy_selection_steps
+    early_steps = [int(k) for k in args.posture_steps.split(",") if k]
     for kind in ("intact", "swap", "shuffle_within_context", "shuffle_all_used", "constant_mean"):
         for draw in range(1 if kind in ("intact", "constant_mean") else args.draws):
             w = build(kind) if kind != "intact" else weights
@@ -330,8 +330,12 @@ def counterfactual(args, rng):
                 table = episode_table(tr, episodes, getattr(main.params, "obj_set", "orig"))
                 table["cond"], table["eseed"], table["draw"] = kind, eseed, draw
                 rows.append(table)
+                if early_steps:
+                    er = early_rows(tr, episodes, onset, early_steps)
+                    er["cond"], er["eseed"], er["draw"] = kind, eseed, draw
+                    early.append(er)
     table = pd.concat(rows, ignore_index=True)
-    return table, sizes
+    return table, sizes, (pd.concat(early, ignore_index=True) if early else None)
 
 
 def parse_arguments():
@@ -342,6 +346,7 @@ def parse_arguments():
     parser.add_argument("--controller", default="controller", help="controller or controller_par")
     parser.add_argument("--out", default=None, help="Prefix of the output files")
     parser.add_argument("--dims", default="3,10", help="Prototype principal components kept for the low-dimensional eta2")
+    parser.add_argument("--posture-steps", default="10,20", help="Steps after the first policy onset for the early-posture eta2 (comma list, empty to skip)")
     parser.add_argument("--counterfactual", action="store_true")
     parser.add_argument("--eseeds", default="101,102,103")
     parser.add_argument("--n-episodes", type=int, default=36)
@@ -362,7 +367,7 @@ if __name__ == "__main__":
     if args.out:
         Path(args.out + "_static.json").write_text(json.dumps(stats, indent=1))
     if args.counterfactual:
-        table, sizes = counterfactual(args, rng)
+        table, sizes, early = counterfactual(args, rng)
         cols = ["success", "match", "max_match", "touch", "hit2", "grasp", "claw"]
         overall = table.groupby("cond")[cols].mean().round(3)
         by_ctx = table.groupby(["cond", "ctx"])[cols].mean().round(3)
@@ -372,3 +377,10 @@ if __name__ == "__main__":
             table.to_csv(args.out + "_counterfactual_episodes.csv", index=False)
             by_ctx.to_csv(args.out + "_counterfactual_by_context.csv")
             table.groupby(["cond", "ctx", "rot"])[cols].mean().round(3).to_csv(args.out + "_counterfactual_by_context_rotation.csv")
+        if early is not None:
+            summary, per_ep = paired_early(early)
+            print(summary.round(3).to_string(index=False))
+            if args.out:
+                early.to_csv(args.out + "_early_postures.csv", index=False)
+                summary.to_csv(args.out + "_early_paired_summary.csv", index=False)
+                per_ep.to_csv(args.out + "_early_paired_episodes.csv", index=False)
