@@ -263,12 +263,12 @@ def test_prune_policies():
     assert Parameters().policy_prune == 0.0
 
 
-def test_policy_noise_local_only():
+def test_policy_noise_rel():
     import types
     from SMController import SMController
 
-    def sigma(local_only, goal_comp, rel=0.0):
-        params = Parameters(policy_noise_local_only=local_only, policy_noise_rel=rel)
+    def sigma(goal_comp, rel=0.0):
+        params = Parameters(policy_noise_rel=rel)
         s = types.SimpleNamespace(
             params=params, base_policy_noise=0.01, max_policy_noise=20.0,
             rng=np.random.RandomState(0), reach_basis=None,
@@ -281,13 +281,9 @@ def test_policy_noise_local_only():
         s.processLocalCompetence = lambda c: SMController.processLocalCompetence(s, c)
         return SMController.getPoliciesFromPointsWithNoise(s, None)[3]
 
-    assert Parameters().policy_noise_local_only is False
     loc = np.tanh(5 * 0.5)
-    assert abs(sigma(True, 0.5) - (0.01 + 19.99 * (1 - loc))) < 1e-9
-    assert abs(sigma(False, 0.5) - (0.01 + 19.99 * 0.6 * (1 - loc))) < 1e-9
-    assert sigma(True, 0.0) > sigma(True, 0.8)
-    assert abs(sigma(False, 0.5, rel=1.5) - (0.01 + 1.5 * 2.0 * 0.6 * (1 - loc))) < 1e-9
-    assert abs(sigma(True, 0.5, rel=1.5) - (0.01 + 1.5 * 2.0 * (1 - loc))) < 1e-9
+    assert abs(sigma(0.5) - (0.01 + 19.99 * 0.6 * (1 - loc))) < 1e-9
+    assert abs(sigma(0.5, rel=1.5) - (0.01 + 1.5 * 2.0 * 0.6 * (1 - loc))) < 1e-9
     assert Parameters().policy_noise_rel == 0.0
 
 
@@ -309,5 +305,5 @@ if __name__ == "__main__":
     test_actuator_records_last_activity()
     test_circle_buffers_the_used_units()
     test_prune_policies()
-    test_policy_noise_local_only()
+    test_policy_noise_rel()
     print("ok")
