@@ -49,10 +49,23 @@ class SensoryMotorCircle:
         self.action_steps = action_steps
         self.main = main
         self.rng = rng if rng is not None else main.rng
+        self.used = None
+
+    def record_used(self, agent):
+        if self.main.params.policy_prune > 0:
+            activity = agent.grip_agent.grip.last_activity
+            self.used = activity.copy() if self.used is None else np.maximum(self.used, activity)
+
+    def used_mask(self, threshold):
+        return np.zeros(self.main.params.grip_hidden) if self.used is None else (self.used >= threshold).astype(float)
+
+    def reset_used(self):
+        self.used = None
 
     def step(self, env, agent, state):
         if self.t % self.action_steps == 0:
             self.action = agent.step(state)
+            self.record_used(agent)
         state = env.step(self.action)
 
         self.t += 1
@@ -61,6 +74,7 @@ class SensoryMotorCircle:
     def noisy_step(self, env, agent, state):
         if self.t % self.action_steps == 0:
             self.action = agent.step(state)
+            self.record_used(agent)
         state = env.step(
             self.action
             + self.rng.normal(scale=self.main.params.motor_noise, size=self.action.shape)
@@ -86,6 +100,18 @@ def held_onsets(onset, batch_ss, policy_changed, i, k):
     contact = (batch_ss[:, i - k : i + 1, :].sum(-1) > 0).all(axis=1)
     unchanged = ~policy_changed[:, i - k + 1 : i + 1].any(axis=1)
     return onset[:, i - k] & contact & unchanged
+
+
+def gentle_bonus_value(params, window_effort, bilateral):
+    """Mean smoothed effort over the hold window and the bonus b * bilateral * max(0, 1 - mean / limit)."""
+    valid = np.asarray(window_effort, dtype=float)
+    valid = valid[~np.isnan(valid)]
+    if valid.size == 0:
+        return np.nan, 0.0
+    mean = float(valid.mean())
+    if not bilateral:
+        return mean, 0.0
+    return mean, params.gentle_bonus * max(0.0, 1.0 - mean / params.gentle_limit)
 
 
 def smooth_effort(alpha, effort, previous):
@@ -523,7 +549,7 @@ class Main:
     def reset_model_data(self, controller):
 
         for key in controller.model_data:
-            controller.model_data[key][::] = 0
+            controller.model_data[key][::] = np.nan if key in ("batch_effort_s", "batch_gentle") else 0
 
     def initialize_model_data(self, controller, n_episodes=None):
 
@@ -547,6 +573,9 @@ class Main:
             ),
             "batch_effort": np.zeros([n_episodes, self.params.stime]),
             "batch_effort_s": np.full([n_episodes, self.params.stime], np.nan),
+            "batch_gentle": np.full([n_episodes, self.params.stime, 3], np.nan),
+            "policy_extra": np.zeros([n_episodes, self.params.stime]),
+            "policy_used": np.zeros([n_episodes, self.params.stime, self.params.grip_hidden]),
             "batch_p": np.zeros(
                 [
                     n_episodes,
@@ -683,6 +712,19 @@ class Main:
         grasped = longest >= min_steps
         claw = np.abs(controller.model_data["batch_p"][..., 3])
         metrics = {"grasp_rate": grasped.mean(), "grasp_step_freq": both.mean()}
+        if self.params.policy_prune > 0:
+            used = controller.model_data["policy_used"].reshape(-1, self.params.grip_hidden)
+            marked = used.sum(1) > 0
+            if marked.any():
+                metrics["policy_used_frac"] = float(used[marked].mean())
+        if self.params.gentle_bonus > 0:
+            gentle = controller.model_data["batch_gentle"].reshape(-1, 3)
+            evaluated = ~np.isnan(gentle[:, 0])
+            if evaluated.any():
+                metrics["gentle_effort"] = float(gentle[evaluated, 0].mean())
+                metrics["gentle_bilateral"] = float(gentle[evaluated, 1].mean())
+                metrics["gentle_bonus"] = float(gentle[evaluated, 2].mean())
+                metrics["gentle_bonus_rate"] = float((gentle[evaluated, 2] > 0).mean())
         if self.params.touch_overload > 0:
             effort = np.nan_to_num(controller.model_data["batch_effort_s"], nan=0.0)
             over = effort > self.params.touch_overload
@@ -892,6 +934,8 @@ class Main:
         episode_len = np.zeros(batch_size, dtype=int)
         max_match = np.zeros((batch_size, self.params.stime))
         onset = np.zeros((batch_size, self.params.stime), dtype=bool)
+        last_onset = np.full(batch_size, -1)
+        policy_start = np.full(batch_size, -1)
         abs_max = np.zeros((batch_size, self.params.stime))
         matches = np.zeros((batch_size, self.params.stime), dtype=bool)
         policy_changed = np.zeros((batch_size, self.params.stime), dtype=bool)
@@ -1043,6 +1087,10 @@ class Main:
                                 self.params.credit_hold_steps,
                             )
 
+                        if self.params.gentle_bonus > 0:
+                            first = mmask & (last_onset < 0)
+                            last_onset[first] = i
+
                         max_match[mmask, i:] = controller.model_data["match_value"][
                             mmask, i, None
                         ]
@@ -1091,10 +1139,35 @@ class Main:
 
                 if within_action_interval:
 
+                    if self.params.gentle_bonus > 0:
+                        k = self.params.gentle_hold
+                        success_mask = success_mask & (last_onset >= 0) & (t - 1 - last_onset >= k)
+                        left, right = inner_faces(self.params)
+                        for ep in np.where(success_mask)[0]:
+                            i0 = last_onset[ep]
+                            ss_end = controller.model_data["batch_ss"][ep, i0 + k, :]
+                            both_faces = bool(ss_end[left].sum() > 0 and ss_end[right].sum() > 0)
+                            mean_effort, bonus = gentle_bonus_value(
+                                self.params, controller.model_data["batch_effort_s"][ep, i0 : i0 + k + 1], both_faces
+                            )
+                            controller.model_data["batch_gentle"][ep, t - 1] = [mean_effort, float(both_faces), bonus]
+                            if bonus > 0:
+                                controller.model_data["policy_extra"][ep, i0 + k] = bonus
+                        last_onset[success_mask] = -1
+
                     # Set initial policy after warmup steps + action selection
                     # steps
                     if action_interval_onset:
                         success_mask[:] = 1
+
+                    if self.params.policy_prune > 0:
+                        for ep in np.where(success_mask)[0]:
+                            if policy_start[ep] >= 0:
+                                controller.model_data["policy_used"][ep, policy_start[ep] : t, :] = smcycles[ep].used_mask(
+                                    self.params.policy_prune
+                                )
+                            smcycles[ep].reset_used()
+                        policy_start[success_mask] = t
 
                     # Register every change of policy (including setting the
                     # initial one)
@@ -1137,6 +1210,14 @@ class Main:
 
         if self.params.match_abs_bonus > 0:
             max_match = max_match + self.params.match_abs_bonus * abs_max * (max_match > 0)
+
+        if self.params.policy_prune > 0:
+            for ep in np.where(policy_start >= 0)[0]:
+                controller.model_data["policy_used"][ep, policy_start[ep] :, :] = smcycles[ep].used_mask(self.params.policy_prune)
+
+        if self.params.gentle_bonus > 0:
+            bonus = np.nan_to_num(controller.model_data["batch_gentle"][..., 2], nan=0.0)
+            max_match = max_match + bonus * (max_match > 0)
 
         return (
             matches,
@@ -1226,6 +1307,9 @@ class Main:
                 "batch_ss",
                 "batch_effort",
                 "batch_effort_s",
+                "batch_gentle",
+                "policy_extra",
+                "policy_used",
                 "batch_p",
                 "batch_a",
                 "batch_c",

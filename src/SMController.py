@@ -18,6 +18,13 @@ def flt(n, s=0.1):
     return e / e.sum()
 
 
+def prune_policies(policies, used):
+    """Zero the readout weights of the hidden units that never fired in the segment (rows without a mask are kept)."""
+    has = used.sum(1) > 0
+    mask = np.where(has[:, None], np.repeat(used, policies.shape[1] // used.shape[1], axis=1), 1.0)
+    return policies * mask
+
+
 class SMController:
     def __init__(self, params, sm, rng=None, load=False, shuffle=False, tag=None):
 
@@ -540,11 +547,18 @@ class SMController:
             if th > 0 and match_per_mod is not None:
                 policy_sel &= (match_per_mod[:, 1] >= th) & (match_per_mod[:, 2] >= th)
             lr_pol = local_lr
+            if getattr(self.params, "gentle_bonus", 0.0) > 0:
+                extra = self.model_data["policy_extra"].reshape(-1)
+                if (extra > 0).any():
+                    policy_sel = policy_sel | (extra > 0)
+                    lr_pol = local_lr * np.where(extra > 0, extra, 1.0).reshape((-1,) + (1,) * (np.ndim(local_lr) - 1))
             if self.params.policy_update_baseline > 0 and policy_sel.any():
                 policy_sel, lr_pol = self.baseline_select(policy_sel, match_value, goals, local_lr)
             if policy_sel.any():
                 self.stm_a.update_params(sigma=local_sigma[policy_sel])
             policies_upd = policies
+            if getattr(self.params, "policy_prune", 0.0) > 0:
+                policies_upd = prune_policies(policies, self.model_data["policy_used"].reshape(len(policies), -1))
             if self.params.policy_output_space and actuator is not None and policy_sel.any():
                 policies_upd = self.project_policies(
                     policies, ssensories, proprios, goals, policy_sel, actuator

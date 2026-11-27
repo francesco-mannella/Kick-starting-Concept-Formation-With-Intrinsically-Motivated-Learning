@@ -1,8 +1,13 @@
+from pathlib import Path
+
+import types
+
 import numpy as np
 
 from params import Parameters
 from touch_layout import SKETCH, inner_slices
-from SMMain import held_onsets, near_record_match, smooth_effort, touch_grade, touch_input, touch_map_size, touch_overloaded
+from SMController import prune_policies
+from SMMain import SensoryMotorCircle, gentle_bonus_value, held_onsets, near_record_match, smooth_effort, touch_grade, touch_input, touch_map_size, touch_overloaded
 
 
 def touch(**active):
@@ -167,6 +172,97 @@ def test_sketch_layout_plot_points():
     assert all(r.shape == (4, 2) for r in HAND_LINKS)
 
 
+def test_gentle_bonus_value():
+    p = Parameters(gentle_bonus=0.5, gentle_limit=1.5)
+    assert Parameters().gentle_bonus == 0.0 and Parameters().gentle_hold == 3
+    mean, bonus = gentle_bonus_value(p, [0.2, 0.4, np.nan, 0.3], True)
+    assert np.isclose(mean, 0.3) and np.isclose(bonus, 0.5 * (1 - 0.3 / 1.5))
+    assert gentle_bonus_value(p, [0.2, 0.4], False) == (np.mean([0.2, 0.4]), 0.0)  # one finger only: no bonus
+    assert gentle_bonus_value(p, [2.0, 2.2], True)[1] == 0.0  # hard squeeze: no bonus
+    mean, bonus = gentle_bonus_value(p, [np.nan, np.nan], True)
+    assert np.isnan(mean) and bonus == 0.0  # no contact in the window
+
+
+def test_reset_restores_nan_arrays():
+    import types
+
+    from SMMain import Main
+
+    ctrl = types.SimpleNamespace(model_data={"batch_effort_s": np.full((2, 3), 5.0), "batch_gentle": np.full((2, 3, 3), 5.0), "batch_ss": np.ones((2, 3, 4))})
+    Main.reset_model_data(None, ctrl)
+    assert np.isnan(ctrl.model_data["batch_effort_s"]).all() and np.isnan(ctrl.model_data["batch_gentle"]).all()
+    assert (ctrl.model_data["batch_ss"] == 0).all()
+
+
+def make_actuator():
+    from Actuator import Actuator
+
+    root = Path(__file__).parent
+    return Actuator(None, np.load(root / "data/StoredGripActuatorMap_v3.npy"), None, num_inputs=47, num_hidden=75, num_outputs=5, encoding="rbf_block",
+                    input_norm="block_rms", norm_name="data/StoredGripActuatorNorm_v3", touch_gain=3.0)
+
+
+def test_actuator_records_last_activity():
+    act = make_actuator()
+    rng = np.random.default_rng(0)
+    for _ in range(3):
+        state = rng.uniform(-1, 1, 47)
+        hidden = act.hidden(state)
+        assert act.last_activity.shape == (75,) and np.allclose(act.last_activity * act.gain, hidden)
+
+
+class FakeAgent:
+    def __init__(self, activities):
+        self.activities = iter(activities)
+        self.grip_agent = types.SimpleNamespace(grip=types.SimpleNamespace(last_activity=None))
+
+    def step(self, state):
+        self.grip_agent.grip.last_activity = next(self.activities)
+        return np.zeros(5)
+
+
+class FakeEnv:
+    def step(self, action):
+        return {}
+
+
+def test_circle_buffers_the_used_units():
+    import types as _types
+
+    main = _types.SimpleNamespace(params=Parameters(policy_prune=0.1), rng=np.random.default_rng(0))
+    first, second, third = np.zeros(75), np.zeros(75), np.zeros(75)
+    first[[3, 10]] = [0.5, 0.05]
+    second[[3, 40]] = [0.2, 0.9]
+    third[7] = 1.0
+    agent = FakeAgent([first, second, third])
+    circle = SensoryMotorCircle(main, action_steps=2)
+    for _ in range(4):  # the actuator is queried at steps 0 and 2 only
+        circle.step(FakeEnv(), agent, {})
+    mask = circle.used_mask(0.1)
+    assert mask.shape == (75,) and sorted(np.where(mask > 0)[0].tolist()) == [3, 40]  # unit 10 stayed under the threshold
+    circle.reset_used()
+    assert not circle.used_mask(0.1).any()
+    circle.step(FakeEnv(), agent, {})
+    circle.step(FakeEnv(), agent, {})
+    assert np.where(circle.used_mask(0.1) > 0)[0].tolist() == [7]  # a new buffer starts after the reset
+    off = _types.SimpleNamespace(params=Parameters(), rng=np.random.default_rng(0))
+    circle = SensoryMotorCircle(off, action_steps=1)
+    circle.step(FakeEnv(), FakeAgent([first]), {})
+    assert circle.used is None  # default: nothing is recorded
+
+
+def test_prune_policies():
+    policies = np.ones((3, 375))
+    used = np.zeros((3, 75))
+    used[0, :10] = 1.0
+    used[2, 5] = 1.0
+    out = prune_policies(policies, used)
+    assert out[0].reshape(75, 5)[:10].all() and not out[0].reshape(75, 5)[10:].any()  # unused rows zeroed
+    assert (out[1] == 1).all()  # no mask for this row: kept
+    assert out[2].reshape(75, 5)[5].all() and out[2].sum() == 5
+    assert Parameters().policy_prune == 0.0
+
+
 if __name__ == "__main__":
     test_defaults_are_off()
     test_normalised_input()
@@ -180,4 +276,9 @@ if __name__ == "__main__":
     test_held_onsets()
     test_sketch_layout_groups()
     test_sketch_layout_plot_points()
+    test_gentle_bonus_value()
+    test_reset_restores_nan_arrays()
+    test_actuator_records_last_activity()
+    test_circle_buffers_the_used_units()
+    test_prune_policies()
     print("ok")

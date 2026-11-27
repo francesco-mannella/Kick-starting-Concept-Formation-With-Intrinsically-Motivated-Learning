@@ -35,6 +35,7 @@ class Actuator:
         self.input_blocks = kargs.get("input_blocks", (40, 5, 2))
         self.block_units = self.num_hidden // len(self.input_blocks)
         self.gain = None
+        self.last_activity = None
         if self.input_norm == "block_rms":
             stats = np.load(
                 (Path(__file__).parent / kargs["norm_name"]).with_suffix(".npz")
@@ -87,6 +88,7 @@ class Actuator:
             hidden = self.rbf_hidden(state)
         else:
             hidden = np.dot(state, self.map)
+        self.last_activity = hidden.copy()
         if self.gain is not None:
             hidden = hidden * self.gain
         if self.basis is not None:

@@ -82,6 +82,10 @@ class Parameters(ParameterManager):
         touch_overload=0.0,
         touch_overload_alpha=1.0,
         credit_hold_steps=0,
+        gentle_bonus=0.0,
+        gentle_limit=1.5,
+        gentle_hold=3,
+        policy_prune=0.0,
         touch_incr_th=0.0,
         policy_update_min_match=0.0,
         policy_update_min_mod_match=0.0,
@@ -200,6 +204,10 @@ class Parameters(ParameterManager):
         self.touch_overload = touch_overload
         self.touch_overload_alpha = touch_overload_alpha
         self.credit_hold_steps = credit_hold_steps
+        self.gentle_bonus = gentle_bonus
+        self.gentle_limit = gentle_limit
+        self.gentle_hold = gentle_hold
+        self.policy_prune = policy_prune
         self.touch_incr_th = touch_incr_th
         self.policy_update_min_match = policy_update_min_match
         self.policy_update_min_mod_match = policy_update_min_mod_match
